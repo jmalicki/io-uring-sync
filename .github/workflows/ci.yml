@@ -20,11 +20,11 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
-        cache: true
-        cache-all-crates: true
-        cache-workspace-crates: true
-        cache-bin: true
-        cache-on-failure: true
+        cache: "true"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
+        cache-on-failure: "true"
         cache-key: "io-uring-sync"
     
     - name: Install cargo-deny
@@ -51,11 +51,11 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
-        cache: true
-        cache-all-crates: true
-        cache-workspace-crates: true
-        cache-bin: true
-        cache-on-failure: true
+        cache: "true"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
+        cache-on-failure: "true"
         cache-key: "io-uring-sync"
     
     - name: Check formatting
@@ -133,11 +133,11 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
-        cache: true
-        cache-all-crates: true
-        cache-workspace-crates: true
-        cache-bin: true
-        cache-on-failure: true
+        cache: "true"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
+        cache-on-failure: "true"
         cache-key: "io-uring-sync"
     
     - name: Install cargo-audit
@@ -157,11 +157,11 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
-        cache: true
-        cache-all-crates: true
-        cache-workspace-crates: true
-        cache-bin: true
-        cache-on-failure: true
+        cache: "true"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
+        cache-on-failure: "true"
         cache-key: "io-uring-sync"
     
     - name: Run benchmarks
@@ -184,11 +184,11 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
-        cache: true
-        cache-all-crates: true
-        cache-workspace-crates: true
-        cache-bin: true
-        cache-on-failure: true
+        cache: "true"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
+        cache-on-failure: "true"
         cache-key: "io-uring-sync"
     
     - name: Build documentation (with private items)
