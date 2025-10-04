@@ -188,7 +188,7 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
 
     // Initialize file operations with configured parameters
     // Queue depth and buffer size are validated by the CLI module
-    let file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
+    let mut file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
 
     // Handle single file copy
     if args.is_file_copy() {
@@ -199,15 +199,20 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
             file_ops.create_dir(parent).await?;
         }
 
-        // Get source file size for stats
-        let file_size = file_ops.get_file_size(&args.source).await?;
+        // Note: file size is now obtained within copy_file_with_metadata
 
-        // Copy the file
-        match copy_file(&args.source, &args.destination, args.copy_method.clone()).await {
-            Ok(()) => {
+        // Copy the file with metadata preservation
+        match file_ops
+            .copy_file_with_metadata(&args.source, &args.destination)
+            .await
+        {
+            Ok(bytes_copied) => {
                 stats.files_copied = 1;
-                stats.bytes_copied = file_size;
-                info!("Successfully copied file: {} bytes", file_size);
+                stats.bytes_copied = bytes_copied;
+                info!(
+                    "Successfully copied file with metadata: {} bytes",
+                    bytes_copied
+                );
             }
             Err(e) => {
                 error!("Failed to copy file {}: {}", args.source.display(), e);

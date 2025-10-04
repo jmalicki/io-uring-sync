@@ -3,7 +3,6 @@
 use crate::cli::CopyMethod;
 use crate::error::{Result, SyncError};
 use crate::io_uring::FileOperations;
-use crate::cli::CopyMethod;
 use std::path::Path;
 
 /// Copy a single file using the specified method
