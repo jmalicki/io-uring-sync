@@ -497,6 +497,7 @@ pub enum CopyStatus {
 
 #[allow(dead_code)]
 impl CopyOperation {
+    #[must_use]
     pub fn new(src: std::path::PathBuf, dst: std::path::PathBuf, size: u64) -> Self {
         Self {
             src_path: src,
@@ -520,6 +521,7 @@ impl CopyOperation {
         self.status = CopyStatus::Failed(error);
     }
 
+    #[must_use]
     pub fn progress_percentage(&self) -> f64 {
         if self.file_size == 0 {
             100.0

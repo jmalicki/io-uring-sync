@@ -142,6 +142,7 @@ impl ProgressTracker {
     /// - Progress bar styling is applied immediately
     #[allow(dead_code)]
     #[allow(clippy::unwrap_used)]
+    #[must_use]
     pub fn new() -> Self {
         let pb = ProgressBar::new(0);
         pb.set_style(
@@ -345,6 +346,7 @@ impl ProgressTracker {
     /// - Statistics are read atomically
     /// - Elapsed time calculation is cached for performance
     /// - No memory allocation occurs
+    #[must_use]
     pub fn stats(&self) -> ProgressStats {
         ProgressStats {
             files_copied: self.files_copied,

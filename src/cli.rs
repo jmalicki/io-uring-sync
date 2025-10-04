@@ -75,6 +75,17 @@ pub enum CopyMethod {
 
 impl Args {
     /// Validate command-line arguments
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Source path does not exist
+    /// - Source path is not a file or directory
+    /// - Queue depth is outside valid bounds (1024-65536)
+    /// - Max files in flight is outside valid bounds (1-10000)
+    /// - Buffer size is too large (>1GB)
+    /// - No CPU cores are available
+    /// - Both --quiet and --verbose options are used
     pub fn validate(&self) -> Result<()> {
         // Check if source exists
         if !self.source.exists() {
@@ -128,6 +139,7 @@ impl Args {
     }
 
     /// Get the actual CPU count to use
+    #[must_use]
     pub fn effective_cpu_count(&self) -> usize {
         if self.cpu_count == 0 {
             num_cpus::get()
@@ -138,6 +150,7 @@ impl Args {
 
     /// Get the actual buffer size in bytes
     #[allow(dead_code)]
+    #[must_use]
     pub fn effective_buffer_size(&self) -> usize {
         if self.buffer_size_kb == 0 {
             // Auto-detect based on system memory and filesystem
@@ -149,16 +162,19 @@ impl Args {
     }
 
     /// Check if the source is a directory
+    #[must_use]
     pub fn is_directory_copy(&self) -> bool {
         self.source.is_dir()
     }
 
     /// Check if the source is a single file
+    #[must_use]
     pub fn is_file_copy(&self) -> bool {
         self.source.is_file()
     }
 
     /// Get buffer size in bytes
+    #[must_use]
     pub fn buffer_size_bytes(&self) -> usize {
         self.buffer_size_kb * 1024
     }
@@ -166,6 +182,8 @@ impl Args {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
     use crate::error::SyncError;
     use compio::fs::File;
