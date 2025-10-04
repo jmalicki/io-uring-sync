@@ -12,3 +12,7 @@ rio = "0.9"
 iou = "0.3.3"
 libc = "0.2"
 thiserror = "1.0"
+
+# Security: Force nix to version >=0.23.0 to fix RUSTSEC-2021-0119
+# This overrides the nix version used by iou dependency
+nix = ">=0.23.0"
