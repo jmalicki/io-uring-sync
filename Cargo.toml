@@ -23,7 +23,7 @@ members = ["crates/io-uring-extended"]
 
 [dependencies]
 # Core async runtime
-compio = { version = "0.13", features = ["macros"] }
+compio = { version = "0.16", features = ["macros"] }
 
 # CLI and error handling
 clap = { version = "4.0", features = ["derive"] }
@@ -67,7 +67,7 @@ xattr = "1.0"
 # Documentation and linting
 mdbook = "0.4"
 cargo-make = "0.37"
-# cargo-deny = "0.18"  # Temporarily disabled due to compilation issues
+cargo-deny = "0.17.0"
 cargo-audit = "0.21"
 cargo-outdated = "0.17"
 cargo-expand = "1.0"
