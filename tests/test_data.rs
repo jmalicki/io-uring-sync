@@ -1,6 +1,7 @@
 //! Test data generation utilities
 
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tempfile::TempDir;
 

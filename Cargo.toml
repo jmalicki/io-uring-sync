@@ -86,6 +86,8 @@ tempfile = "3.0"
 assert_cmd = "2.0"
 predicates = "3.0"
 rstest = "0.18"
+walkdir = "2.0"
+xattr = "1.0"
 
 # Documentation and linting
 mdbook = "0.4"
