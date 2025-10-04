@@ -38,8 +38,20 @@ jobs:
     - name: Check formatting
       run: cargo fmt --all -- --check
     
-    - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: Run clippy (strict documentation standards)
+      run: |
+        cargo clippy --all-targets --all-features -- \
+          -D warnings \
+          -D clippy::missing_docs_in_crate_items \
+          -D clippy::missing_errors_doc \
+          -D clippy::missing_panics_doc \
+          -D clippy::must_use_candidate \
+          -D clippy::unwrap_used \
+          -D clippy::expect_used \
+          -D clippy::panic \
+          -D clippy::todo \
+          -D clippy::unimplemented \
+          -D clippy::unreachable
     
     - name: Run tests
       run: cargo test --all-features
@@ -89,6 +101,27 @@ jobs:
     - name: Run security audit
       run: cargo audit
 
+  dependencies:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install cargo-deny
+      run: cargo install cargo-deny
+    
+    - name: Install cargo-outdated
+      run: cargo install cargo-outdated
+    
+    - name: Check dependencies with cargo-deny
+      run: cargo deny check
+    
+    - name: Check for outdated dependencies
+      run: cargo outdated --exit-code 1
+
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
@@ -116,8 +149,11 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Build documentation
-      run: cargo doc --no-deps --all-features
+    - name: Build documentation (with private items)
+      run: cargo doc --document-private-items --no-deps --all-features
+
+    - name: Check documentation links
+      run: cargo doc --document-private-items --no-deps --all-features -- --check
     
     - name: Deploy documentation
       if: github.ref == 'refs/heads/main'

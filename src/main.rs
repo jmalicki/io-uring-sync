@@ -10,6 +10,7 @@ use tracing::{info, Level};
 mod cli;
 mod copy;
 mod error;
+mod io_uring;
 mod progress;
 mod sync;
 
@@ -60,17 +61,8 @@ async fn main() -> Result<()> {
     // Validate arguments
     args.validate().context("Invalid arguments")?;
 
-    // TODO: Implement the actual copying logic
-    if !args.quiet {
-        tracing::warn!("Copying logic not yet implemented");
-    }
-
-    // For now, just return success
-    let result: Result<sync::SyncStats> = Ok(sync::SyncStats {
-        files_copied: 0,
-        bytes_copied: 0,
-        duration: std::time::Duration::from_secs(0),
-    });
+    // Perform the sync operation
+    let result = sync::sync_files(&args).await;
 
     match result {
         Ok(stats) => {
