@@ -40,42 +40,9 @@ libc = "0.2"
 io-uring-extended = { path = "crates/io-uring-extended" }
 iou = "0.3.3"
 
-# liburing FFI bindings
+# Build dependencies
 [build-dependencies]
 cc = "1.0"
-
-# Command line interface
-clap = { version = "4.0", features = ["derive"] }
-
-# Error handling
-anyhow = "1.0"
-thiserror = "1.0"
-
-# Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# Progress reporting
-indicatif = "0.17"
-
-# System information
-num_cpus = "1.0"
-
-# Serialization (for progress reporting)
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-
-# File system operations
-walkdir = "2.0"
-
-# Extended attributes
-xattr = "1.0"
-
-# Memory management
-bytes = "1.0"
-
-# Cross-platform compatibility
-cfg-if = "1.0"
 
 # Benchmarking (optional)
 criterion = { version = "0.5", features = ["html_reports"], optional = true }
@@ -92,9 +59,9 @@ xattr = "1.0"
 # Documentation and linting
 mdbook = "0.4"
 cargo-make = "0.37"
-cargo-deny = "0.15"
-cargo-audit = "0.19"
-cargo-outdated = "0.13"
+cargo-deny = "0.18"
+cargo-audit = "0.21"
+cargo-outdated = "0.17"
 cargo-expand = "1.0"
 
 [features]
@@ -121,3 +88,10 @@ build-all = ["build", "--all-targets", "--all-features"]
 # Documentation aliases
 doc-private = ["doc", "--document-private-items", "--no-deps", "--all-features"]
 doc-check = ["doc", "--document-private-items", "--no-deps", "--all-features", "--", "--check"]
+
+# Security audit configuration
+[audit]
+ignore = [
+    # rio has critical vulnerability but no fix available - we'll monitor for updates
+    { advisory = "RUSTSEC-2020-0021", reason = "No fixed upgrade available for rio crate" },
+]
