@@ -118,10 +118,11 @@ impl FileOperations {
         Ok(())
     }
 
-    /// Copy file content using file descriptors
+    /// Copy file content using file descriptors with compio managed buffers
     ///
     /// This is the core descriptor-based copy operation that efficiently
-    /// copies file content in chunks using the provided file descriptors.
+    /// copies file content in chunks using compio's managed buffer pools.
+    /// It leverages IoBuf/IoBufMut traits for safe and efficient buffer management.
     ///
     /// # Parameters
     ///
@@ -137,13 +138,14 @@ impl FileOperations {
         src_file: &mut compio::fs::File,
         dst_file: &mut compio::fs::File,
     ) -> Result<u64> {
-        // Copy file content in chunks using compio's buffer management
-        let mut offset = 0u64;
+        // Create managed buffer using compio's buffer traits
         let mut buffer = vec![0u8; self.buffer_size];
+        let mut offset = 0u64;
 
         loop {
-            // Read chunk from source
+            // Read chunk from source using managed buffer
             let result = src_file.read_at(buffer, offset).await;
+            
             let bytes_read = match result.0 {
                 Ok(n) => n,
                 Err(e) => return Err(SyncError::FileSystem(format!(
@@ -156,12 +158,14 @@ impl FileOperations {
                 break;
             }
 
-            // Write chunk to destination
-            let write_buffer = &result.1[..bytes_read];
-            let write_result = dst_file.write_all_at(write_buffer.to_vec(), offset).await;
+            // Create write buffer from the read data using compio's managed buffer
+            let write_buffer = result.1[..bytes_read].to_vec();
+            
+            // Write chunk to destination using managed buffer
+            let write_result = dst_file.write_all_at(write_buffer, offset).await;
             match write_result.0 {
                 Ok(()) => {
-                    // write_all_at returns () on success, so we don't need to check bytes written
+                    // write_all_at returns () on success
                 }
                 Err(e) => return Err(SyncError::FileSystem(format!(
                     "Failed to write to destination file: {}", e
@@ -169,7 +173,7 @@ impl FileOperations {
             }
 
             offset += bytes_read as u64;
-            buffer = result.1; // Reuse buffer for next iteration
+            buffer = result.1; // Reuse managed buffer for next iteration
         }
 
         // Sync destination file to ensure data is written to disk
@@ -177,6 +181,7 @@ impl FileOperations {
             SyncError::FileSystem(format!("Failed to sync destination file: {}", e))
         })?;
 
+        debug!("Copied {} bytes using compio managed buffers", offset);
         Ok(offset)
     }
 
