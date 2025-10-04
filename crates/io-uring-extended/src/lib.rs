@@ -10,11 +10,11 @@
 #![deny(missing_docs)]
 #![allow(unsafe_code)]
 
-use iou::IoUring;
 use rio::Rio;
-use std::io::{self, Error};
-use std::os::unix::ffi::OsStrExt;
+use iou::IoUring;
 use std::os::unix::io::RawFd;
+use std::os::unix::ffi::OsStrExt;
+use std::io::{self, Error};
 use thiserror::Error;
 
 /// Extended Rio that adds missing operations
@@ -32,7 +32,7 @@ pub enum ExtendedError {
     /// IoUring operation failed
     #[error("IoUring operation failed: {0}")]
     IoUring(#[from] io::Error),
-
+    
     /// Operation not supported
     #[error("Operation not supported: {0}")]
     NotSupported(String),
@@ -50,6 +50,8 @@ pub struct StatxResult {
     pub inode_number: u64,
     /// File size in bytes
     pub file_size: u64,
+    /// Number of hardlinks to this inode
+    pub link_count: u64,
     /// File permissions and type
     pub permissions: libc::mode_t,
     /// True if this is a regular file
@@ -74,7 +76,7 @@ impl ExtendedRio {
     pub fn new() -> Result<Self> {
         let rio = rio::new().map_err(ExtendedError::IoUring)?;
         let iou = IoUring::new(1024).map_err(ExtendedError::IoUring)?;
-
+        
         Ok(ExtendedRio { rio, iou })
     }
 
@@ -133,10 +135,16 @@ impl ExtendedRio {
         unsafe {
             let mut src_off = src_offset as i64;
             let mut dst_off = dst_offset as i64;
-
-            let result =
-                libc::copy_file_range(src_fd, &mut src_off, dst_fd, &mut dst_off, len as usize, 0);
-
+            
+            let result = libc::copy_file_range(
+                src_fd,
+                &mut src_off,
+                dst_fd,
+                &mut dst_off,
+                len as usize,
+                0,
+            );
+            
             if result < 0 {
                 Err(ExtendedError::IoUring(Error::last_os_error()))
             } else {
@@ -259,14 +267,22 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns the number of bytes written to buffer or an error.
-    pub async fn listxattr(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
+    pub async fn listxattr(
+        &self,
+        path: &std::path::Path,
+        buffer: &mut [u8],
+    ) -> Result<usize> {
         // For now, use synchronous syscall
         // TODO: Implement async io_uring xattr operations
         self.listxattr_syscall(path, buffer)
     }
 
     /// Synchronous listxattr implementation
-    fn listxattr_syscall(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
+    fn listxattr_syscall(
+        &self,
+        path: &std::path::Path,
+        buffer: &mut [u8],
+    ) -> Result<usize> {
         let path_c = std::ffi::CString::new(path.to_string_lossy().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
 
@@ -336,7 +352,11 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns the number of bytes read or an error.
-    pub async fn readlinkat(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
+    pub async fn readlinkat(
+        &self,
+        path: &std::path::Path,
+        buffer: &mut [u8],
+    ) -> Result<usize> {
         let path_c = std::ffi::CString::new(path.as_os_str().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
 
@@ -369,7 +389,10 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns a StatxResult with all the file metadata.
-    pub async fn statx_full(&self, path: &std::path::Path) -> Result<StatxResult> {
+    pub async fn statx_full(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<StatxResult> {
         let path_c = std::ffi::CString::new(path.as_os_str().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
         let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
@@ -384,6 +407,7 @@ impl ExtendedRio {
                     device_id: stat_buf.st_dev as u64,
                     inode_number: stat_buf.st_ino as u64,
                     file_size: stat_buf.st_size as u64,
+                    link_count: stat_buf.st_nlink as u64,
                     permissions: stat_buf.st_mode,
                     is_file: (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFREG,
                     is_dir: (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFDIR,
@@ -408,7 +432,10 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns (st_dev, st_ino) tuple for filesystem boundary and hardlink detection.
-    pub async fn statx_inode(&self, path: &std::path::Path) -> Result<(u64, u64)> {
+    pub async fn statx_inode(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<(u64, u64)> {
         let statx_result = self.statx_full(path).await?;
         Ok((statx_result.device_id, statx_result.inode_number))
     }
@@ -426,7 +453,11 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns Ok(()) on success or an error.
-    pub async fn linkat(&self, oldpath: &std::path::Path, newpath: &std::path::Path) -> Result<()> {
+    pub async fn linkat(
+        &self,
+        oldpath: &std::path::Path,
+        newpath: &std::path::Path,
+    ) -> Result<()> {
         let oldpath_c = std::ffi::CString::new(oldpath.as_os_str().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid oldpath: {}", e)))?;
         let newpath_c = std::ffi::CString::new(newpath.as_os_str().as_bytes())
@@ -438,7 +469,7 @@ impl ExtendedRio {
                 oldpath_c.as_ptr(),
                 -1, // Use current working directory for newpath
                 newpath_c.as_ptr(),
-                0, // No flags
+                0,  // No flags
             );
 
             if result < 0 {
@@ -462,11 +493,13 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns the number of bytes read or an error.
-    pub async fn readdir(&self, _dir_fd: RawFd, _buffer: &mut [u8]) -> Result<usize> {
+    pub async fn readdir(
+        &self,
+        _dir_fd: RawFd,
+        _buffer: &mut [u8],
+    ) -> Result<usize> {
         // TODO: Implement getdents64 when proper libc bindings are available
-        Err(ExtendedError::NotSupported(
-            "getdents64 not yet implemented".to_string(),
-        ))
+        Err(ExtendedError::NotSupported("getdents64 not yet implemented".to_string()))
     }
 }
 

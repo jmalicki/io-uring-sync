@@ -37,14 +37,14 @@ async fn test_hardlink_detection() {
 
     let stats = tracker.get_stats();
 
-    // We should have 2 unique files (original + regular, hardlink is same inode)
-    assert_eq!(stats.total_files, 2, "Should have 2 unique files");
+    // We should have 1 unique file (only the hardlink group, regular file with link_count=1 is skipped)
+    assert_eq!(stats.total_files, 1, "Should have 1 unique file (hardlink group)");
 
     // We should have 1 hardlink group (original + hardlink)
     assert_eq!(stats.hardlink_groups, 1, "Should have 1 hardlink group");
 
-    // We should have 3 total hardlinks (1 original + 1 hardlink + 1 regular)
-    assert_eq!(stats.total_hardlinks, 3, "Should have 3 total hardlinks");
+    // We should have 2 total hardlinks (original + hardlink, regular file with link_count=1 is skipped)
+    assert_eq!(stats.total_hardlinks, 2, "Should have 2 total hardlinks");
 
     // Test individual hardlink detection
     let hardlink_groups = tracker.get_hardlink_groups();
@@ -95,10 +95,10 @@ async fn test_filesystem_boundary_detection() {
         "Source filesystem device ID should be positive"
     );
 
-    // All files should be on the same filesystem
-    assert_eq!(stats.total_files, 1, "Should have 1 file");
+    // Files with link_count=1 are not tracked (optimization)
+    assert_eq!(stats.total_files, 0, "Should have 0 files (link_count=1 files are skipped)");
     assert_eq!(
-        stats.total_hardlinks, 1,
-        "Should have 1 hardlink (the file itself)"
+        stats.total_hardlinks, 0,
+        "Should have 0 hardlinks (link_count=1 files are skipped)"
     );
 }

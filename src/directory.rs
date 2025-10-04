@@ -102,6 +102,11 @@ impl ExtendedMetadata {
     pub fn created_time(&self) -> libc::time_t {
         self.statx_result.created_time
     }
+
+    /// Get link count (number of hardlinks to this inode)
+    pub fn link_count(&self) -> u64 {
+        self.statx_result.link_count
+    }
 }
 
 /// Directory copy operation statistics
@@ -541,8 +546,13 @@ impl FilesystemTracker {
     /// Register a file for hardlink tracking
     ///
     /// This should be called for each file encountered during traversal.
-    /// Returns true if this is a new hardlink, false if it's a duplicate.
-    pub fn register_file(&mut self, path: &Path, dev: u64, ino: u64) -> bool {
+    /// Files with link_count == 1 are skipped since they're not hardlinks.
+    /// Returns true if this is a new hardlink, false if it's a duplicate or skipped.
+    pub fn register_file(&mut self, path: &Path, dev: u64, ino: u64, link_count: u64) -> bool {
+        // Skip files with link count of 1 - they're not hardlinks
+        if link_count == 1 {
+            return false;
+        }
         let inode_info = InodeInfo { dev, ino };
 
         match self.hardlinks.get_mut(&inode_info) {
@@ -696,8 +706,9 @@ async fn analyze_directory_recursive(
                 // Continue processing but note the boundary crossing
             }
 
-            // Register file for hardlink tracking
-            tracker.register_file(&entry_path, dev, ino);
+            // Register file for hardlink tracking (only if it has multiple links)
+            let link_count = extended_metadata.link_count();
+            tracker.register_file(&entry_path, dev, ino, link_count);
         }
         // Skip symlinks for now - they'll be handled separately
     }
