@@ -73,10 +73,11 @@ jobs:
       with:
         components: rustfmt, clippy
     
+    - name: Install tarpaulin
+      run: cargo install cargo-tarpaulin
+      
     - name: Generate coverage report
-      uses: tarpaulin/tarpaulin@v0.27
-      with:
-        args: --all-features --out Html --output-dir coverage
+      run: cargo tarpaulin --all-features --out Html --output-dir coverage
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
