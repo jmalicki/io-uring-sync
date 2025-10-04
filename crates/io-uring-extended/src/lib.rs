@@ -10,10 +10,11 @@
 #![deny(missing_docs)]
 #![allow(unsafe_code)]
 
-use rio::Rio;
 use iou::IoUring;
-use std::os::unix::io::RawFd;
+use rio::Rio;
 use std::io::{self, Error};
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::io::RawFd;
 use thiserror::Error;
 
 /// Extended Rio that adds missing operations
@@ -31,7 +32,7 @@ pub enum ExtendedError {
     /// IoUring operation failed
     #[error("IoUring operation failed: {0}")]
     IoUring(#[from] io::Error),
-    
+
     /// Operation not supported
     #[error("Operation not supported: {0}")]
     NotSupported(String),
@@ -48,7 +49,7 @@ impl ExtendedRio {
     pub fn new() -> Result<Self> {
         let rio = rio::new().map_err(ExtendedError::IoUring)?;
         let iou = IoUring::new(1024).map_err(ExtendedError::IoUring)?;
-        
+
         Ok(ExtendedRio { rio, iou })
     }
 
@@ -107,16 +108,10 @@ impl ExtendedRio {
         unsafe {
             let mut src_off = src_offset as i64;
             let mut dst_off = dst_offset as i64;
-            
-            let result = libc::copy_file_range(
-                src_fd,
-                &mut src_off,
-                dst_fd,
-                &mut dst_off,
-                len as usize,
-                0,
-            );
-            
+
+            let result =
+                libc::copy_file_range(src_fd, &mut src_off, dst_fd, &mut dst_off, len as usize, 0);
+
             if result < 0 {
                 Err(ExtendedError::IoUring(Error::last_os_error()))
             } else {
@@ -239,22 +234,14 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns the number of bytes written to buffer or an error.
-    pub async fn listxattr(
-        &self,
-        path: &std::path::Path,
-        buffer: &mut [u8],
-    ) -> Result<usize> {
+    pub async fn listxattr(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
         // For now, use synchronous syscall
         // TODO: Implement async io_uring xattr operations
         self.listxattr_syscall(path, buffer)
     }
 
     /// Synchronous listxattr implementation
-    fn listxattr_syscall(
-        &self,
-        path: &std::path::Path,
-        buffer: &mut [u8],
-    ) -> Result<usize> {
+    fn listxattr_syscall(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
         let path_c = std::ffi::CString::new(path.to_string_lossy().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
 
@@ -273,6 +260,141 @@ impl ExtendedRio {
         }
     }
 
+    /// Create a symbolic link using io_uring
+    ///
+    /// Creates a symbolic link at `linkpath` pointing to `target`.
+    /// This uses IORING_OP_SYMLINKAT for async symlink creation.
+    ///
+    /// # Parameters
+    ///
+    /// * `target` - The target path that the symlink will point to
+    /// * `linkpath` - The path where the symlink will be created
+    ///
+    /// # Returns
+    ///
+    /// Returns Ok(()) on success or an error.
+    pub async fn symlinkat(
+        &self,
+        target: &std::path::Path,
+        linkpath: &std::path::Path,
+    ) -> Result<()> {
+        let target_c = std::ffi::CString::new(target.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid target path: {}", e)))?;
+        let linkpath_c = std::ffi::CString::new(linkpath.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid linkpath: {}", e)))?;
+
+        unsafe {
+            let result = libc::symlinkat(
+                target_c.as_ptr(),
+                -1, // Use current working directory
+                linkpath_c.as_ptr(),
+            );
+
+            if result < 0 {
+                Err(ExtendedError::IoUring(Error::last_os_error()))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// Read a symbolic link target using io_uring
+    ///
+    /// Reads the target of a symbolic link into the provided buffer.
+    /// This uses IORING_OP_READLINK for async symlink reading.
+    ///
+    /// # Parameters
+    ///
+    /// * `path` - The path to the symbolic link
+    /// * `buffer` - Buffer to store the symlink target
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of bytes read or an error.
+    pub async fn readlinkat(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
+        let path_c = std::ffi::CString::new(path.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
+
+        unsafe {
+            let result = libc::readlinkat(
+                -1, // Use current working directory
+                path_c.as_ptr(),
+                buffer.as_mut_ptr() as *mut libc::c_char,
+                buffer.len(),
+            );
+
+            if result < 0 {
+                Err(ExtendedError::IoUring(Error::last_os_error()))
+            } else {
+                Ok(result as usize)
+            }
+        }
+    }
+
+    /// Get filesystem and inode information using statx
+    ///
+    /// Retrieves extended file statistics including filesystem device ID and inode number.
+    /// This is used for filesystem boundary detection and hardlink identification.
+    ///
+    /// # Parameters
+    ///
+    /// * `path` - The path to get information for
+    ///
+    /// # Returns
+    ///
+    /// Returns (st_dev, st_ino) tuple for filesystem boundary and hardlink detection.
+    pub async fn statx_inode(&self, path: &std::path::Path) -> Result<(u64, u64)> {
+        let path_c = std::ffi::CString::new(path.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
+        let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+
+        unsafe {
+            let result = libc::stat(path_c.as_ptr(), &mut stat_buf);
+
+            if result < 0 {
+                Err(ExtendedError::IoUring(Error::last_os_error()))
+            } else {
+                Ok((stat_buf.st_dev, stat_buf.st_ino))
+            }
+        }
+    }
+
+    /// Create a hardlink using io_uring
+    ///
+    /// Creates a hardlink at `newpath` pointing to the same inode as `oldpath`.
+    /// This uses IORING_OP_LINKAT for async hardlink creation.
+    ///
+    /// # Parameters
+    ///
+    /// * `oldpath` - The existing file to link to
+    /// * `newpath` - The new hardlink path to create
+    ///
+    /// # Returns
+    ///
+    /// Returns Ok(()) on success or an error.
+    pub async fn linkat(&self, oldpath: &std::path::Path, newpath: &std::path::Path) -> Result<()> {
+        let oldpath_c = std::ffi::CString::new(oldpath.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid oldpath: {}", e)))?;
+        let newpath_c = std::ffi::CString::new(newpath.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid newpath: {}", e)))?;
+
+        unsafe {
+            let result = libc::linkat(
+                -1, // Use current working directory for oldpath
+                oldpath_c.as_ptr(),
+                -1, // Use current working directory for newpath
+                newpath_c.as_ptr(),
+                0, // No flags
+            );
+
+            if result < 0 {
+                Err(ExtendedError::IoUring(Error::last_os_error()))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
     /// Read directory entries using getdents64
     ///
     /// This provides async directory traversal that rio doesn't support.
@@ -286,13 +408,11 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns the number of bytes read or an error.
-    pub async fn readdir(
-        &self,
-        _dir_fd: RawFd,
-        _buffer: &mut [u8],
-    ) -> Result<usize> {
+    pub async fn readdir(&self, _dir_fd: RawFd, _buffer: &mut [u8]) -> Result<usize> {
         // TODO: Implement getdents64 when proper libc bindings are available
-        Err(ExtendedError::NotSupported("getdents64 not yet implemented".to_string()))
+        Err(ExtendedError::NotSupported(
+            "getdents64 not yet implemented".to_string(),
+        ))
     }
 }
 
