@@ -286,6 +286,7 @@ async fn preserve_file_metadata(src: &Path, dst: &Path, file_ops: &FileOperation
 /// # Returns
 ///
 /// Returns the total size in bytes or an error.
+#[allow(dead_code)]
 #[async_recursion]
 pub async fn get_directory_size(path: &Path) -> Result<u64> {
     let mut total_size = 0u64;
@@ -335,6 +336,7 @@ pub async fn get_directory_size(path: &Path) -> Result<u64> {
 /// # Returns
 ///
 /// Returns a tuple of (files, directories) or an error.
+#[allow(dead_code)]
 #[async_recursion]
 pub async fn count_directory_contents(path: &Path) -> Result<(u64, u64)> {
     let mut file_count = 0u64;

@@ -14,21 +14,25 @@ pub enum SyncError {
     CopyFailed(String),
 
     #[error("Metadata operation failed: {0}")]
+    #[allow(dead_code)]
     MetadataFailed(String),
 
     #[error("Directory traversal failed: {0}")]
+    #[allow(dead_code)]
     DirectoryTraversal(String),
 
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
 
     #[error("Permission denied: {0}")]
+    #[allow(dead_code)]
     PermissionDenied(String),
 
     #[error("File system error: {0}")]
     FileSystem(String),
 
     #[error("Internal error: {0}")]
+    #[allow(dead_code)]
     Internal(String),
 }
 

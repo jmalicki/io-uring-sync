@@ -399,6 +399,7 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
 
     while total_copied < file_size {
         // Submit read_at operation to io_uring
+        #[allow(clippy::unnecessary_mut_passed)]
         let read_completion = io_uring.read_at(&src_file, &mut buffer, offset);
 
         // Wait for read completion

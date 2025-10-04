@@ -10,10 +10,10 @@
 #![deny(missing_docs)]
 #![allow(unsafe_code)]
 
-use rio::{Rio};
-use iou::{IoUring};
-use std::os::unix::io::RawFd;
+use iou::IoUring;
+use rio::Rio;
 use std::io::{self, Error};
+use std::os::unix::io::RawFd;
 use thiserror::Error;
 
 /// Extended Rio that adds missing operations
@@ -30,7 +30,7 @@ pub enum ExtendedError {
     /// IoUring operation failed
     #[error("IoUring operation failed: {0}")]
     IoUring(#[from] io::Error),
-    
+
     /// Operation not supported
     #[error("Operation not supported: {0}")]
     NotSupported(String),
@@ -47,7 +47,7 @@ impl ExtendedRio {
     pub fn new() -> Result<Self> {
         let rio = rio::new().map_err(|e| ExtendedError::IoUring(e))?;
         let iou = IoUring::new(1024).map_err(|e| ExtendedError::IoUring(e))?;
-        
+
         Ok(ExtendedRio { rio, iou })
     }
 
@@ -104,16 +104,10 @@ impl ExtendedRio {
         unsafe {
             let mut src_off = src_offset as i64;
             let mut dst_off = dst_offset as i64;
-            
-            let result = libc::copy_file_range(
-                src_fd,
-                &mut src_off,
-                dst_fd,
-                &mut dst_off,
-                len as usize,
-                0,
-            );
-            
+
+            let result =
+                libc::copy_file_range(src_fd, &mut src_off, dst_fd, &mut dst_off, len as usize, 0);
+
             if result < 0 {
                 Err(ExtendedError::IoUring(Error::last_os_error()))
             } else {
@@ -236,22 +230,14 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns the number of bytes written to buffer or an error.
-    pub async fn listxattr(
-        &self,
-        path: &std::path::Path,
-        buffer: &mut [u8],
-    ) -> Result<usize> {
+    pub async fn listxattr(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
         // For now, use synchronous syscall
         // TODO: Implement async io_uring xattr operations
         self.listxattr_syscall(path, buffer)
     }
 
     /// Synchronous listxattr implementation
-    fn listxattr_syscall(
-        &self,
-        path: &std::path::Path,
-        buffer: &mut [u8],
-    ) -> Result<usize> {
+    fn listxattr_syscall(&self, path: &std::path::Path, buffer: &mut [u8]) -> Result<usize> {
         let path_c = std::ffi::CString::new(path.to_string_lossy().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
 
@@ -283,13 +269,11 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns the number of bytes read or an error.
-    pub async fn readdir(
-        &self,
-        _dir_fd: RawFd,
-        _buffer: &mut [u8],
-    ) -> Result<usize> {
+    pub async fn readdir(&self, _dir_fd: RawFd, _buffer: &mut [u8]) -> Result<usize> {
         // TODO: Implement getdents64 when proper libc bindings are available
-        Err(ExtendedError::NotSupported("getdents64 not yet implemented".to_string()))
+        Err(ExtendedError::NotSupported(
+            "getdents64 not yet implemented".to_string(),
+        ))
     }
 }
 

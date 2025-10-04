@@ -42,6 +42,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 /// - Default buffer size of 64KB provides good balance for most workloads
 pub struct FileOperations {
     /// Buffer size for I/O operations in bytes
+    #[allow(dead_code)]
     buffer_size: usize,
 }
 
@@ -174,6 +175,7 @@ impl FileOperations {
     }
 
     /// Check if file exists
+    #[allow(dead_code)]
     pub async fn file_exists(&self, path: &Path) -> bool {
         tokio::fs::metadata(path).await.is_ok()
     }
@@ -230,14 +232,9 @@ impl FileOperations {
 
         use std::os::unix::fs::PermissionsExt;
         let permissions = metadata.permissions().mode() & 0o7777;
-        let uid = unsafe {
-            use std::os::unix::fs::MetadataExt;
-            metadata.uid()
-        };
-        let gid = unsafe {
-            use std::os::unix::fs::MetadataExt;
-            metadata.gid()
-        };
+        use std::os::unix::fs::MetadataExt;
+        let uid = metadata.uid();
+        let gid = metadata.gid();
         let modified = metadata
             .modified()
             .map_err(|e| SyncError::FileSystem(format!("Failed to get modified time: {}", e)))?;
@@ -495,6 +492,7 @@ pub struct FileMetadata {
 }
 
 /// File copy operation with progress tracking
+#[allow(dead_code)]
 pub struct CopyOperation {
     pub src_path: std::path::PathBuf,
     pub dst_path: std::path::PathBuf,
@@ -504,6 +502,7 @@ pub struct CopyOperation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum CopyStatus {
     Pending,
     InProgress,
@@ -511,6 +510,7 @@ pub enum CopyStatus {
     Failed(String),
 }
 
+#[allow(dead_code)]
 impl CopyOperation {
     pub fn new(src: std::path::PathBuf, dst: std::path::PathBuf, size: u64) -> Self {
         Self {

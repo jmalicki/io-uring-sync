@@ -137,6 +137,7 @@ impl Args {
     }
 
     /// Get the actual buffer size in bytes
+    #[allow(dead_code)]
     pub fn effective_buffer_size(&self) -> usize {
         if self.buffer_size_kb == 0 {
             // Auto-detect based on system memory and filesystem
