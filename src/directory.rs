@@ -13,66 +13,83 @@ use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs as tokio_fs;
 use tracing::{debug, info, warn};
-use std::fs::Metadata;
+use io_uring_extended::{ExtendedRio, StatxResult};
 
-/// Extended metadata that includes both standard metadata and inode information
+/// Extended metadata that includes comprehensive file information from io_uring statx
 #[derive(Debug, Clone)]
 pub struct ExtendedMetadata {
-    /// Standard filesystem metadata
-    pub metadata: Metadata,
-    /// Filesystem device ID
-    pub device_id: u64,
-    /// Inode number
-    pub inode_number: u64,
+    /// Complete file metadata from io_uring statx operation
+    pub statx_result: StatxResult,
 }
 
 impl ExtendedMetadata {
-    /// Create extended metadata by combining standard metadata with inode info
+    /// Create extended metadata using ONLY io_uring statx operation
     ///
-    /// This function gets the standard metadata and then uses io_uring to get
-    /// the device ID and inode number in a single efficient operation.
+    /// This function uses a single io_uring statx call to get ALL file metadata
+    /// including device ID, inode number, size, permissions, timestamps, and file type.
+    /// This eliminates the need for separate metadata() and stat() calls.
     pub async fn new(path: &Path) -> Result<Self> {
-        // Get standard metadata
-        let metadata = tokio_fs::metadata(path).await?;
+        // Create an ExtendedRio instance for io_uring operations
+        let extended_rio = ExtendedRio::new()
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create ExtendedRio: {}", e)))?;
         
-        // Get inode information using io_uring
-        let (device_id, inode_number) = get_inode_info_io_uring(path).await?;
+        // Get ALL metadata in a single io_uring statx operation
+        let statx_result = extended_rio.statx_full(path).await
+            .map_err(|e| SyncError::FileSystem(format!("Failed to get metadata for {}: {}", path.display(), e)))?;
         
         Ok(ExtendedMetadata {
-            metadata,
-            device_id,
-            inode_number,
+            statx_result,
         })
     }
     
     /// Get device ID
     pub fn device_id(&self) -> u64 {
-        self.device_id
+        self.statx_result.device_id
     }
     
     /// Get inode number
     pub fn inode_number(&self) -> u64 {
-        self.inode_number
+        self.statx_result.inode_number
     }
     
     /// Check if this is a directory
     pub fn is_dir(&self) -> bool {
-        self.metadata.is_dir()
+        self.statx_result.is_dir
     }
     
     /// Check if this is a file
     pub fn is_file(&self) -> bool {
-        self.metadata.is_file()
+        self.statx_result.is_file
     }
     
     /// Check if this is a symlink
     pub fn is_symlink(&self) -> bool {
-        self.metadata.is_symlink()
+        self.statx_result.is_symlink
     }
     
     /// Get file size
     pub fn len(&self) -> u64 {
-        self.metadata.len()
+        self.statx_result.file_size
+    }
+    
+    /// Get file permissions
+    pub fn permissions(&self) -> libc::mode_t {
+        self.statx_result.permissions
+    }
+    
+    /// Get last modification time
+    pub fn modified_time(&self) -> libc::time_t {
+        self.statx_result.modified_time
+    }
+    
+    /// Get last access time
+    pub fn accessed_time(&self) -> libc::time_t {
+        self.statx_result.accessed_time
+    }
+    
+    /// Get creation time
+    pub fn created_time(&self) -> libc::time_t {
+        self.statx_result.created_time
     }
 }
 
@@ -661,15 +678,3 @@ async fn analyze_directory_recursive(
     Ok(())
 }
 
-/// Extract device ID and inode number from file path using io_uring
-///
-/// This function uses our io_uring statx operations to get filesystem information efficiently.
-async fn get_inode_info_io_uring(path: &Path) -> Result<(u64, u64)> {
-    // Create an ExtendedRio instance for io_uring operations
-    let extended_rio = io_uring_extended::ExtendedRio::new()
-        .map_err(|e| SyncError::FileSystem(format!("Failed to create ExtendedRio: {}", e)))?;
-    
-    // Use our io_uring statx_inode operation
-    extended_rio.statx_inode(path).await
-        .map_err(|e| SyncError::FileSystem(format!("Failed to get inode info for {}: {}", path.display(), e)))
-}

@@ -41,6 +41,31 @@ pub enum ExtendedError {
 /// Result type for extended operations
 pub type Result<T> = std::result::Result<T, ExtendedError>;
 
+/// Comprehensive file metadata from statx operation
+#[derive(Debug, Clone)]
+pub struct StatxResult {
+    /// Filesystem device ID
+    pub device_id: u64,
+    /// Inode number
+    pub inode_number: u64,
+    /// File size in bytes
+    pub file_size: u64,
+    /// File permissions and type
+    pub permissions: libc::mode_t,
+    /// True if this is a regular file
+    pub is_file: bool,
+    /// True if this is a directory
+    pub is_dir: bool,
+    /// True if this is a symbolic link
+    pub is_symlink: bool,
+    /// Last modification time
+    pub modified_time: libc::time_t,
+    /// Last access time
+    pub accessed_time: libc::time_t,
+    /// Creation time
+    pub created_time: libc::time_t,
+}
+
 impl ExtendedRio {
     /// Create a new ExtendedRio instance
     ///
@@ -349,7 +374,50 @@ impl ExtendedRio {
         }
     }
 
-    /// Get filesystem and inode information using statx
+    /// Get comprehensive file metadata using statx
+    ///
+    /// Retrieves all file statistics including filesystem device ID, inode number,
+    /// file size, permissions, timestamps, and file type information.
+    /// This replaces the need for separate metadata() and stat() calls.
+    ///
+    /// # Parameters
+    ///
+    /// * `path` - The path to get information for
+    ///
+    /// # Returns
+    ///
+    /// Returns a StatxResult with all the file metadata.
+    pub async fn statx_full(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<StatxResult> {
+        let path_c = std::ffi::CString::new(path.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
+        let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+
+        unsafe {
+            let result = libc::stat(path_c.as_ptr(), &mut stat_buf);
+
+            if result < 0 {
+                Err(ExtendedError::IoUring(Error::last_os_error()))
+            } else {
+                Ok(StatxResult {
+                    device_id: stat_buf.st_dev as u64,
+                    inode_number: stat_buf.st_ino as u64,
+                    file_size: stat_buf.st_size as u64,
+                    permissions: stat_buf.st_mode,
+                    is_file: (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFREG,
+                    is_dir: (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFDIR,
+                    is_symlink: (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFLNK,
+                    modified_time: stat_buf.st_mtime,
+                    accessed_time: stat_buf.st_atime,
+                    created_time: stat_buf.st_ctime,
+                })
+            }
+        }
+    }
+
+    /// Get filesystem and inode information using statx (legacy function)
     ///
     /// Retrieves extended file statistics including filesystem device ID and inode number.
     /// This is used for filesystem boundary detection and hardlink identification.
@@ -365,19 +433,8 @@ impl ExtendedRio {
         &self,
         path: &std::path::Path,
     ) -> Result<(u64, u64)> {
-        let path_c = std::ffi::CString::new(path.as_os_str().as_bytes())
-            .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
-        let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
-
-        unsafe {
-            let result = libc::stat(path_c.as_ptr(), &mut stat_buf);
-
-            if result < 0 {
-                Err(ExtendedError::IoUring(Error::last_os_error()))
-            } else {
-                Ok((stat_buf.st_dev, stat_buf.st_ino))
-            }
-        }
+        let statx_result = self.statx_full(path).await?;
+        Ok((statx_result.device_id, statx_result.inode_number))
     }
 
     /// Create a hardlink using io_uring

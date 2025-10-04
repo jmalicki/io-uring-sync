@@ -18,6 +18,9 @@ path = "src/lib.rs"
 name = "io-uring-sync"
 path = "src/main.rs"
 
+[workspace]
+members = ["crates/io-uring-extended"]
+
 [dependencies]
 # Core async runtime
 tokio = { version = "1.0", features = ["full"] }
