@@ -36,7 +36,8 @@ use crate::error::{Result, SyncError};
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use tokio::fs::OpenOptions;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use rio::new as rio_new;
+use io_uring_extended::ExtendedRio;
 
 /// Copy a single file using the specified method
 pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()> {
@@ -87,6 +88,10 @@ pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()>
 /// copy_file_range(src_path, dst_path).await?;
 /// ```
 async fn copy_file_range(src: &Path, dst: &Path) -> Result<()> {
+    // Create extended rio instance for copy_file_range support
+    let extended_rio = ExtendedRio::new()
+        .map_err(|e| SyncError::IoUring(format!("Failed to create ExtendedRio: {}", e)))?;
+
     // Open source file
     let src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
         SyncError::FileSystem(format!(
@@ -122,40 +127,32 @@ async fn copy_file_range(src: &Path, dst: &Path) -> Result<()> {
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {}", e)))?;
     let file_size = metadata.len();
 
-    // Use copy_file_range system call
-    let mut offset: i64 = 0;
+    // Use ExtendedRio's copy_file_range for efficient in-kernel copying
+    let mut offset = 0u64;
     let mut remaining = file_size;
 
     while remaining > 0 {
-        let chunk_size = std::cmp::min(remaining, 1024 * 1024 * 1024) as usize; // 1GB chunks
+        let chunk_size = std::cmp::min(remaining, 1024 * 1024 * 1024) as u32; // 1GB chunks
 
-        // Call copy_file_range via libc
-        let result = unsafe {
-            libc::copy_file_range(
-                src_fd,
-                &mut offset as *mut i64,
-                dst_fd,
-                &mut offset as *mut i64,
-                chunk_size,
-                0,
-            )
-        };
+        // Use ExtendedRio's copy_file_range
+        let result = extended_rio
+            .copy_file_range(src_fd, offset, dst_fd, offset, chunk_size)
+            .await
+            .map_err(|e| SyncError::CopyFailed(format!("copy_file_range failed: {}", e)))?;
 
-        if result < 0 {
-            let errno = std::io::Error::last_os_error();
+        if result <= 0 {
             return Err(SyncError::CopyFailed(format!(
-                "copy_file_range failed: {} (errno: {})",
-                errno,
-                errno.raw_os_error().unwrap_or(-1)
+                "copy_file_range returned invalid result: {}",
+                result
             )));
         }
 
         let copied = result as u64;
         remaining -= copied;
-        offset += copied as i64;
+        offset += copied;
 
         tracing::debug!(
-            "copy_file_range: copied {} bytes, {} remaining",
+            "ExtendedRio copy_file_range: copied {} bytes, {} remaining",
             copied,
             remaining
         );
@@ -167,7 +164,7 @@ async fn copy_file_range(src: &Path, dst: &Path) -> Result<()> {
         .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {}", e)))?;
 
-    tracing::debug!("copy_file_range: successfully copied {} bytes", file_size);
+    tracing::debug!("ExtendedRio copy_file_range: successfully copied {} bytes", file_size);
     Ok(())
 }
 
@@ -356,8 +353,12 @@ async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
 /// copy_read_write(src_path, dst_path).await?;
 /// ```
 async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
+    // Initialize io_uring
+    let io_uring = rio_new()
+        .map_err(|e| SyncError::IoUring(format!("Failed to initialize io_uring: {}", e)))?;
+
     // Open source file
-    let mut src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
+    let src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
         SyncError::FileSystem(format!(
             "Failed to open source file {}: {}",
             src.display(),
@@ -366,7 +367,7 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     })?;
 
     // Open destination file
-    let mut dst_file = OpenOptions::new()
+    let dst_file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
@@ -387,35 +388,49 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {}", e)))?;
     let file_size = metadata.len();
 
-    // Use a buffer for efficient copying
-    let buffer_size = 1024 * 1024; // 1MB buffer
-    let mut buffer = vec![0u8; buffer_size];
+    // Use io_uring read_at/write_at operations
+    const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer (smaller to avoid stack overflow)
+    let mut buffer = [0u8; BUFFER_SIZE];
+    let mut offset = 0u64;
     let mut total_copied = 0u64;
 
-    loop {
-        // Read chunk from source
-        let bytes_read = src_file.read(&mut buffer).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to read from source file: {}", e))
-        })?;
+    while total_copied < file_size {
+        // Submit read_at operation to io_uring
+        let read_completion = io_uring
+            .read_at(&src_file, &mut buffer, offset);
+
+        // Wait for read completion
+        let bytes_read = read_completion.await
+            .map_err(|e| SyncError::IoUring(format!("read_at operation failed: {}", e)))?;
 
         if bytes_read == 0 {
             // End of file
             break;
         }
 
-        // Write chunk to destination
-        dst_file
-            .write_all(&buffer[..bytes_read])
-            .await
-            .map_err(|e| {
-                SyncError::FileSystem(format!("Failed to write to destination file: {}", e))
-            })?;
+        // Submit write_at operation to io_uring
+        // Note: rio::write_at writes the entire buffer, so we need to handle this carefully
+        let write_completion = io_uring
+            .write_at(&dst_file, &buffer, offset);
 
-        total_copied += bytes_read as u64;
+        // Wait for write completion
+        let bytes_written = write_completion.await
+            .map_err(|e| SyncError::IoUring(format!("write_at operation failed: {}", e)))?;
+
+        // rio::write_at returns the number of bytes written, which should match bytes_read
+        if bytes_written != bytes_read {
+            return Err(SyncError::CopyFailed(format!(
+                "Write size mismatch: expected {}, got {}",
+                bytes_read, bytes_written
+            )));
+        }
+
+        total_copied += bytes_written as u64;
+        offset += bytes_written as u64;
 
         tracing::debug!(
-            "read/write: copied {} bytes, total: {}/{}",
-            bytes_read,
+            "io_uring read_at/write_at: copied {} bytes, total: {}/{}",
+            bytes_written,
             total_copied,
             file_size
         );
@@ -427,6 +442,6 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {}", e)))?;
 
-    tracing::debug!("read/write: successfully copied {} bytes", total_copied);
+    tracing::debug!("io_uring read_at/write_at: successfully copied {} bytes", total_copied);
     Ok(())
 }

@@ -9,6 +9,7 @@ use tracing::{info, Level};
 
 mod cli;
 mod copy;
+mod directory;
 mod error;
 mod io_uring;
 mod progress;
