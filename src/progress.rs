@@ -167,7 +167,6 @@ impl ProgressTracker {
     pub fn track_discovery(&mut self, file_size: u64) {
         self.files_discovered += 1;
         self.bytes_discovered += file_size;
-
         // Update progress bar total to reflect discovered bytes
         self.progress_bar.set_length(self.bytes_discovered);
     }

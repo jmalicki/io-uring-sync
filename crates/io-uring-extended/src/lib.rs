@@ -37,6 +37,33 @@ pub enum ExtendedError {
 /// Result type for extended operations
 pub type Result<T> = std::result::Result<T, ExtendedError>;
 
+/// Comprehensive file metadata from statx operation
+#[derive(Debug, Clone)]
+pub struct StatxResult {
+    /// Filesystem device ID
+    pub device_id: u64,
+    /// Inode number
+    pub inode_number: u64,
+    /// File size in bytes
+    pub file_size: u64,
+    /// Number of hardlinks to this inode
+    pub link_count: u64,
+    /// File permissions and type
+    pub permissions: libc::mode_t,
+    /// True if this is a regular file
+    pub is_file: bool,
+    /// True if this is a directory
+    pub is_dir: bool,
+    /// True if this is a symbolic link
+    pub is_symlink: bool,
+    /// Last modification time
+    pub modified_time: libc::time_t,
+    /// Last access time
+    pub accessed_time: libc::time_t,
+    /// Creation time
+    pub created_time: libc::time_t,
+}
+
 impl ExtendedRio {
     /// Create a new ExtendedRio instance
     ///
@@ -307,6 +334,44 @@ impl ExtendedRio {
     }
 
     /// Create a hardlink using io_uring
+    ///
+    /// Creates a hardlink at `newpath` pointing to the same inode as `oldpath`.
+    /// This uses IORING_OP_LINKAT for async hardlink creation.
+    ///
+    /// # Parameters
+    ///
+    /// * `oldpath` - The existing file to link to
+    /// * `newpath` - The new hardlink path to create
+    ///
+    /// # Returns
+    ///
+    /// Returns Ok(()) on success or an error.
+    pub async fn linkat(
+        &self,
+        oldpath: &std::path::Path,
+        newpath: &std::path::Path,
+    ) -> Result<()> {
+        let oldpath_c = std::ffi::CString::new(oldpath.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid oldpath: {}", e)))?;
+        let newpath_c = std::ffi::CString::new(newpath.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid newpath: {}", e)))?;
+
+        unsafe {
+            let result = libc::linkat(
+                -1, // Use current working directory for oldpath
+                oldpath_c.as_ptr(),
+                -1, // Use current working directory for newpath
+                newpath_c.as_ptr(),
+                0,  // No flags
+            );
+
+            if result < 0 {
+                Err(ExtendedError::IoUring(Error::last_os_error()))
+            } else {
+                Ok(())
+            }
+        }
+    }
     ///
     /// Creates a hardlink at `newpath` pointing to the same inode as `oldpath`.
     /// This uses IORING_OP_LINKAT for async hardlink creation.
