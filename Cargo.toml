@@ -67,7 +67,7 @@ xattr = "1.0"
 # Documentation and linting
 mdbook = "0.4"
 cargo-make = "0.37"
-cargo-deny = "0.18"
+cargo-deny = "0.17"
 cargo-audit = "0.21"
 cargo-outdated = "0.17"
 cargo-expand = "1.0"

@@ -31,12 +31,15 @@ jobs:
         cache-bin: "true"
     
     - name: Install cargo-deny
-      uses: taiki-e/install-action@cargo-deny
+      uses: taiki-e/install-action@v2
       with:
-        version: latest
-    
+        tool: cargo-deny@0.17.0
+
     - name: Install cargo-outdated
-      run: cargo install cargo-outdated
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-outdated@0.17
+    
     
     - name: Check dependencies with cargo-deny
       run: cargo deny check
