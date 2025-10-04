@@ -228,12 +228,18 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
         file_ops.create_dir(&args.destination).await?;
 
         // Copy directory recursively
-        let dir_stats = copy_directory(&args.source, &args.destination, &file_ops, args.copy_method.clone()).await?;
-        
+        let dir_stats = copy_directory(
+            &args.source,
+            &args.destination,
+            &file_ops,
+            args.copy_method.clone(),
+        )
+        .await?;
+
         // Update statistics
         stats.files_copied = dir_stats.files_copied;
         stats.bytes_copied = dir_stats.bytes_copied;
-        
+
         info!(
             "Directory copy completed: {} files, {} directories, {} bytes, {} errors",
             dir_stats.files_copied,

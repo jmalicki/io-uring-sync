@@ -33,11 +33,11 @@
 
 use crate::cli::CopyMethod;
 use crate::error::{Result, SyncError};
+use io_uring_extended::ExtendedRio;
+use rio::new as rio_new;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use tokio::fs::OpenOptions;
-use rio::new as rio_new;
-use io_uring_extended::ExtendedRio;
 
 /// Copy a single file using the specified method
 pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()> {
@@ -164,7 +164,10 @@ async fn copy_file_range(src: &Path, dst: &Path) -> Result<()> {
         .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {}", e)))?;
 
-    tracing::debug!("ExtendedRio copy_file_range: successfully copied {} bytes", file_size);
+    tracing::debug!(
+        "ExtendedRio copy_file_range: successfully copied {} bytes",
+        file_size
+    );
     Ok(())
 }
 
@@ -396,11 +399,11 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
 
     while total_copied < file_size {
         // Submit read_at operation to io_uring
-        let read_completion = io_uring
-            .read_at(&src_file, &mut buffer, offset);
+        let read_completion = io_uring.read_at(&src_file, &mut buffer, offset);
 
         // Wait for read completion
-        let bytes_read = read_completion.await
+        let bytes_read = read_completion
+            .await
             .map_err(|e| SyncError::IoUring(format!("read_at operation failed: {}", e)))?;
 
         if bytes_read == 0 {
@@ -410,11 +413,11 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
 
         // Submit write_at operation to io_uring
         // Note: rio::write_at writes the entire buffer, so we need to handle this carefully
-        let write_completion = io_uring
-            .write_at(&dst_file, &buffer, offset);
+        let write_completion = io_uring.write_at(&dst_file, &buffer, offset);
 
         // Wait for write completion
-        let bytes_written = write_completion.await
+        let bytes_written = write_completion
+            .await
             .map_err(|e| SyncError::IoUring(format!("write_at operation failed: {}", e)))?;
 
         // rio::write_at returns the number of bytes written, which should match bytes_read
@@ -442,6 +445,9 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {}", e)))?;
 
-    tracing::debug!("io_uring read_at/write_at: successfully copied {} bytes", total_copied);
+    tracing::debug!(
+        "io_uring read_at/write_at: successfully copied {} bytes",
+        total_copied
+    );
     Ok(())
 }
