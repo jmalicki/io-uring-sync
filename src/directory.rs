@@ -391,6 +391,7 @@ pub async fn copy_directory(
 /// - Any directory entry processing fails
 /// - File system operations fail
 /// - Hardlink operations fail
+#[allow(clippy::too_many_arguments)]
 async fn traverse_and_copy_directory_iterative(
     initial_src: PathBuf,
     initial_dst: PathBuf,
@@ -470,6 +471,7 @@ async fn traverse_and_copy_directory_iterative(
 /// - File copying fails
 /// - Symlink copying fails
 /// - Hardlink operations fail
+#[allow(clippy::too_many_arguments)]
 async fn process_directory_entry_with_compio(
     dispatcher: &'static Dispatcher,
     src_path: PathBuf,
@@ -635,6 +637,7 @@ async fn process_directory_entry_with_compio(
 /// - File copying fails
 /// - Hardlink creation fails
 /// - Metadata preservation fails
+#[allow(clippy::too_many_arguments)]
 async fn process_file(
     src_path: PathBuf,
     dst_path: PathBuf,
