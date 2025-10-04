@@ -176,10 +176,8 @@ impl FileOperations {
             buffer = result.1; // Reuse managed buffer for next iteration
         }
 
-        // Sync destination file to ensure data is written to disk
-        dst_file.sync_all().await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to sync destination file: {}", e))
-        })?;
+        // Note: sync_all() removed for performance - data will be synced by the OS
+        // when the file is closed or when the OS decides to flush buffers
 
         debug!("Copied {} bytes using compio managed buffers", offset);
         Ok(offset)
