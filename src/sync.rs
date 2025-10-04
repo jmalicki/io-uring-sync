@@ -50,12 +50,11 @@
 //! - Configuration validation failures
 
 use crate::cli::Args;
-use crate::copy::copy_file;
 use crate::directory::copy_directory;
 use crate::error::Result;
 use crate::io_uring::FileOperations;
 use std::time::{Duration, Instant};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Statistics for a synchronization operation
 ///
