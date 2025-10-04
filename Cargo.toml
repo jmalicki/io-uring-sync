@@ -1,0 +1,87 @@
+[package]
+name = "io-uring-sync"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "High-performance bulk file copying utility using io_uring"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/io-uring-sync"
+keywords = ["io_uring", "file-copy", "async", "performance", "rsync"]
+categories = ["command-line-utilities", "filesystem", "asynchronous"]
+readme = "README.md"
+
+[[bin]]
+name = "io-uring-sync"
+path = "src/main.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# io_uring libraries
+rio = "0.9"
+libc = "0.2"
+
+# Command line interface
+clap = { version = "4.0", features = ["derive"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Progress reporting
+indicatif = "0.17"
+
+# System information
+num_cpus = "1.0"
+
+# Serialization (for progress reporting)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# File system operations
+walkdir = "2.0"
+
+# Extended attributes
+xattr = "1.0"
+
+# Memory management
+bytes = "1.0"
+
+# Cross-platform compatibility
+cfg-if = "1.0"
+
+[dev-dependencies]
+# Testing
+tempfile = "3.0"
+assert_cmd = "2.0"
+predicates = "3.0"
+rstest = "0.18"
+
+# Benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Code coverage
+tarpaulin = "0.27"
+
+# Documentation
+mdbook = "0.4"
+
+[features]
+default = ["logging", "progress"]
+logging = ["tracing-subscriber"]
+progress = ["indicatif"]
+benchmarks = ["criterion"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+inherits = "release"
