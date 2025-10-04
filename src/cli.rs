@@ -167,26 +167,26 @@ impl Args {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
+    use compio::fs::File;
     use tempfile::TempDir;
 
-    fn create_temp_file() -> (TempDir, PathBuf) {
+    async fn create_temp_file() -> (TempDir, PathBuf) {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_file.txt");
-        File::create(&file_path).unwrap();
+        File::create(&file_path).await.unwrap();
         (temp_dir, file_path)
     }
 
-    fn create_temp_dir() -> (TempDir, PathBuf) {
+    async fn create_temp_dir() -> (TempDir, PathBuf) {
         let temp_dir = TempDir::new().unwrap();
         let sub_dir = temp_dir.path().join("test_dir");
-        std::fs::create_dir(&sub_dir).unwrap();
+        compio::fs::create_dir(&sub_dir).await.unwrap();
         (temp_dir, sub_dir)
     }
 
-    #[test]
-    fn test_validate_with_existing_file() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_validate_with_existing_file() {
+        let (temp_dir, file_path) = create_temp_file().await;
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),
@@ -206,9 +206,9 @@ mod tests {
         assert!(args.validate().is_ok());
     }
 
-    #[test]
-    fn test_validate_with_existing_directory() {
-        let (temp_dir, dir_path) = create_temp_dir();
+    #[compio::test]
+    async fn test_validate_with_existing_directory() {
+        let (temp_dir, dir_path) = create_temp_dir().await;
         let args = Args {
             source: dir_path,
             destination: temp_dir.path().join("dest"),
@@ -249,9 +249,9 @@ mod tests {
         assert!(args.validate().is_err());
     }
 
-    #[test]
-    fn test_validate_queue_depth_bounds() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_validate_queue_depth_bounds() {
+        let (temp_dir, file_path) = create_temp_file().await;
 
         // Test minimum bound
         let args = Args {
@@ -290,9 +290,9 @@ mod tests {
         assert!(args.validate().is_err());
     }
 
-    #[test]
-    fn test_validate_conflicting_quiet_verbose() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_validate_conflicting_quiet_verbose() {
+        let (temp_dir, file_path) = create_temp_file().await;
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),
@@ -375,9 +375,9 @@ mod tests {
         assert_eq!(args.buffer_size_bytes(), 2048 * 1024);
     }
 
-    #[test]
-    fn test_is_directory_copy() {
-        let (temp_dir, dir_path) = create_temp_dir();
+    #[compio::test]
+    async fn test_is_directory_copy() {
+        let (temp_dir, dir_path) = create_temp_dir().await;
         let args = Args {
             source: dir_path,
             destination: temp_dir.path().join("dest"),
@@ -398,9 +398,9 @@ mod tests {
         assert!(!args.is_file_copy());
     }
 
-    #[test]
-    fn test_is_file_copy() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_is_file_copy() {
+        let (temp_dir, file_path) = create_temp_file().await;
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),

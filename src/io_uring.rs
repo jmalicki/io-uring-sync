@@ -505,7 +505,6 @@ impl CopyOperation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
     use tempfile::TempDir;
 
     #[compio::test]
@@ -516,8 +515,7 @@ mod tests {
 
         // Write test file
         {
-            let mut file = std::fs::File::create(&test_file).unwrap();
-            file.write_all(test_content).unwrap();
+            compio::fs::write(&test_file, test_content).await.unwrap();
         }
 
         let ops = FileOperations::new(1024, 4096).unwrap();
@@ -529,8 +527,8 @@ mod tests {
         let size = ops.get_file_size(&test_file).await.unwrap();
         assert_eq!(size, test_content.len() as u64);
 
-        // Test file reading using standard fs
-        let content = std::fs::read(&test_file).unwrap();
+        // Test file reading using compio
+        let content = compio::fs::read(&test_file).await.unwrap();
         assert_eq!(content, test_content);
     }
 
@@ -543,8 +541,7 @@ mod tests {
 
         // Create source file
         {
-            let mut file = std::fs::File::create(&src_file).unwrap();
-            file.write_all(test_content).unwrap();
+            compio::fs::write(&src_file, test_content).await.unwrap();
         }
 
         let mut ops = FileOperations::new(1024, 4096).unwrap();
@@ -556,7 +553,7 @@ mod tests {
 
         // Verify destination file
         assert!(ops.file_exists(&dst_file).await);
-        let copied_content = std::fs::read(&dst_file).unwrap();
+        let copied_content = compio::fs::read(&dst_file).await.unwrap();
         assert_eq!(copied_content, test_content);
     }
 
