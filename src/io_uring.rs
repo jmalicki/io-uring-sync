@@ -23,7 +23,7 @@
 
 use crate::error::{Result, SyncError};
 use std::path::Path;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use compio::io::{AsyncReadAtExt, AsyncWriteAtExt};
 
 /// Basic file operations using async I/O
 ///
@@ -110,27 +110,31 @@ impl FileOperations {
     /// - This method loads the entire file into memory at once
     /// - Memory usage is equal to file size
     pub async fn read_file(&mut self, path: &Path) -> Result<Vec<u8>> {
-        let mut file = tokio::fs::File::open(path).await.map_err(|e| {
+        let mut file = compio::fs::File::open(path).await.map_err(|e| {
             SyncError::FileSystem(format!("Failed to open file {}: {}", path.display(), e))
         })?;
 
         let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to read file {}: {}", path.display(), e))
-        })?;
+        let result = file.read_to_end_at(buffer, 0).await;
+        let (bytes_read, buffer) = match result.0 {
+            Ok(bytes) => (bytes, result.1),
+            Err(e) => return Err(SyncError::FileSystem(format!("Failed to read file {}: {}", path.display(), e))),
+        };
 
         Ok(buffer)
     }
 
     /// Write file content asynchronously
     pub async fn write_file(&mut self, path: &Path, content: &[u8]) -> Result<()> {
-        let mut file = tokio::fs::File::create(path).await.map_err(|e| {
+        let mut file = compio::fs::File::create(path).await.map_err(|e| {
             SyncError::FileSystem(format!("Failed to create file {}: {}", path.display(), e))
         })?;
 
-        file.write_all(content).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to write file {}: {}", path.display(), e))
-        })?;
+        let result = file.write_all_at(content, 0).await;
+        let bytes_written = match result.0 {
+            Ok(bytes) => bytes,
+            Err(e) => return Err(SyncError::FileSystem(format!("Failed to write file {}: {}", path.display(), e))),
+        };
 
         file.sync_all().await.map_err(|e| {
             SyncError::FileSystem(format!("Failed to sync file {}: {}", path.display(), e))
@@ -143,7 +147,7 @@ impl FileOperations {
     pub async fn copy_file_read_write(&mut self, src: &Path, dst: &Path) -> Result<()> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+            compio::fs::create_dir_all(parent).await.map_err(|e| {
                 SyncError::FileSystem(format!(
                     "Failed to create directory {}: {}",
                     parent.display(),
@@ -163,7 +167,7 @@ impl FileOperations {
 
     /// Get file size
     pub async fn get_file_size(&self, path: &Path) -> Result<u64> {
-        let metadata = tokio::fs::metadata(path).await.map_err(|e| {
+        let metadata = compio::fs::metadata(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
                 "Failed to get metadata for {}: {}",
                 path.display(),
@@ -177,12 +181,12 @@ impl FileOperations {
     /// Check if file exists
     #[allow(dead_code)]
     pub async fn file_exists(&self, path: &Path) -> bool {
-        tokio::fs::metadata(path).await.is_ok()
+        compio::fs::metadata(path).await.is_ok()
     }
 
     /// Create directory
     pub async fn create_dir(&self, path: &Path) -> Result<()> {
-        tokio::fs::create_dir_all(path).await.map_err(|e| {
+        compio::fs::create_dir_all(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
                 "Failed to create directory {}: {}",
                 path.display(),
@@ -222,7 +226,7 @@ impl FileOperations {
     /// - Network filesystems may have higher latency
     /// - All metadata is retrieved in a single system call
     pub async fn get_file_metadata(&self, path: &Path) -> Result<FileMetadata> {
-        let metadata = tokio::fs::metadata(path).await.map_err(|e| {
+        let metadata = compio::fs::metadata(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
                 "Failed to get metadata for {}: {}",
                 path.display(),
@@ -283,7 +287,7 @@ impl FileOperations {
     pub async fn set_file_permissions(&self, path: &Path, permissions: u32) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(permissions);
-        tokio::fs::set_permissions(path, perms).await.map_err(|e| {
+        std::fs::set_permissions(path, perms).map_err(|e| {
             SyncError::FileSystem(format!(
                 "Failed to set permissions for {}: {}",
                 path.display(),
@@ -550,7 +554,7 @@ mod tests {
     use std::io::Write;
     use tempfile::TempDir;
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_file_operations_basic() {
         let temp_dir = TempDir::new().unwrap();
         let test_file = temp_dir.path().join("test.txt");
@@ -576,7 +580,7 @@ mod tests {
         assert_eq!(content, test_content);
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_copy_operation() {
         let temp_dir = TempDir::new().unwrap();
         let src_file = temp_dir.path().join("src.txt");
@@ -602,7 +606,7 @@ mod tests {
         assert_eq!(copied_content, test_content);
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_copy_operation_progress() {
         let src = std::path::PathBuf::from("/tmp/src");
         let dst = std::path::PathBuf::from("/tmp/dst");
