@@ -23,14 +23,14 @@ repos:
       - id: rustfmt
         args: [--edition, "2021", --all]
 
-  - repo: https://github.com/pre-commit/mirrors-clippy
-    rev: v0.1.67
+    - repo: https://github.com/pre-commit/mirrors-clippy
+      rev: v1.75
     hooks:
       - id: clippy
         args: [--all-targets, --all-features, --, -D, warnings, -D, clippy::missing_docs_in_crate_items, -D, clippy::missing_errors_doc, -D, clippy::missing_panics_doc, -D, clippy::must_use_candidate]
 
   - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
+    rev: v1.75
     hooks:
       - id: fmt
       - id: clippy
