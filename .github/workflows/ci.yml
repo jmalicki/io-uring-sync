@@ -17,7 +17,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
         cache: true
@@ -48,7 +48,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
         cache: true
@@ -130,7 +130,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
         cache: true
@@ -154,7 +154,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
         cache: true
@@ -181,7 +181,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
       with:
         components: rustfmt, clippy
         cache: true
