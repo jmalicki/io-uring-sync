@@ -2,6 +2,43 @@
 
 This document outlines the detailed implementation plan for io-uring-sync, including phases, deliverables, acceptance criteria, and testing requirements.
 
+## Table of Contents
+
+- [Architecture Decisions](#architecture-decisions)
+  - [Recommended Technology Stack](#recommended-technology-stack)
+  - [Key Design Decisions](#key-design-decisions)
+    - [Channel Blocking vs Async Compatibility](#channel-blocking-vs-async-compatibility)
+    - [Direct liburing Bindings Feasibility](#direct-liburing-bindings-feasibility)
+    - [io_uring xattr Support](#io_uring-xattr-support)
+- [Development Workflow Requirements](#development-workflow-requirements)
+  - [Phase Completion Checklist](#phase-completion-checklist)
+  - [Stacked PR Workflow](#stacked-pr-workflow)
+- [Implementation Phases](#implementation-phases)
+  - [Phase 1: Foundation and Basic Copying (Weeks 1-3)](#phase-1-foundation-and-basic-copying-weeks-1-3)
+    - [1.1 Project Setup and Infrastructure (Week 1)](#11-project-setup-and-infrastructure-week-1)
+    - [1.2 Basic io_uring Integration (Week 2)](#12-basic-io_uring-integration-week-2)
+    - [1.3 Metadata Preservation (Week 3)](#13-metadata-preservation-week-3)
+  - [Phase 2: Optimization and Parallelism (Weeks 4-6)](#phase-2-optimization-and-parallelism-weeks-4-6)
+    - [2.1 copy_file_range Implementation (Week 4)](#21-copy_file_range-implementation-week-4)
+    - [2.2 Directory Traversal (Week 5)](#22-directory-traversal-week-5)
+    - [2.3 Per-CPU Queue Architecture (Week 6)](#23-per-cpu-queue-architecture-week-6)
+  - [Phase 3: Advanced Features (Weeks 7-9)](#phase-3-advanced-features-weeks-7-9)
+    - [3.1 Extended Attributes Support (Week 7)](#31-extended-attributes-support-week-7)
+    - [3.2 Advanced Error Recovery (Week 8)](#32-advanced-error-recovery-week-8)
+    - [3.3 Performance Optimization (Week 9)](#33-performance-optimization-week-9)
+  - [Phase 4: Production Readiness (Weeks 10-12)](#phase-4-production-readiness-weeks-10-12)
+    - [4.1 Comprehensive Testing Suite (Week 10)](#41-comprehensive-testing-suite-week-10)
+    - [4.2 Documentation and User Experience (Week 11)](#42-documentation-and-user-experience-week-11)
+    - [4.3 Release Preparation (Week 12)](#43-release-preparation-week-12)
+- [Success Metrics](#success-metrics)
+  - [Performance Targets](#performance-targets)
+  - [Quality Targets](#quality-targets)
+  - [Reliability Targets](#reliability-targets)
+- [Risk Mitigation](#risk-mitigation)
+  - [Technical Risks](#technical-risks)
+  - [Project Risks](#project-risks)
+- [References](#references)
+
 ## Architecture Decisions
 
 ### Recommended Technology Stack
@@ -73,6 +110,29 @@ Based on comprehensive research and analysis, the optimal approach is:
 - **Optimal Performance**: No synchronous fallbacks needed
 - **Consistent Architecture**: All operations use same io_uring infrastructure
 
+## Development Workflow Requirements
+
+### Phase Completion Checklist
+After completing each phase, the following steps are **mandatory** before proceeding:
+
+1. **Code Formatting**: Run `cargo fmt` to ensure all code is properly formatted
+2. **Unit Tests**: All public functions must have corresponding unit tests
+3. **System Tests**: Simple end-to-end system tests must be implemented and passing
+4. **Test Execution**: All unit tests must pass (`cargo test`)
+5. **Code Quality**: All clippy warnings must be resolved (`cargo clippy`)
+6. **Commit**: Create a descriptive commit message following conventional commits
+7. **Pull Request**: Create a PR targeting the previous branch
+8. **New Branch**: Create a new branch for the next phase (stacked PR workflow)
+
+### Stacked PR Workflow
+- **Phase 1 PR**: Targets `main` branch
+- **Phase 2 PR**: Targets `phase-1` branch  
+- **Phase 3 PR**: Targets `phase-2` branch
+- **Phase 4 PR**: Targets `phase-3` branch
+- **Final PR**: Merge `phase-4` into `main` (after all phases reviewed)
+
+This ensures incremental review and allows for easy rollback if needed.
+
 ## Implementation Phases
 
 ### Phase 1: Foundation and Basic Copying (Weeks 1-3)
@@ -86,17 +146,27 @@ Based on comprehensive research and analysis, the optimal approach is:
 - Documentation structure
 
 **Acceptance Criteria:**
-- ✅ All CI checks pass (formatting, linting, tests)
-- ✅ CLI shows help and version information
-- ✅ Basic argument validation works
-- ✅ Project builds and runs without errors
-- ✅ Code coverage reporting set up
-- ✅ Pre-commit hooks configured
+- [ ] All CI checks pass (formatting, linting, tests)
+- [ ] CLI shows help and version information
+- [ ] Basic argument validation works
+- [ ] Project builds and runs without errors
+- [ ] Code coverage reporting set up
+- [ ] Pre-commit hooks configured
 
 **Testing Requirements:**
 - Unit tests for CLI argument parsing
 - Integration tests for help/version commands
 - CI pipeline tests on multiple Rust versions
+
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all public functions have unit tests
+- [ ] Implement basic system tests (help/version commands)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-1): complete project setup and infrastructure`
+- [ ] Create PR targeting `main` branch
+- [ ] Create new branch `phase-1` for next phase
 
 #### 1.2 Basic io_uring Integration (Week 2)
 **Deliverables:**
@@ -118,6 +188,16 @@ Based on comprehensive research and analysis, the optimal approach is:
 - Performance benchmarks for read/write operations
 - Memory leak detection
 
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all io_uring functions have unit tests
+- [ ] Implement system tests (basic file copy operations)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-1): implement basic io_uring integration`
+- [ ] Create PR targeting `main` branch
+- [ ] Continue on `phase-1` branch for next deliverable
+
 #### 1.3 Metadata Preservation (Week 3)
 **Deliverables:**
 - File ownership preservation (chown operations)
@@ -136,6 +216,16 @@ Based on comprehensive research and analysis, the optimal approach is:
 - Unit tests for metadata operations
 - Integration tests with various permission scenarios
 - Verification tests comparing source and destination metadata
+
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all metadata functions have unit tests
+- [ ] Implement system tests (metadata preservation verification)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-1): implement metadata preservation`
+- [ ] Create PR targeting `main` branch (final Phase 1 PR)
+- [ ] Create new branch `phase-2` for Phase 2 work
 
 ### Phase 2: Optimization and Parallelism (Weeks 4-6)
 
@@ -159,6 +249,16 @@ Based on comprehensive research and analysis, the optimal approach is:
 - Cross-filesystem fallback tests
 - Large file copy tests (files > RAM size)
 
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all copy_file_range functions have unit tests
+- [ ] Implement system tests (copy_file_range vs read/write comparison)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-2): implement copy_file_range support`
+- [ ] Create PR targeting `phase-1` branch
+- [ ] Continue on `phase-2` branch for next deliverable
+
 #### 2.2 Directory Traversal (Week 5)
 **Deliverables:**
 - Hybrid directory traversal (std::fs + io_uring)
@@ -179,6 +279,16 @@ Based on comprehensive research and analysis, the optimal approach is:
 - Performance tests with large directory trees
 - Memory usage tests for deep nesting
 
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all directory traversal functions have unit tests
+- [ ] Implement system tests (complex directory structure copying)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-2): implement directory traversal`
+- [ ] Create PR targeting `phase-1` branch
+- [ ] Continue on `phase-2` branch for next deliverable
+
 #### 2.3 Per-CPU Queue Architecture (Week 6)
 **Deliverables:**
 - Per-CPU io_uring instances
@@ -198,6 +308,16 @@ Based on comprehensive research and analysis, the optimal approach is:
 - Performance tests with different CPU counts
 - Load balancing verification tests
 - Memory usage tests for per-CPU architecture
+
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all queue management functions have unit tests
+- [ ] Implement system tests (multi-CPU performance verification)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-2): implement per-CPU queue architecture`
+- [ ] Create PR targeting `phase-1` branch (final Phase 2 PR)
+- [ ] Create new branch `phase-3` for Phase 3 work
 
 ### Phase 3: Advanced Features (Weeks 7-9)
 
@@ -221,6 +341,16 @@ Based on comprehensive research and analysis, the optimal approach is:
 - ACL preservation verification tests
 - SELinux context tests (on SELinux systems)
 
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all xattr functions have unit tests
+- [ ] Implement system tests (xattr preservation verification)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-3): implement extended attributes support`
+- [ ] Create PR targeting `phase-2` branch
+- [ ] Continue on `phase-3` branch for next deliverable
+
 #### 3.2 Advanced Error Recovery (Week 8)
 **Deliverables:**
 - Comprehensive error handling and recovery
@@ -240,6 +370,16 @@ Based on comprehensive research and analysis, the optimal approach is:
 - Integration tests with simulated failures
 - Chaos engineering tests
 - Error message verification tests
+
+**Phase Completion Workflow:**
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all error handling functions have unit tests
+- [ ] Implement system tests (error recovery verification)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-3): implement advanced error recovery`
+- [ ] Create PR targeting `phase-2` branch
+- [ ] Continue on `phase-3` branch for next deliverable
 
 #### 3.3 Performance Optimization (Week 9)
 **Deliverables:**

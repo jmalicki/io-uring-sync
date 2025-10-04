@@ -1,6 +1,6 @@
 //! Command-line interface definitions
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -55,6 +55,10 @@ pub struct Args {
     /// Verbose output (-v, -vv, -vvv)
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
+
+    /// Quiet mode (suppress all output except errors)
+    #[arg(short, long)]
+    pub quiet: bool,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -75,6 +79,14 @@ impl Args {
         // Check if source exists
         if !self.source.exists() {
             anyhow::bail!("Source path does not exist: {}", self.source.display());
+        }
+
+        // Check if source is readable
+        if !self.source.is_dir() && !self.source.is_file() {
+            anyhow::bail!(
+                "Source path must be a file or directory: {}",
+                self.source.display()
+            );
         }
 
         // Check queue depth bounds
@@ -101,6 +113,17 @@ impl Args {
             );
         }
 
+        // Check CPU count bounds
+        let effective_cpu_count = self.effective_cpu_count();
+        if effective_cpu_count == 0 {
+            anyhow::bail!("No CPU cores available");
+        }
+
+        // Validate conflicting options
+        if self.quiet && self.verbose > 0 {
+            anyhow::bail!("Cannot use both --quiet and --verbose options");
+        }
+
         Ok(())
     }
 
@@ -122,5 +145,289 @@ impl Args {
         } else {
             self.buffer_size_kb * 1024
         }
+    }
+
+    /// Check if the source is a directory
+    pub fn is_directory_copy(&self) -> bool {
+        self.source.is_dir()
+    }
+
+    /// Check if the source is a single file
+    pub fn is_file_copy(&self) -> bool {
+        self.source.is_file()
+    }
+
+    /// Get buffer size in bytes
+    pub fn buffer_size_bytes(&self) -> usize {
+        self.buffer_size_kb * 1024
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use tempfile::TempDir;
+
+    fn create_temp_file() -> (TempDir, PathBuf) {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_file.txt");
+        File::create(&file_path).unwrap();
+        (temp_dir, file_path)
+    }
+
+    fn create_temp_dir() -> (TempDir, PathBuf) {
+        let temp_dir = TempDir::new().unwrap();
+        let sub_dir = temp_dir.path().join("test_dir");
+        std::fs::create_dir(&sub_dir).unwrap();
+        (temp_dir, sub_dir)
+    }
+
+    #[test]
+    fn test_validate_with_existing_file() {
+        let (temp_dir, file_path) = create_temp_file();
+        let args = Args {
+            source: file_path,
+            destination: temp_dir.path().join("dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert!(args.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_with_existing_directory() {
+        let (temp_dir, dir_path) = create_temp_dir();
+        let args = Args {
+            source: dir_path,
+            destination: temp_dir.path().join("dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert!(args.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_with_nonexistent_source() {
+        let args = Args {
+            source: PathBuf::from("/nonexistent/path"),
+            destination: PathBuf::from("/tmp/dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert!(args.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_queue_depth_bounds() {
+        let (temp_dir, file_path) = create_temp_file();
+
+        // Test minimum bound
+        let args = Args {
+            source: file_path.clone(),
+            destination: temp_dir.path().join("dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 512, // Too small
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+        assert!(args.validate().is_err());
+
+        // Test maximum bound
+        let args = Args {
+            source: file_path,
+            destination: temp_dir.path().join("dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 100000, // Too large
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+        assert!(args.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_conflicting_quiet_verbose() {
+        let (temp_dir, file_path) = create_temp_file();
+        let args = Args {
+            source: file_path,
+            destination: temp_dir.path().join("dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 1,
+            quiet: true, // Conflicting options
+        };
+
+        assert!(args.validate().is_err());
+    }
+
+    #[test]
+    fn test_effective_cpu_count() {
+        let args = Args {
+            source: PathBuf::from("/tmp"),
+            destination: PathBuf::from("/tmp"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 4,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert_eq!(args.effective_cpu_count(), 4);
+    }
+
+    #[test]
+    fn test_effective_cpu_count_zero_uses_system() {
+        let args = Args {
+            source: PathBuf::from("/tmp"),
+            destination: PathBuf::from("/tmp"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 0, // Should use system default
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert!(args.effective_cpu_count() > 0);
+    }
+
+    #[test]
+    fn test_buffer_size_conversion() {
+        let args = Args {
+            source: PathBuf::from("/tmp"),
+            destination: PathBuf::from("/tmp"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 2048,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert_eq!(args.buffer_size_bytes(), 2048 * 1024);
+    }
+
+    #[test]
+    fn test_is_directory_copy() {
+        let (temp_dir, dir_path) = create_temp_dir();
+        let args = Args {
+            source: dir_path,
+            destination: temp_dir.path().join("dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert!(args.is_directory_copy());
+        assert!(!args.is_file_copy());
+    }
+
+    #[test]
+    fn test_is_file_copy() {
+        let (temp_dir, file_path) = create_temp_file();
+        let args = Args {
+            source: file_path,
+            destination: temp_dir.path().join("dest"),
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            preserve_permissions: true,
+            preserve_ownership: false,
+            preserve_xattrs: true,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        };
+
+        assert!(!args.is_directory_copy());
+        assert!(args.is_file_copy());
     }
 }

@@ -10,7 +10,9 @@ fn test_help_output() {
     cmd.arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("High-performance bulk file copying utility"));
+        .stdout(predicate::str::contains(
+            "High-performance bulk file copying utility",
+        ));
 }
 
 #[test]
@@ -25,7 +27,7 @@ fn test_version_output() {
 #[test]
 fn test_missing_source() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
     cmd.args([
         "--source",
@@ -41,7 +43,7 @@ fn test_missing_source() {
 #[test]
 fn test_invalid_queue_depth() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
     cmd.args([
         "--source",
@@ -53,13 +55,15 @@ fn test_invalid_queue_depth() {
     ])
     .assert()
     .failure()
-    .stderr(predicate::str::contains("Queue depth must be between 1024 and 65536"));
+    .stderr(predicate::str::contains(
+        "Queue depth must be between 1024 and 65536",
+    ));
 }
 
 #[test]
 fn test_dry_run() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
     cmd.args([
         "--source",
