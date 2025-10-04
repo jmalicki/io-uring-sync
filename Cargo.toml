@@ -23,7 +23,8 @@ path = "src/main.rs"
 
 [dependencies]
 # Core async runtime
-compio = { version = "0.16", features = ["macros"] }
+compio = { version = "0.16", features = ["macros", "dispatcher"] }
+futures = "0.3"
 
 # CLI and error handling
 clap = { version = "4.0", features = ["derive"] }

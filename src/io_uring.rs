@@ -532,7 +532,7 @@ impl CopyOperation {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
-    
+
     use super::*;
     use tempfile::TempDir;
 
