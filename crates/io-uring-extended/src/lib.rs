@@ -398,7 +398,8 @@ impl ExtendedRio {
         let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
 
         unsafe {
-            let result = libc::stat(path_c.as_ptr(), &mut stat_buf);
+            // Use lstat to avoid following symlinks, so we get the symlink's metadata
+            let result = libc::lstat(path_c.as_ptr(), &mut stat_buf);
 
             if result < 0 {
                 Err(ExtendedError::IoUring(Error::last_os_error()))

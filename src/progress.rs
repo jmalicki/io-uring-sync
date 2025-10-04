@@ -88,9 +88,13 @@ pub struct ProgressTracker {
     /// Visual progress bar for user feedback
     progress_bar: ProgressBar,
 
-    /// Running count of files successfully processed
-    files_copied: u64,
+    /// Total number of files discovered during traversal (via statx)
+    files_discovered: u64,
+    /// Total number of bytes discovered during traversal (via statx)
+    bytes_discovered: u64,
 
+    /// Running count of files successfully processed/copied
+    files_copied: u64,
     /// Running total of bytes successfully copied
     bytes_copied: u64,
 }
@@ -136,9 +140,36 @@ impl ProgressTracker {
 
         Self {
             progress_bar: pb,
+            files_discovered: 0,
+            bytes_discovered: 0,
             files_copied: 0,
             bytes_copied: 0,
         }
+    }
+
+    /// Track a file discovered during traversal (via statx)
+    ///
+    /// This should be called for each file encountered during directory traversal.
+    /// It updates the discovery counters but doesn't affect the progress bar
+    /// until the file is actually copied.
+    ///
+    /// # Parameters
+    ///
+    /// * `file_size` - Size of the discovered file in bytes
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut tracker = ProgressTracker::new();
+    /// tracker.track_discovery(1024); // Discovered a 1KB file
+    /// ```
+    #[allow(dead_code)]
+    pub fn track_discovery(&mut self, file_size: u64) {
+        self.files_discovered += 1;
+        self.bytes_discovered += file_size;
+        
+        // Update progress bar total to reflect discovered bytes
+        self.progress_bar.set_length(self.bytes_discovered);
     }
 
     /// Set the total number of bytes to be processed

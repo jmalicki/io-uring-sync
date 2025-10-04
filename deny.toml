@@ -35,14 +35,10 @@ copyleft = "warn"
 allow-osi-fsf-free = "neither"
 
 [bans]
-# Check for duplicate dependencies
-duplicates = "deny"
 # Check for multiple versions of the same crate
 multiple-versions = "warn"
 # Allow specific wildcard dependencies
 wildcards = "deny"
-# Allow specific workspace dependencies
-workspace = false
 
 [sources]
 # Allow specific registries

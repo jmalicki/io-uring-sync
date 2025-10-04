@@ -124,10 +124,12 @@ pub struct DirectoryStats {
     pub errors: u64,
 }
 
-/// Copy a directory recursively with metadata preservation
+/// Copy a directory recursively with metadata preservation and hardlink detection
 ///
 /// This function performs recursive directory copying with the following features:
-/// - Async directory traversal
+/// - Async directory traversal using io_uring statx operations
+/// - Hardlink detection and preservation during traversal
+/// - Filesystem boundary detection
 /// - Metadata preservation (permissions, ownership, timestamps)
 /// - Symlink handling
 /// - Error recovery and reporting
@@ -149,6 +151,7 @@ pub async fn copy_directory(
     copy_method: CopyMethod,
 ) -> Result<DirectoryStats> {
     let mut stats = DirectoryStats::default();
+    let mut hardlink_tracker = FilesystemTracker::new();
 
     info!(
         "Starting directory copy from {} to {}",
@@ -169,18 +172,30 @@ pub async fn copy_directory(
         debug!("Created destination directory: {}", dst.display());
     }
 
-    // Traverse source directory recursively
-    traverse_and_copy_directory(src, dst, file_ops, copy_method, &mut stats).await?;
+    // Set source filesystem from root directory
+    let root_metadata = ExtendedMetadata::new(src).await?;
+    hardlink_tracker.set_source_filesystem(root_metadata.device_id());
 
+    // Traverse source directory recursively with hardlink detection
+    traverse_and_copy_directory(src, dst, file_ops, copy_method, &mut stats, &mut hardlink_tracker).await?;
+
+    // Log hardlink detection results
+    let hardlink_stats = hardlink_tracker.get_stats();
     info!(
         "Directory copy completed: {} files, {} directories, {} bytes, {} symlinks",
         stats.files_copied, stats.directories_created, stats.bytes_copied, stats.symlinks_processed
     );
+    if hardlink_stats.hardlink_groups > 0 {
+        info!(
+            "Hardlink detection: {} unique files, {} hardlink groups, {} total hardlinks",
+            hardlink_stats.total_files, hardlink_stats.hardlink_groups, hardlink_stats.total_hardlinks
+        );
+    }
 
     Ok(stats)
 }
 
-/// Recursively traverse and copy directory contents
+/// Recursively traverse and copy directory contents with hardlink detection
 #[async_recursion]
 async fn traverse_and_copy_directory(
     src: &Path,
@@ -188,6 +203,7 @@ async fn traverse_and_copy_directory(
     file_ops: &FileOperations,
     copy_method: CopyMethod,
     stats: &mut DirectoryStats,
+    hardlink_tracker: &mut FilesystemTracker,
 ) -> Result<()> {
     let mut entries = tokio_fs::read_dir(src).await.map_err(|e| {
         SyncError::FileSystem(format!("Failed to read directory {}: {}", src.display(), e))
@@ -204,15 +220,10 @@ async fn traverse_and_copy_directory(
         })?;
         let dst_path = dst.join(file_name);
 
-        let metadata = entry.metadata().await.map_err(|e| {
-            SyncError::FileSystem(format!(
-                "Failed to get metadata for {}: {}",
-                src_path.display(),
-                e
-            ))
-        })?;
+        // Get comprehensive metadata using io_uring statx (includes hardlink info)
+        let extended_metadata = ExtendedMetadata::new(&src_path).await?;
 
-        if metadata.is_dir() {
+        if extended_metadata.is_dir() {
             // Handle directory
             debug!("Processing directory: {}", src_path.display());
 
@@ -235,36 +246,95 @@ async fn traverse_and_copy_directory(
                 file_ops,
                 copy_method.clone(),
                 stats,
+                hardlink_tracker,
             )
             .await
             {
                 warn!("Failed to copy subdirectory {}: {}", src_path.display(), e);
                 stats.errors += 1;
             }
-        } else if metadata.is_file() {
-            // Handle regular file
-            debug!("Copying file: {}", src_path.display());
+        } else if extended_metadata.is_file() {
+            // Handle regular file with hardlink detection
+            debug!("Processing file: {} (link_count: {})", src_path.display(), extended_metadata.link_count());
 
-            match copy_file(&src_path, &dst_path, copy_method.clone()).await {
-                Ok(()) => {
-                    stats.files_copied += 1;
-                    stats.bytes_copied += metadata.len();
+            let device_id = extended_metadata.device_id();
+            let inode_number = extended_metadata.inode_number();
+            let link_count = extended_metadata.link_count();
 
-                    // Preserve metadata
-                    if let Err(e) = preserve_file_metadata(&src_path, &dst_path, file_ops).await {
-                        warn!(
-                            "Failed to preserve metadata for {}: {}",
-                            dst_path.display(),
-                            e
-                        );
+            // Register file with hardlink tracker (optimization: skip if link_count == 1)
+            if link_count > 1 {
+                hardlink_tracker.register_file(&src_path, device_id, inode_number, link_count);
+                debug!("Registered hardlink: {} (inode: {}, links: {})", src_path.display(), inode_number, link_count);
+            }
+
+            // Check if this inode has already been copied (for hardlinks)
+            if link_count > 1 && hardlink_tracker.is_inode_copied(inode_number) {
+                // This is a hardlink - create a hardlink instead of copying content
+                debug!("Creating hardlink for {} (inode: {})", src_path.display(), inode_number);
+                
+                // Find the original file path for this inode
+                if let Some(original_path) = hardlink_tracker.get_original_path_for_inode(inode_number) {
+                    // Create destination directory if needed
+                    if let Some(parent) = dst_path.parent() {
+                        if !parent.exists() {
+                            tokio_fs::create_dir_all(parent).await.map_err(|e| {
+                                SyncError::FileSystem(format!(
+                                    "Failed to create parent directory {}: {}",
+                                    parent.display(),
+                                    e
+                                ))
+                            })?;
+                        }
                     }
-                }
-                Err(e) => {
-                    warn!("Failed to copy file {}: {}", src_path.display(), e);
+                    
+                    // Create hardlink using io_uring
+                    let extended_rio = ExtendedRio::new()
+                        .map_err(|e| SyncError::FileSystem(format!("Failed to create ExtendedRio: {}", e)))?;
+                    
+                    match extended_rio.linkat(&original_path, &dst_path).await {
+                        Ok(()) => {
+                            stats.files_copied += 1;
+                            debug!("Created hardlink: {} -> {}", dst_path.display(), original_path.display());
+                        }
+                        Err(e) => {
+                            warn!("Failed to create hardlink for {}: {}", src_path.display(), e);
+                            stats.errors += 1;
+                        }
+                    }
+                } else {
+                    warn!("Could not find original path for inode {}", inode_number);
                     stats.errors += 1;
                 }
+            } else {
+                // First time seeing this inode - copy the file content normally
+                debug!("Copying file content: {}", src_path.display());
+                
+                match copy_file(&src_path, &dst_path, copy_method.clone()).await {
+                    Ok(()) => {
+                        stats.files_copied += 1;
+                        stats.bytes_copied += extended_metadata.len();
+
+                        // Mark this inode as copied for future hardlink creation
+                        if link_count > 1 {
+                            hardlink_tracker.mark_inode_copied(inode_number, &dst_path);
+                        }
+
+                        // Preserve metadata
+                        if let Err(e) = preserve_file_metadata(&src_path, &dst_path, file_ops).await {
+                            warn!(
+                                "Failed to preserve metadata for {}: {}",
+                                dst_path.display(),
+                                e
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to copy file {}: {}", src_path.display(), e);
+                        stats.errors += 1;
+                    }
+                }
             }
-        } else if metadata.is_symlink() {
+        } else if extended_metadata.is_symlink() {
             // Handle symlink
             debug!("Processing symlink: {}", src_path.display());
 
@@ -494,8 +564,14 @@ pub struct InodeInfo {
 pub struct HardlinkInfo {
     /// Original file path
     pub original_path: std::path::PathBuf,
+    /// Inode number
+    pub inode_number: u64,
     /// Number of hardlinks found
     pub link_count: u64,
+    /// Whether this inode has been copied to destination
+    pub is_copied: bool,
+    /// Destination path where this inode was copied (for hardlink creation)
+    pub dst_path: Option<std::path::PathBuf>,
 }
 
 /// Filesystem boundary and hardlink tracker
@@ -574,7 +650,10 @@ impl FilesystemTracker {
                     inode_info,
                     HardlinkInfo {
                         original_path: path.to_path_buf(),
+                        inode_number: ino,
                         link_count: 1,
+                        is_copied: false,
+                        dst_path: None,
                     },
                 );
                 debug!(
@@ -606,6 +685,42 @@ impl FilesystemTracker {
             .collect()
     }
 
+    /// Check if an inode has already been copied (for hardlink creation)
+    ///
+    /// Returns true if this inode has been processed and copied to the destination.
+    /// This is used to determine whether to copy file content or create a hardlink.
+    pub fn is_inode_copied(&self, ino: u64) -> bool {
+        self.hardlinks
+            .values()
+            .any(|info| info.inode_number == ino && info.is_copied)
+    }
+
+    /// Mark an inode as copied and store its destination path
+    ///
+    /// This should be called after successfully copying a file's content,
+    /// so that subsequent hardlinks to the same inode can be created instead of copied.
+    pub fn mark_inode_copied(&mut self, ino: u64, dst_path: &Path) {
+        for info in self.hardlinks.values_mut() {
+            if info.inode_number == ino {
+                info.is_copied = true;
+                info.dst_path = Some(dst_path.to_path_buf());
+                debug!("Marked inode {} as copied to {}", ino, dst_path.display());
+                break;
+            }
+        }
+    }
+
+    /// Get the original destination path for an inode that has been copied
+    ///
+    /// Returns the destination path where this inode's content was first copied.
+    /// This is used to create hardlinks pointing to the original copied file.
+    pub fn get_original_path_for_inode(&self, ino: u64) -> Option<&Path> {
+        self.hardlinks
+            .values()
+            .find(|info| info.inode_number == ino && info.is_copied)
+            .and_then(|info| info.dst_path.as_deref())
+    }
+
     /// Get statistics about the filesystem tracking
     pub fn get_stats(&self) -> FilesystemStats {
         let total_files = self.hardlinks.len();
@@ -635,83 +750,3 @@ pub struct FilesystemStats {
     pub source_filesystem: Option<u64>,
 }
 
-/// Detect filesystem boundaries and hardlink relationships for a directory tree
-///
-/// This function traverses a directory tree and builds a filesystem tracker
-/// that can be used to detect cross-filesystem operations and hardlink relationships.
-///
-/// # Parameters
-///
-/// * `root_path` - Root directory to analyze
-/// * `tracker` - Filesystem tracker to populate
-///
-/// # Returns
-///
-/// Returns Ok(()) on success or an error if traversal fails.
-#[allow(dead_code)]
-pub async fn analyze_filesystem_structure(
-    root_path: &Path,
-    tracker: &mut FilesystemTracker,
-) -> Result<()> {
-    debug!(
-        "Analyzing filesystem structure for: {}",
-        root_path.display()
-    );
-
-    // Get the root directory's filesystem device ID
-    let root_extended_metadata = ExtendedMetadata::new(root_path).await?;
-    tracker.set_source_filesystem(root_extended_metadata.device_id());
-
-    // Traverse the directory tree
-    analyze_directory_recursive(root_path, tracker).await?;
-
-    let stats = tracker.get_stats();
-    info!(
-        "Filesystem analysis complete: {} files, {} hardlink groups, {} total hardlinks",
-        stats.total_files, stats.hardlink_groups, stats.total_hardlinks
-    );
-
-    Ok(())
-}
-
-/// Recursively analyze a directory for filesystem structure
-#[async_recursion]
-#[allow(dead_code)]
-async fn analyze_directory_recursive(
-    dir_path: &Path,
-    tracker: &mut FilesystemTracker,
-) -> Result<()> {
-    let mut entries = tokio_fs::read_dir(dir_path).await?;
-
-    while let Some(entry) = entries.next_entry().await? {
-        let entry_path = entry.path();
-        let extended_metadata = ExtendedMetadata::new(&entry_path).await?;
-
-        if extended_metadata.is_dir() {
-            // Recursively analyze subdirectories
-            analyze_directory_recursive(&entry_path, tracker).await?;
-        } else if extended_metadata.is_file() {
-            // Analyze file for hardlink detection
-            let dev = extended_metadata.device_id();
-            let ino = extended_metadata.inode_number();
-
-            // Check filesystem boundary
-            if !tracker.is_same_filesystem(dev) {
-                warn!(
-                    "Cross-filesystem file detected: {} (dev: {}, expected: {:?})",
-                    entry_path.display(),
-                    dev,
-                    tracker.source_filesystem
-                );
-                // Continue processing but note the boundary crossing
-            }
-
-            // Register file for hardlink tracking (only if it has multiple links)
-            let link_count = extended_metadata.link_count();
-            tracker.register_file(&entry_path, dev, ino, link_count);
-        }
-        // Skip symlinks for now - they'll be handled separately
-    }
-
-    Ok(())
-}

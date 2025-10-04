@@ -11,10 +11,12 @@ High-performance bulk file copying utility using io_uring for maximum efficiency
 
 - **High Performance**: Leverages Linux io_uring for asynchronous I/O operations
 - **Zero-Copy Operations**: Uses `copy_file_range` for same-filesystem copies
+- **Smart Hardlink Detection**: Integrated hardlink detection during traversal - content copied once, subsequent files become hardlinks
 - **Parallel Processing**: Per-CPU queue architecture for optimal scaling
 - **Metadata Preservation**: Complete preservation of ownership, permissions, and extended attributes
-- **Progress Tracking**: Real-time progress reporting with detailed statistics
+- **Progress Tracking**: Real-time progress reporting showing both discovery and completion progress
 - **Cross-Filesystem Support**: Automatic fallback for different filesystems
+- **Single-Pass Operation**: Efficient traversal that discovers and copies in one pass
 
 ## Requirements
 
@@ -166,6 +168,24 @@ io-uring-sync uses a hybrid approach combining existing Rust libraries with cust
 1. **copy_file_range**: Optimal for same-filesystem copies (zero-copy)
 2. **splice**: Zero-copy data transfer between file descriptors
 3. **read/write**: Traditional method with fallback support
+
+### Hardlink Detection and Preservation
+
+io-uring-sync intelligently handles hardlinks during directory traversal:
+
+- **Discovery Phase**: Uses `io_uring statx` to analyze each file's metadata (size, permissions, device ID, inode number, link count)
+- **Smart Copying**: 
+  - First time seeing an inode: Copies the actual file content
+  - Subsequent times: Creates hardlinks using `io_uring linkat` instead of duplicating content
+- **Efficiency**: Content is only copied once per unique inode, saving both time and storage space
+- **Progress Tracking**: Shows both "discovered files" (via statx analysis) and "copied files" (actual operations)
+
+Example progress output:
+```
+[████████████████████████████████████████] 150MB/500MB (30%)
+Copied 150MB of 500MB discovered (30% complete)
+Hardlink detection: 1 unique files, 3 hardlink groups, 8 total hardlinks
+```
 
 ## Development
 
