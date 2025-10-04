@@ -51,65 +51,64 @@ impl SharedStats {
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
     #[must_use]
-    pub fn files_copied(&self) -> u64 {
-        self.inner.lock().unwrap().files_copied
+    pub fn files_copied(&self) -> Result<u64, SyncError> {
+        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied)
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
     #[must_use]
-    pub fn directories_created(&self) -> u64 {
-        self.inner.lock().unwrap().directories_created
+    pub fn directories_created(&self) -> Result<u64, SyncError> {
+        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created)
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
-    pub fn bytes_copied(&self) -> u64 {
-        self.inner.lock().unwrap().bytes_copied
+    #[must_use]
+    pub fn bytes_copied(&self) -> Result<u64, SyncError> {
+        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied)
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
-    pub fn symlinks_processed(&self) -> u64 {
-        self.inner.lock().unwrap().symlinks_processed
+    #[must_use]
+    pub fn symlinks_processed(&self) -> Result<u64, SyncError> {
+        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed)
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
-    pub fn errors(&self) -> u64 {
-        self.inner.lock().unwrap().errors
+    #[must_use]
+    pub fn errors(&self) -> Result<u64, SyncError> {
+        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors)
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn increment_files_copied(&self) {
-        self.inner.lock().unwrap().files_copied += 1;
+    pub fn increment_files_copied(&self) -> Result<(), SyncError> {
+        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied += 1;
+        Ok(())
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn increment_directories_created(&self) {
-        self.inner.lock().unwrap().directories_created += 1;
+    pub fn increment_directories_created(&self) -> Result<(), SyncError> {
+        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created += 1;
+        Ok(())
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn increment_bytes_copied(&self, bytes: u64) {
-        self.inner.lock().unwrap().bytes_copied += bytes;
+    pub fn increment_bytes_copied(&self, bytes: u64) -> Result<(), SyncError> {
+        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied += bytes;
+        Ok(())
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn increment_symlinks_processed(&self) {
-        self.inner.lock().unwrap().symlinks_processed += 1;
+    pub fn increment_symlinks_processed(&self) -> Result<(), SyncError> {
+        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed += 1;
+        Ok(())
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn increment_errors(&self) {
-        self.inner.lock().unwrap().errors += 1;
+    pub fn increment_errors(&self) -> Result<(), SyncError> {
+        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors += 1;
+        Ok(())
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn into_inner(self) -> DirectoryStats {
-        Arc::try_unwrap(self.inner).unwrap().into_inner().unwrap()
+    #[must_use]
+    pub fn into_inner(self) -> Result<DirectoryStats, SyncError> {
+        let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
+        inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
     }
 }
 
@@ -153,49 +152,50 @@ impl SharedHardlinkTracker {
         }
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn is_inode_copied(&self, inode: u64) -> bool {
-        self.inner.lock().unwrap().is_inode_copied(inode)
+    #[must_use]
+    pub fn is_inode_copied(&self, inode: u64) -> Result<bool, SyncError> {
+        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.is_inode_copied(inode))
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn get_original_path_for_inode(&self, inode: u64) -> Option<PathBuf> {
-        self.inner
+    #[must_use]
+    pub fn get_original_path_for_inode(&self, inode: u64) -> Result<Option<PathBuf>, SyncError> {
+        Ok(self.inner
             .lock()
-            .unwrap()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?
             .get_original_path_for_inode(inode)
-            .map(|p| p.to_path_buf())
+            .map(|p| p.to_path_buf()))
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) {
-        self.inner.lock().unwrap().mark_inode_copied(inode, &path);
+    pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) -> Result<(), SyncError> {
+        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.mark_inode_copied(inode, &path);
+        Ok(())
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
-    pub fn register_file(&self, path: PathBuf, device_id: u64, inode: u64, link_count: u64) {
+    pub fn register_file(&self, path: PathBuf, device_id: u64, inode: u64, link_count: u64) -> Result<(), SyncError> {
         self.inner
             .lock()
-            .unwrap()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?
             .register_file(&path, device_id, inode, link_count);
+        Ok(())
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
-    pub fn set_source_filesystem(&self, device_id: u64) {
-        self.inner.lock().unwrap().set_source_filesystem(device_id);
+    pub fn set_source_filesystem(&self, device_id: u64) -> Result<(), SyncError> {
+        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.set_source_filesystem(device_id);
+        Ok(())
     }
 
     #[allow(dead_code)]
-    #[allow(clippy::unwrap_used)]
-    pub fn get_stats(&self) -> FilesystemStats {
-        self.inner.lock().unwrap().get_stats()
+    #[must_use]
+    pub fn get_stats(&self) -> Result<FilesystemStats, SyncError> {
+        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.get_stats())
     }
 
-    #[allow(clippy::unwrap_used)]
-    pub fn into_inner(self) -> FilesystemTracker {
-        Arc::try_unwrap(self.inner).unwrap().into_inner().unwrap()
+    #[must_use]
+    pub fn into_inner(self) -> Result<FilesystemTracker, SyncError> {
+        let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
+        inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
     }
 }
 
@@ -504,7 +504,7 @@ async fn process_directory_entry_with_compio(
                     e
                 ))
             })?;
-            stats.increment_directories_created();
+            stats.increment_directories_created()?;
         }
 
         // Read directory entries using std::fs::read_dir
@@ -663,11 +663,11 @@ async fn process_file(
     let link_count = metadata.link_count();
 
     // Update stats
-    stats.increment_files_copied();
-    stats.increment_bytes_copied(metadata.len());
+    stats.increment_files_copied()?;
+    stats.increment_bytes_copied(metadata.len())?;
 
     // Check if this inode has already been copied (for hardlinks)
-    if link_count > 1 && hardlink_tracker.is_inode_copied(inode_number) {
+    if link_count > 1 && hardlink_tracker.is_inode_copied(inode_number)? {
         // This is a hardlink - create a hardlink instead of copying content
         debug!(
             "Creating hardlink for {} (inode: {})",
@@ -1090,6 +1090,8 @@ pub struct FilesystemStats {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
     use tempfile::TempDir;
 
