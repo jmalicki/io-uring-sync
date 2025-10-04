@@ -95,6 +95,13 @@ pub struct ProgressTracker {
     bytes_copied: u64,
 }
 
+impl Default for ProgressTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[allow(dead_code)]
 impl ProgressTracker {
     /// Create a new progress tracker instance
     ///
@@ -329,6 +336,7 @@ impl ProgressTracker {
 /// - Statistics can be safely shared across threads
 /// - Memory footprint is constant and minimal
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub struct ProgressStats {
     /// Number of files successfully processed during the operation
     pub files_copied: u64,

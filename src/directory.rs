@@ -9,19 +9,22 @@ use crate::copy::copy_file;
 use crate::error::{Result, SyncError};
 use crate::io_uring::FileOperations;
 use async_recursion::async_recursion;
+use io_uring_extended::{ExtendedRio, StatxResult};
+#[allow(clippy::disallowed_types)]
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs as tokio_fs;
 use tracing::{debug, info, warn};
-use io_uring_extended::{ExtendedRio, StatxResult};
 
 /// Extended metadata that includes comprehensive file information from io_uring statx
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ExtendedMetadata {
     /// Complete file metadata from io_uring statx operation
     pub statx_result: StatxResult,
 }
 
+#[allow(dead_code)]
 impl ExtendedMetadata {
     /// Create extended metadata using ONLY io_uring statx operation
     ///
@@ -32,61 +35,69 @@ impl ExtendedMetadata {
         // Create an ExtendedRio instance for io_uring operations
         let extended_rio = ExtendedRio::new()
             .map_err(|e| SyncError::FileSystem(format!("Failed to create ExtendedRio: {}", e)))?;
-        
+
         // Get ALL metadata in a single io_uring statx operation
-        let statx_result = extended_rio.statx_full(path).await
-            .map_err(|e| SyncError::FileSystem(format!("Failed to get metadata for {}: {}", path.display(), e)))?;
-        
-        Ok(ExtendedMetadata {
-            statx_result,
-        })
+        let statx_result = extended_rio.statx_full(path).await.map_err(|e| {
+            SyncError::FileSystem(format!(
+                "Failed to get metadata for {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+
+        Ok(ExtendedMetadata { statx_result })
     }
-    
+
     /// Get device ID
     pub fn device_id(&self) -> u64 {
         self.statx_result.device_id
     }
-    
+
     /// Get inode number
     pub fn inode_number(&self) -> u64 {
         self.statx_result.inode_number
     }
-    
+
     /// Check if this is a directory
     pub fn is_dir(&self) -> bool {
         self.statx_result.is_dir
     }
-    
+
     /// Check if this is a file
     pub fn is_file(&self) -> bool {
         self.statx_result.is_file
     }
-    
+
     /// Check if this is a symlink
     pub fn is_symlink(&self) -> bool {
         self.statx_result.is_symlink
     }
-    
+
     /// Get file size
     pub fn len(&self) -> u64 {
         self.statx_result.file_size
     }
-    
+
+    /// Check if the file is empty
+    pub fn is_empty(&self) -> bool {
+        self.statx_result.file_size == 0
+    }
+
     /// Get file permissions
     pub fn permissions(&self) -> libc::mode_t {
         self.statx_result.permissions
     }
-    
+
     /// Get last modification time
     pub fn modified_time(&self) -> libc::time_t {
         self.statx_result.modified_time
     }
-    
+
     /// Get last access time
     pub fn accessed_time(&self) -> libc::time_t {
         self.statx_result.accessed_time
     }
-    
+
     /// Get creation time
     pub fn created_time(&self) -> libc::time_t {
         self.statx_result.created_time
@@ -462,9 +473,9 @@ pub async fn count_directory_contents(path: &Path) -> Result<(u64, u64)> {
 ///
 /// This module provides functionality for detecting filesystem boundaries
 /// and tracking hardlink relationships to ensure proper file copying behavior.
-
 /// Filesystem device ID and inode number pair for hardlink detection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 pub struct InodeInfo {
     /// Filesystem device ID
     pub dev: u64,
@@ -474,6 +485,7 @@ pub struct InodeInfo {
 
 /// Hardlink tracking information
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct HardlinkInfo {
     /// Original file path
     pub original_path: std::path::PathBuf,
@@ -483,17 +495,21 @@ pub struct HardlinkInfo {
 
 /// Filesystem boundary and hardlink tracker
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct FilesystemTracker {
     /// Map of (dev, ino) pairs to hardlink information
+    #[allow(clippy::disallowed_types)]
     hardlinks: HashMap<InodeInfo, HardlinkInfo>,
     /// Source filesystem device ID (for boundary detection)
     source_filesystem: Option<u64>,
 }
 
+#[allow(dead_code)]
 impl FilesystemTracker {
     /// Create a new filesystem tracker
     pub fn new() -> Self {
         Self {
+            #[allow(clippy::disallowed_types)]
             hardlinks: HashMap::new(),
             source_filesystem: None,
         }
@@ -535,7 +551,10 @@ impl FilesystemTracker {
                 hardlink_info.link_count += 1;
                 debug!(
                     "Found hardlink #{} for inode ({}, {}): {}",
-                    hardlink_info.link_count, dev, ino, path.display()
+                    hardlink_info.link_count,
+                    dev,
+                    ino,
+                    path.display()
                 );
                 false
             }
@@ -550,7 +569,9 @@ impl FilesystemTracker {
                 );
                 debug!(
                     "Registered new file inode ({}, {}): {}",
-                    dev, ino, path.display()
+                    dev,
+                    ino,
+                    path.display()
                 );
                 true
             }
@@ -592,6 +613,7 @@ impl FilesystemTracker {
 
 /// Statistics about filesystem tracking
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct FilesystemStats {
     /// Total number of unique files (by inode)
     pub total_files: usize,
@@ -616,11 +638,15 @@ pub struct FilesystemStats {
 /// # Returns
 ///
 /// Returns Ok(()) on success or an error if traversal fails.
+#[allow(dead_code)]
 pub async fn analyze_filesystem_structure(
     root_path: &Path,
     tracker: &mut FilesystemTracker,
 ) -> Result<()> {
-    debug!("Analyzing filesystem structure for: {}", root_path.display());
+    debug!(
+        "Analyzing filesystem structure for: {}",
+        root_path.display()
+    );
 
     // Get the root directory's filesystem device ID
     let root_extended_metadata = ExtendedMetadata::new(root_path).await?;
@@ -640,6 +666,7 @@ pub async fn analyze_filesystem_structure(
 
 /// Recursively analyze a directory for filesystem structure
 #[async_recursion]
+#[allow(dead_code)]
 async fn analyze_directory_recursive(
     dir_path: &Path,
     tracker: &mut FilesystemTracker,
@@ -677,4 +704,3 @@ async fn analyze_directory_recursive(
 
     Ok(())
 }
-

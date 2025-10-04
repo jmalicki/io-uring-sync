@@ -13,6 +13,6 @@ pub mod progress;
 pub mod sync;
 
 // Re-export commonly used types
+pub use directory::{analyze_filesystem_structure, ExtendedMetadata, FilesystemTracker};
 pub use error::{Result, SyncError};
-pub use directory::{FilesystemTracker, analyze_filesystem_structure, ExtendedMetadata};
 pub use progress::ProgressTracker;

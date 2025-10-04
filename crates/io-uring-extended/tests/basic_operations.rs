@@ -99,9 +99,14 @@ async fn test_hardlink_operations() {
     assert!(hardlink_path.exists(), "Hardlink should exist");
 
     // Verify both files have the same content
-    let original_content = std::fs::read_to_string(&original_file).expect("Failed to read original file");
-    let hardlink_content = std::fs::read_to_string(&hardlink_path).expect("Failed to read hardlink");
-    assert_eq!(original_content, hardlink_content, "Hardlink should have same content as original");
+    let original_content =
+        std::fs::read_to_string(&original_file).expect("Failed to read original file");
+    let hardlink_content =
+        std::fs::read_to_string(&hardlink_path).expect("Failed to read hardlink");
+    assert_eq!(
+        original_content, hardlink_content,
+        "Hardlink should have same content as original"
+    );
 }
 
 #[tokio::test]
@@ -125,31 +130,52 @@ async fn test_statx_full_operations() {
         .expect("Failed to get full statx information");
 
     // Verify we got valid device and inode numbers
-    assert!(statx_result.device_id > 0, "Device ID should be a positive number");
-    assert!(statx_result.inode_number > 0, "Inode number should be a positive number");
-    
+    assert!(
+        statx_result.device_id > 0,
+        "Device ID should be a positive number"
+    );
+    assert!(
+        statx_result.inode_number > 0,
+        "Inode number should be a positive number"
+    );
+
     // Verify file type detection
     assert!(statx_result.is_file, "Should be detected as a file");
-    assert!(!statx_result.is_dir, "Should not be detected as a directory");
-    assert!(!statx_result.is_symlink, "Should not be detected as a symlink");
-    
+    assert!(
+        !statx_result.is_dir,
+        "Should not be detected as a directory"
+    );
+    assert!(
+        !statx_result.is_symlink,
+        "Should not be detected as a symlink"
+    );
+
     // Verify file size
     assert!(statx_result.file_size > 0, "File size should be positive");
-    
+
     // Verify timestamps are reasonable (not zero)
-    assert!(statx_result.modified_time > 0, "Modified time should be positive");
-    assert!(statx_result.accessed_time > 0, "Accessed time should be positive");
-    assert!(statx_result.created_time > 0, "Created time should be positive");
+    assert!(
+        statx_result.modified_time > 0,
+        "Modified time should be positive"
+    );
+    assert!(
+        statx_result.accessed_time > 0,
+        "Accessed time should be positive"
+    );
+    assert!(
+        statx_result.created_time > 0,
+        "Created time should be positive"
+    );
 }
 
 #[tokio::test]
 async fn test_extended_rio_basic_functionality() {
     // Test that we can create an ExtendedRio instance
     let extended_rio = ExtendedRio::new().expect("Failed to create ExtendedRio");
-    
+
     // Test that we can access the underlying rio instance
     let _rio_ref = extended_rio.rio();
-    
+
     // This test verifies that our ExtendedRio struct works correctly
     // and can be instantiated without errors
     // If we get here, the creation succeeded

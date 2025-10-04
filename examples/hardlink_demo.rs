@@ -3,7 +3,7 @@
 //! This example shows how our hardlink detection system works by creating
 //! actual hardlinks and demonstrating the detection logic.
 
-use io_uring_sync::directory::{FilesystemTracker, analyze_filesystem_structure};
+use io_uring_sync::directory::{analyze_filesystem_structure, FilesystemTracker};
 use std::fs::File;
 use std::io::Write;
 use tempfile::TempDir;
@@ -45,12 +45,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     analyze_filesystem_structure(temp_path, &mut tracker).await?;
 
     let stats = tracker.get_stats();
-    
+
     println!("\nHardlink Detection Results:");
     println!("  - Total unique files: {}", stats.total_files);
     println!("  - Hardlink groups: {}", stats.hardlink_groups);
     println!("  - Total hardlinks: {}", stats.total_hardlinks);
-    
+
     if let Some(source_dev) = stats.source_filesystem {
         println!("  - Source filesystem device ID: {}", source_dev);
     }
