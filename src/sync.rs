@@ -201,18 +201,43 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
 
         // Note: file size is now obtained within copy_file_with_metadata
 
-        // Copy the file with metadata preservation
-        match file_ops
-            .copy_file_with_metadata(&args.source, &args.destination)
-            .await
-        {
-            Ok(bytes_copied) => {
+        // Copy the file using the specified method
+        match copy_file(&args.source, &args.destination, args.copy_method.clone()).await {
+            Ok(()) => {
+                // Get file size for statistics
+                let file_size = file_ops.get_file_size(&args.source).await?;
                 stats.files_copied = 1;
-                stats.bytes_copied = bytes_copied;
+                stats.bytes_copied = file_size;
                 info!(
-                    "Successfully copied file with metadata: {} bytes",
-                    bytes_copied
+                    "Successfully copied file: {} bytes using {:?}",
+                    file_size, args.copy_method
                 );
+
+                // Preserve metadata after copying
+                match file_ops.get_file_metadata(&args.source).await {
+                    Ok(metadata) => {
+                        // Preserve permissions
+                        let _ = file_ops
+                            .set_file_permissions(&args.destination, metadata.permissions)
+                            .await;
+                        // Preserve ownership (may fail if not privileged)
+                        let _ = file_ops
+                            .set_file_ownership(&args.destination, metadata.uid, metadata.gid)
+                            .await;
+                        // Preserve timestamps
+                        let _ = file_ops
+                            .set_file_timestamps(
+                                &args.destination,
+                                metadata.accessed,
+                                metadata.modified,
+                            )
+                            .await;
+                        info!("Metadata preservation completed");
+                    }
+                    Err(e) => {
+                        warn!("Failed to preserve metadata: {}", e);
+                    }
+                }
             }
             Err(e) => {
                 error!("Failed to copy file {}: {}", args.source.display(), e);
