@@ -51,6 +51,7 @@
 
 use crate::cli::Args;
 use crate::copy::copy_file;
+use crate::directory::copy_directory;
 use crate::error::Result;
 use crate::io_uring::FileOperations;
 use std::time::{Duration, Instant};
@@ -188,7 +189,7 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
 
     // Initialize file operations with configured parameters
     // Queue depth and buffer size are validated by the CLI module
-    let mut file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
+    let file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
 
     // Handle single file copy
     if args.is_file_copy() {
@@ -227,11 +228,20 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
         // Ensure destination directory exists
         file_ops.create_dir(&args.destination).await?;
 
-        // For now, just copy the directory structure without files
-        // TODO: Implement recursive directory traversal in Phase 1.3
-        warn!("Directory copying not yet implemented - only structure created");
-        stats.files_copied = 0;
-        stats.bytes_copied = 0;
+        // Copy directory recursively
+        let dir_stats = copy_directory(&args.source, &args.destination, &file_ops, args.copy_method.clone()).await?;
+        
+        // Update statistics
+        stats.files_copied = dir_stats.files_copied;
+        stats.bytes_copied = dir_stats.bytes_copied;
+        
+        info!(
+            "Directory copy completed: {} files, {} directories, {} bytes, {} errors",
+            dir_stats.files_copied,
+            dir_stats.directories_created,
+            dir_stats.bytes_copied,
+            dir_stats.errors
+        );
     } else {
         error!(
             "Source path is neither a file nor a directory: {}",
