@@ -245,25 +245,30 @@ This document outlines the research findings for developing a highly efficient b
     - **Performance**: Async file removal
     - **Status**: ✅ Available in io_uring
 
-14. **renameat2** - File/directory renaming
+14. **linkat** - Hardlink creation
+    - **Use Case**: Creating hardlinks to preserve file relationships
+    - **Performance**: Async hardlink creation
+    - **Status**: ✅ Available in io_uring with IORING_OP_LINKAT
+
+15. **renameat2** - File/directory renaming
     - **Use Case**: Atomic file moves, temporary file handling
     - **Performance**: Async rename operations
     - **Status**: ✅ Available in io_uring
 
-15. **sync_file_range** - File synchronization
+16. **sync_file_range** - File synchronization
     - **Use Case**: Ensuring data integrity, explicit flushing
     - **Performance**: Async sync operations
     - **Status**: ✅ Available in io_uring
 
 #### Direct I/O Operations (Priority: MEDIUM - Future Enhancement)
-16. **O_DIRECT support** - Direct I/O bypassing page cache
+17. **O_DIRECT support** - Direct I/O bypassing page cache
     - **Use Case**: High-performance I/O for large files, database operations
     - **Performance**: Eliminates page cache overhead, reduces memory usage
     - **Requirements**: Aligned buffers (typically 512-byte alignment), aligned file offsets
     - **Status**: ✅ Supported in io_uring with IORING_OP_OPENAT (O_DIRECT flag)
     - **Strategy**: Optional feature for Phase 3+ with aligned buffer management
 
-17. **fallocate** - File space preallocation
+18. **fallocate** - File space preallocation
     - **Use Case**: Preallocate disk space for files, especially critical for O_DIRECT performance
     - **Performance**: Reduces fragmentation, ensures contiguous blocks, improves O_DIRECT efficiency
     - **Requirements**: Must be done before O_DIRECT operations for optimal performance
@@ -271,7 +276,7 @@ This document outlines the research findings for developing a highly efficient b
     - **Strategy**: Essential for O_DIRECT operations, implement in Phase 3+ with aligned buffer management
 
 #### Symlink Operations (Priority: HIGH)
-18. **symlinkat/readlink** - Symbolic link management
+19. **symlinkat/readlink** - Symbolic link management
     - **Use Case**: Creating and reading symbolic links, preserving symlink targets during copy
     - **Performance**: Async symlink operations, essential for complete file system traversal
     - **Requirements**: Must handle symlink creation and target resolution
@@ -279,19 +284,19 @@ This document outlines the research findings for developing a highly efficient b
     - **Strategy**: Critical for rsync-like functionality, implement in Phase 2.2+ for directory traversal
 
 #### Filesystem and Hardlink Operations (Priority: HIGH)
-19. **statx** - Extended file statistics for filesystem boundary detection
+20. **statx** - Extended file statistics for filesystem boundary detection
     - **Use Case**: Detecting filesystem boundaries, identifying hardlinks via (st_dev, st_ino) pairs
     - **Performance**: Async metadata collection, prevents cross-filesystem traversal
     - **Requirements**: Must track device IDs (st_dev) and inode numbers (st_ino)
     - **Status**: ✅ Supported in io_uring with IORING_OP_STATX (since kernel 5.1)
     - **Strategy**: Essential for robust directory traversal, implement in Phase 2.2+ with hardlink detection
 
-20. **Hardlink detection** - Identifying duplicate inodes
+21. **Hardlink detection and creation** - Identifying and preserving duplicate inodes
     - **Use Case**: Avoiding duplicate processing of hardlinked files, preserving hardlink relationships
     - **Performance**: Critical for efficiency when copying files with multiple hardlinks
-    - **Requirements**: Track (st_dev, st_ino) pairs during traversal
-    - **Status**: ✅ Achievable via statx operations in io_uring
-    - **Strategy**: Implement hardlink tracking alongside filesystem boundary detection
+    - **Requirements**: Track (st_dev, st_ino) pairs during traversal, create hardlinks via IORING_OP_LINKAT
+    - **Status**: ✅ Achievable via statx + linkat operations in io_uring
+    - **Strategy**: Implement hardlink tracking and creation alongside filesystem boundary detection
 
 ## 7. Library Support Analysis
 
@@ -305,6 +310,7 @@ This document outlines the research findings for developing a highly efficient b
 - **xattr operations**: ❌ Not supported
 - **openat/close**: ✅ Supported (IORING_OP_OPENAT, IORING_OP_CLOSE)
 - **symlinkat/readlink**: ✅ Supported (IORING_OP_SYMLINKAT, IORING_OP_READLINK)
+- **linkat**: ✅ Supported (IORING_OP_LINKAT)
 - **read/write**: ✅ Core functionality
 - **O_DIRECT**: ✅ Supported via openat flags
 - **fallocate**: ✅ Supported (IORING_OP_FALLOCATE)
