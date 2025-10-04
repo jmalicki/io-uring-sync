@@ -61,7 +61,6 @@ pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()>
     }
 }
 
-
 /// Copy file using splice system call (zero-copy operations)
 ///
 /// This function uses the splice system call for zero-copy file operations
@@ -286,16 +285,14 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     while total_copied < file_size {
         // Create a new buffer for each read operation
         let buffer = vec![0u8; BUFFER_SIZE];
-        
+
         // Read data from source file using compio
-        let buf_result = src_file
-            .read_at(buffer, offset)
-            .await;
-        
-        let bytes_read = buf_result.0.map_err(|e| {
-            SyncError::IoUring(format!("compio read_at operation failed: {}", e))
-        })?;
-        
+        let buf_result = src_file.read_at(buffer, offset).await;
+
+        let bytes_read = buf_result
+            .0
+            .map_err(|e| SyncError::IoUring(format!("compio read_at operation failed: {}", e)))?;
+
         let read_buffer = buf_result.1;
 
         if bytes_read == 0 {
@@ -304,13 +301,11 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         }
 
         // Write data to destination file using compio
-        let write_buf_result = dst_file
-            .write_at(read_buffer, offset)
-            .await;
+        let write_buf_result = dst_file.write_at(read_buffer, offset).await;
 
-        let bytes_written = write_buf_result.0.map_err(|e| {
-            SyncError::IoUring(format!("compio write_at operation failed: {}", e))
-        })?;
+        let bytes_written = write_buf_result
+            .0
+            .map_err(|e| SyncError::IoUring(format!("compio write_at operation failed: {}", e)))?;
 
         // Ensure we wrote the expected number of bytes
         if bytes_written != bytes_read {

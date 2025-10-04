@@ -28,12 +28,12 @@ compio = { version = "0.16", features = ["macros"] }
 # CLI and error handling
 clap = { version = "4.0", features = ["derive"] }
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 
 # Logging and progress
 tracing = "0.1"
 tracing-subscriber = "0.3"
-indicatif = "0.17"
+indicatif = "0.18"
 
 # System utilities
 num_cpus = "1.0"
@@ -53,24 +53,24 @@ libc = "0.2"
 cc = "1.0"
 
 # Benchmarking (optional)
-criterion = { version = "0.5", features = ["html_reports"], optional = true }
+criterion = { version = "0.7", features = ["html_reports"], optional = true }
 
 [dev-dependencies]
 # Testing
 tempfile = "3.0"
 assert_cmd = "2.0"
 predicates = "3.0"
-rstest = "0.18"
+rstest = "0.26"
 walkdir = "2.0"
 xattr = "1.0"
 
 # Documentation and linting
 mdbook = "0.4"
 cargo-make = "0.37"
-cargo-deny = "0.17"
+# cargo-deny = "0.17"  # Temporarily disabled due to rustsec compatibility issue
 cargo-audit = "0.21"
-cargo-outdated = "0.17"
-cargo-expand = "1.0"
+# cargo-outdated = "0.17"  # Temporarily disabled
+# cargo-expand = "1.0"  # Temporarily disabled
 
 [features]
 default = []
@@ -98,9 +98,3 @@ doc-private = ["doc", "--document-private-items", "--no-deps", "--all-features"]
 doc-check = ["doc", "--document-private-items", "--no-deps", "--all-features", "--", "--check"]
 
 # Note: nix vulnerability RUSTSEC-2021-0119 is in getgrouplist which we don't use
-
-# Security audit configuration
-[audit]
-ignore = [
-    { advisory = "RUSTSEC-2021-0119", reason = "Vulnerability in iou dependency's nix usage - getgrouplist not used in our code" },
-]

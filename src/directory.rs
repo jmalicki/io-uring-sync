@@ -13,8 +13,6 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info, warn};
 
-
-
 /// Directory copy operation statistics
 #[derive(Debug, Default)]
 pub struct DirectoryStats {
@@ -80,7 +78,6 @@ pub async fn copy_directory(
 
     // Set source filesystem from root directory
 
-
     // Log hardlink detection results
     let hardlink_stats = hardlink_tracker.get_stats();
     info!(
@@ -98,7 +95,6 @@ pub async fn copy_directory(
 
     Ok(stats)
 }
-
 
 /// Copy a symlink preserving its target
 async fn copy_symlink(src: &Path, dst: &Path) -> Result<()> {
@@ -482,4 +478,3 @@ pub struct FilesystemStats {
     /// Source filesystem device ID
     pub source_filesystem: Option<u64>,
 }
-

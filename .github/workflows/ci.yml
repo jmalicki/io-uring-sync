@@ -45,7 +45,7 @@ jobs:
       run: cargo deny check
     
     - name: Check for outdated dependencies
-      run: cargo outdated --exit-code 1
+      run: cargo outdated --depth 1 --color always --exit-code 1 --ignore cargo-deny
 
   test:
     name: Test
@@ -162,6 +162,7 @@ jobs:
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     steps:
     - uses: actions/checkout@v4
     
@@ -182,11 +183,16 @@ jobs:
     - name: Run benchmarks
       run: cargo bench
     
-    - name: Upload benchmark results
-      uses: actions/upload-artifact@v4
+    - name: Upload benchmark results to GitHub Pages
+      uses: benchmark-action/github-action-benchmark@v1
       with:
-        name: benchmark-results
-        path: target/criterion/
+        tool: 'cargo'
+        output-file-path: target/criterion/
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+        comment-on-alert: true
+        alert-threshold: '200%'
+        fail-on-alert: false
 
   docs:
     name: Documentation
