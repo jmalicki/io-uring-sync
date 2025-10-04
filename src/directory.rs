@@ -52,61 +52,61 @@ impl SharedStats {
 
     #[allow(dead_code)]
     #[must_use]
-    pub fn files_copied(&self) -> Result<u64, SyncError> {
+    pub fn files_copied(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied)
     }
 
     #[allow(dead_code)]
     #[must_use]
-    pub fn directories_created(&self) -> Result<u64, SyncError> {
+    pub fn directories_created(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created)
     }
 
     #[allow(dead_code)]
     #[must_use]
-    pub fn bytes_copied(&self) -> Result<u64, SyncError> {
+    pub fn bytes_copied(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied)
     }
 
     #[allow(dead_code)]
     #[must_use]
-    pub fn symlinks_processed(&self) -> Result<u64, SyncError> {
+    pub fn symlinks_processed(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed)
     }
 
     #[allow(dead_code)]
     #[must_use]
-    pub fn errors(&self) -> Result<u64, SyncError> {
+    pub fn errors(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors)
     }
 
-    pub fn increment_files_copied(&self) -> Result<(), SyncError> {
+    pub fn increment_files_copied(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied += 1;
         Ok(())
     }
 
-    pub fn increment_directories_created(&self) -> Result<(), SyncError> {
+    pub fn increment_directories_created(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created += 1;
         Ok(())
     }
 
-    pub fn increment_bytes_copied(&self, bytes: u64) -> Result<(), SyncError> {
+    pub fn increment_bytes_copied(&self, bytes: u64) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied += bytes;
         Ok(())
     }
 
-    pub fn increment_symlinks_processed(&self) -> Result<(), SyncError> {
+    pub fn increment_symlinks_processed(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed += 1;
         Ok(())
     }
 
-    pub fn increment_errors(&self) -> Result<(), SyncError> {
+    pub fn increment_errors(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors += 1;
         Ok(())
     }
 
     #[must_use]
-    pub fn into_inner(self) -> Result<DirectoryStats, SyncError> {
+    pub fn into_inner(self) -> Result<DirectoryStats> {
         let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
         inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
     }
@@ -153,12 +153,12 @@ impl SharedHardlinkTracker {
     }
 
     #[must_use]
-    pub fn is_inode_copied(&self, inode: u64) -> Result<bool, SyncError> {
+    pub fn is_inode_copied(&self, inode: u64) -> Result<bool> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.is_inode_copied(inode))
     }
 
     #[must_use]
-    pub fn get_original_path_for_inode(&self, inode: u64) -> Result<Option<PathBuf>, SyncError> {
+    pub fn get_original_path_for_inode(&self, inode: u64) -> Result<Option<PathBuf>> {
         Ok(self.inner
             .lock()
             .map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?
@@ -166,13 +166,13 @@ impl SharedHardlinkTracker {
             .map(|p| p.to_path_buf()))
     }
 
-    pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) -> Result<(), SyncError> {
+    pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.mark_inode_copied(inode, &path);
         Ok(())
     }
 
     #[allow(dead_code)]
-    pub fn register_file(&self, path: PathBuf, device_id: u64, inode: u64, link_count: u64) -> Result<(), SyncError> {
+    pub fn register_file(&self, path: PathBuf, device_id: u64, inode: u64, link_count: u64) -> Result<()> {
         self.inner
             .lock()
             .map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?
@@ -181,19 +181,19 @@ impl SharedHardlinkTracker {
     }
 
     #[allow(dead_code)]
-    pub fn set_source_filesystem(&self, device_id: u64) -> Result<(), SyncError> {
+    pub fn set_source_filesystem(&self, device_id: u64) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.set_source_filesystem(device_id);
         Ok(())
     }
 
     #[allow(dead_code)]
     #[must_use]
-    pub fn get_stats(&self) -> Result<FilesystemStats, SyncError> {
+    pub fn get_stats(&self) -> Result<FilesystemStats> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.get_stats())
     }
 
     #[must_use]
-    pub fn into_inner(self) -> Result<FilesystemTracker, SyncError> {
+    pub fn into_inner(self) -> Result<FilesystemTracker> {
         let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
         inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
     }
@@ -428,8 +428,8 @@ async fn traverse_and_copy_directory_iterative(
     .await;
 
     // Restore the state
-    *stats = shared_stats.into_inner();
-    *hardlink_tracker = shared_hardlink_tracker.into_inner();
+    *stats = shared_stats.into_inner()?;
+    *hardlink_tracker = shared_hardlink_tracker.into_inner()?;
 
     result
 }
@@ -676,7 +676,7 @@ async fn process_file(
         );
 
         // Find the original file path for this inode
-        if let Some(original_path) = hardlink_tracker.get_original_path_for_inode(inode_number) {
+        if let Some(original_path) = hardlink_tracker.get_original_path_for_inode(inode_number)? {
             // Create destination directory if needed
             if let Some(parent) = dst_path.parent() {
                 if !parent.exists() {
@@ -693,7 +693,7 @@ async fn process_file(
             // Create hardlink using std filesystem operations (compio has Send issues)
             match std::fs::hard_link(&original_path, &dst_path) {
                 Ok(()) => {
-                    stats.increment_files_copied();
+                    stats.increment_files_copied()?;
                     debug!(
                         "Created hardlink: {} -> {}",
                         dst_path.display(),
@@ -706,12 +706,12 @@ async fn process_file(
                         src_path.display(),
                         e
                     );
-                    stats.increment_errors();
+                    stats.increment_errors()?;
                 }
             }
         } else {
             warn!("Could not find original path for inode {}", inode_number);
-            stats.increment_errors();
+            stats.increment_errors()?;
         }
     } else {
         // First time seeing this inode - copy the file content normally
@@ -719,12 +719,12 @@ async fn process_file(
 
         match copy_file(&src_path, &dst_path, copy_method).await {
             Ok(()) => {
-                stats.increment_files_copied();
-                stats.increment_bytes_copied(metadata.len());
+                stats.increment_files_copied()?;
+                stats.increment_bytes_copied(metadata.len())?;
 
                 // Mark this inode as copied for future hardlink creation
                 if link_count > 1 {
-                    hardlink_tracker.mark_inode_copied(inode_number, dst_path.clone());
+                    hardlink_tracker.mark_inode_copied(inode_number, dst_path.clone())?;
                 }
 
                 // Preserve metadata
@@ -738,7 +738,7 @@ async fn process_file(
             }
             Err(e) => {
                 warn!("Failed to copy file {}: {}", src_path.display(), e);
-                stats.increment_errors();
+                stats.increment_errors()?;
             }
         }
     }
@@ -777,11 +777,11 @@ async fn process_symlink(src_path: PathBuf, dst_path: PathBuf, stats: SharedStat
 
     match copy_symlink(&src_path, &dst_path).await {
         Ok(()) => {
-            stats.increment_symlinks_processed();
+            stats.increment_symlinks_processed()?;
             Ok(())
         }
         Err(e) => {
-            stats.increment_errors();
+            stats.increment_errors()?;
             warn!("Failed to copy symlink {}: {}", src_path.display(), e);
             Err(e)
         }
