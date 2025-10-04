@@ -45,6 +45,7 @@
 
 use crate::io_uring::CopyOperation;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::time::Duration;
 
 /// Progress tracker for file synchronization operations
 ///
@@ -82,6 +83,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 /// - Progress bar rendering is optimized for minimal CPU usage
 /// - Memory footprint is constant regardless of operation size
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ProgressTracker {
     /// Visual progress bar for user feedback
     progress_bar: ProgressBar,
@@ -115,6 +117,7 @@ impl ProgressTracker {
     /// - Initialization is O(1) and very fast
     /// - No memory allocation beyond the struct itself
     /// - Progress bar styling is applied immediately
+    #[allow(dead_code)]
     pub fn new() -> Self {
         let pb = ProgressBar::new(0);
         pb.set_style(

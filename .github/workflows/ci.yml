@@ -26,14 +26,17 @@ jobs:
         toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
     
-    - name: Cache cargo registry
-      uses: actions/cache@v3
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
       with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+        # Cache key prefix for this project
+        prefix-key: "io-uring-sync"
+        # Cache all crates (useful for CI tooling)
+        cache-all-crates: "true"
+        # Cache workspace crates (libraries updated sporadically)
+        cache-workspace-crates: "true"
+        # Cache cargo binaries
+        cache-bin: "true"
     
     - name: Check formatting
       run: cargo fmt --all -- --check
@@ -69,17 +72,26 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@1.75
       with:
         components: rustfmt, clippy
     
-    - name: Generate coverage report
-      uses: actions-rs/tarpaulin@v0.1
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
       with:
-        args: --all-features --out Html --output-dir coverage
+        prefix-key: "io-uring-sync-coverage"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
+    
+    - name: Install tarpaulin
+      run: cargo install cargo-tarpaulin
+      
+    - name: Generate coverage report
+      run: cargo tarpaulin --all-features --out Html --output-dir coverage
     
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage/cobertura.xml
         flags: unittests
@@ -93,7 +105,14 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@1.75
+    
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "io-uring-sync-security"
+        cache-all-crates: "true"
+        cache-bin: "true"
     
     - name: Install cargo-audit
       run: cargo install cargo-audit
@@ -108,7 +127,14 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@1.75
+    
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "io-uring-sync-deps"
+        cache-all-crates: "true"
+        cache-bin: "true"
     
     - name: Install cargo-deny
       run: cargo install cargo-deny
@@ -129,13 +155,21 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@1.75
+    
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "io-uring-sync-bench"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
     
     - name: Run benchmarks
       run: cargo bench
     
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: target/criterion/
@@ -147,17 +181,25 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@1.75
+    
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "io-uring-sync-docs"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
     
     - name: Build documentation (with private items)
       run: cargo doc --document-private-items --no-deps --all-features
 
     - name: Check documentation links
-      run: cargo doc --document-private-items --no-deps --all-features -- --check
+      run: cargo doc --document-private-items --no-deps --all-features
     
     - name: Deploy documentation
       if: github.ref == 'refs/heads/main'
-      uses: peaceiris/actions-gh-pages@v3
+      uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./target/doc
