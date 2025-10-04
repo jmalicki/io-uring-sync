@@ -54,6 +54,6 @@ pub mod progress;
 pub mod sync;
 
 // Re-export commonly used types
-pub use directory::{ExtendedMetadata, FilesystemTracker};
+pub use directory::FilesystemTracker;
 pub use error::{Result, SyncError};
 pub use progress::ProgressTracker;

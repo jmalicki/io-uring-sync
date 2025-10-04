@@ -14,94 +14,6 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use tracing::{debug, info, warn};
 
-/// Extended metadata using std::fs metadata support
-#[derive(Clone)]
-#[allow(dead_code)]
-pub struct ExtendedMetadata {
-    /// Complete file metadata from std::fs metadata operation
-    pub metadata: std::fs::Metadata,
-}
-
-#[allow(dead_code)]
-impl ExtendedMetadata {
-    /// Create extended metadata using compio's built-in metadata support
-    ///
-    /// This function uses compio's metadata operation which leverages io_uring
-    /// for efficient async metadata retrieval including device ID, inode number,
-    /// size, permissions, timestamps, and file type.
-    pub async fn new(path: &Path) -> Result<Self> {
-        // Get metadata using std::fs symlink_metadata (doesn't follow symlinks)
-        let metadata = std::fs::symlink_metadata(path).map_err(|e| {
-            SyncError::FileSystem(format!(
-                "Failed to get metadata for {}: {}",
-                path.display(),
-                e
-            ))
-        })?;
-
-        Ok(ExtendedMetadata { metadata })
-    }
-
-    /// Get device ID
-    pub fn device_id(&self) -> u64 {
-        self.metadata.dev()
-    }
-
-    /// Get inode number
-    pub fn inode_number(&self) -> u64 {
-        self.metadata.ino()
-    }
-
-    /// Check if this is a directory
-    pub fn is_dir(&self) -> bool {
-        self.metadata.is_dir()
-    }
-
-    /// Check if this is a file
-    pub fn is_file(&self) -> bool {
-        self.metadata.is_file()
-    }
-
-    /// Check if this is a symlink
-    pub fn is_symlink(&self) -> bool {
-        self.metadata.file_type().is_symlink()
-    }
-
-    /// Get file size
-    pub fn len(&self) -> u64 {
-        self.metadata.len()
-    }
-
-    /// Check if the file is empty
-    pub fn is_empty(&self) -> bool {
-        self.metadata.len() == 0
-    }
-
-    /// Get file permissions
-    pub fn permissions(&self) -> u32 {
-        self.metadata.mode()
-    }
-
-    /// Get last modification time
-    pub fn modified_time(&self) -> i64 {
-        self.metadata.mtime()
-    }
-
-    /// Get last access time
-    pub fn accessed_time(&self) -> i64 {
-        self.metadata.atime()
-    }
-
-    /// Get creation time
-    pub fn created_time(&self) -> i64 {
-        self.metadata.ctime()
-    }
-
-    /// Get link count (number of hardlinks to this inode)
-    pub fn link_count(&self) -> u64 {
-        self.metadata.nlink()
-    }
-}
 
 /// Directory copy operation statistics
 #[derive(Debug, Default)]
@@ -167,8 +79,14 @@ pub async fn copy_directory(
     }
 
     // Set source filesystem from root directory
-    let root_metadata = ExtendedMetadata::new(src).await?;
-    hardlink_tracker.set_source_filesystem(root_metadata.device_id());
+    let root_metadata = compio::fs::symlink_metadata(src).await.map_err(|e| {
+        SyncError::FileSystem(format!(
+            "Failed to get metadata for {}: {}",
+            src.display(),
+            e
+        ))
+    })?;
+    hardlink_tracker.set_source_filesystem(root_metadata.dev());
 
     // Traverse source directory iteratively using compio's dispatcher
     let params = TraversalParams {
@@ -234,16 +152,22 @@ async fn traverse_and_copy_directory_iterative(
             })?;
             let dst_path = dst.join(file_name);
 
-            // Get comprehensive metadata using std::fs metadata (includes hardlink info)
-            let extended_metadata = ExtendedMetadata::new(&src_path).await?;
+            // Get comprehensive metadata using compio::fs metadata (includes hardlink info)
+            let metadata = compio::fs::symlink_metadata(&src_path).await.map_err(|e| {
+                SyncError::FileSystem(format!(
+                    "Failed to get metadata for {}: {}",
+                    src_path.display(),
+                    e
+                ))
+            })?;
 
-            if extended_metadata.is_dir() {
+            if metadata.is_dir() {
                 // Handle directory
                 debug!("Processing directory: {}", src_path.display());
 
                 // Create destination directory
                 if !dst_path.exists() {
-                    std::fs::create_dir(&dst_path).map_err(|e| {
+                    compio::fs::create_dir(&dst_path).await.map_err(|e| {
                         SyncError::FileSystem(format!(
                             "Failed to create directory {}: {}",
                             dst_path.display(),
@@ -255,17 +179,17 @@ async fn traverse_and_copy_directory_iterative(
 
                 // Add subdirectory to work list for later processing
                 work_list.push((src_path, dst_path));
-            } else if extended_metadata.is_file() {
+            } else if metadata.is_file() {
                 // Handle regular file with hardlink detection
                 debug!(
                     "Processing file: {} (link_count: {})",
                     src_path.display(),
-                    extended_metadata.link_count()
+                    metadata.nlink()
                 );
 
-                let device_id = extended_metadata.device_id();
-                let inode_number = extended_metadata.inode_number();
-                let link_count = extended_metadata.link_count();
+                let device_id = metadata.dev();
+                let inode_number = metadata.ino();
+                let link_count = metadata.nlink();
 
                 // Register file with hardlink tracker (optimization: skip if link_count == 1)
                 if link_count > 1 {
@@ -300,7 +224,7 @@ async fn traverse_and_copy_directory_iterative(
                         // Create destination directory if needed
                         if let Some(parent) = dst_path.parent() {
                             if !parent.exists() {
-                                std::fs::create_dir_all(parent).map_err(|e| {
+                                compio::fs::create_dir_all(parent).await.map_err(|e| {
                                     SyncError::FileSystem(format!(
                                         "Failed to create parent directory {}: {}",
                                         parent.display(),
@@ -310,8 +234,8 @@ async fn traverse_and_copy_directory_iterative(
                             }
                         }
 
-                        // Create hardlink using std filesystem operations (compio has Send issues)
-                        match std::fs::hard_link(original_path, &dst_path) {
+                        // Create hardlink using compio filesystem operations
+                        match compio::fs::hard_link(original_path, &dst_path).await {
                             Ok(()) => {
                                 params.stats.files_copied += 1;
                                 debug!(
@@ -340,7 +264,7 @@ async fn traverse_and_copy_directory_iterative(
                     match copy_file(&src_path, &dst_path, params.copy_method.clone()).await {
                         Ok(()) => {
                             params.stats.files_copied += 1;
-                            params.stats.bytes_copied += extended_metadata.len();
+                            params.stats.bytes_copied += metadata.len();
 
                             // Mark this inode as copied for future hardlink creation
                             if link_count > 1 {
@@ -366,7 +290,7 @@ async fn traverse_and_copy_directory_iterative(
                         }
                     }
                 }
-            } else if extended_metadata.is_symlink() {
+            } else if metadata.file_type().is_symlink() {
                 // Handle symlink
                 debug!("Processing symlink: {}", src_path.display());
 
