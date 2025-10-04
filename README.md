@@ -169,7 +169,12 @@ io-uring-sync uses a hybrid approach combining existing Rust libraries with cust
 
 ## Development
 
-See [DEVELOPER.md](DEVELOPER.md) for detailed development guidelines.
+See the following documents for detailed development information:
+
+- [DEVELOPER.md](DEVELOPER.md) - Development guidelines and standards
+- [research.md](research.md) - Comprehensive technical research and analysis
+- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) - Detailed implementation phases and deliverables
+- [TESTING_STRATEGY.md](TESTING_STRATEGY.md) - Comprehensive testing approach and requirements
 
 ### Quick Start
 
