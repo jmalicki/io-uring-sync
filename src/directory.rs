@@ -13,6 +13,68 @@ use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs as tokio_fs;
 use tracing::{debug, info, warn};
+use std::fs::Metadata;
+
+/// Extended metadata that includes both standard metadata and inode information
+#[derive(Debug, Clone)]
+pub struct ExtendedMetadata {
+    /// Standard filesystem metadata
+    pub metadata: Metadata,
+    /// Filesystem device ID
+    pub device_id: u64,
+    /// Inode number
+    pub inode_number: u64,
+}
+
+impl ExtendedMetadata {
+    /// Create extended metadata by combining standard metadata with inode info
+    ///
+    /// This function gets the standard metadata and then uses io_uring to get
+    /// the device ID and inode number in a single efficient operation.
+    pub async fn new(path: &Path) -> Result<Self> {
+        // Get standard metadata
+        let metadata = tokio_fs::metadata(path).await?;
+        
+        // Get inode information using io_uring
+        let (device_id, inode_number) = get_inode_info_io_uring(path).await?;
+        
+        Ok(ExtendedMetadata {
+            metadata,
+            device_id,
+            inode_number,
+        })
+    }
+    
+    /// Get device ID
+    pub fn device_id(&self) -> u64 {
+        self.device_id
+    }
+    
+    /// Get inode number
+    pub fn inode_number(&self) -> u64 {
+        self.inode_number
+    }
+    
+    /// Check if this is a directory
+    pub fn is_dir(&self) -> bool {
+        self.metadata.is_dir()
+    }
+    
+    /// Check if this is a file
+    pub fn is_file(&self) -> bool {
+        self.metadata.is_file()
+    }
+    
+    /// Check if this is a symlink
+    pub fn is_symlink(&self) -> bool {
+        self.metadata.is_symlink()
+    }
+    
+    /// Get file size
+    pub fn len(&self) -> u64 {
+        self.metadata.len()
+    }
+}
 
 /// Directory copy operation statistics
 #[derive(Debug, Default)]
@@ -544,9 +606,8 @@ pub async fn analyze_filesystem_structure(
     debug!("Analyzing filesystem structure for: {}", root_path.display());
 
     // Get the root directory's filesystem device ID
-    let root_metadata = tokio_fs::metadata(root_path).await?;
-    let root_dev = get_device_id(&root_metadata)?;
-    tracker.set_source_filesystem(root_dev);
+    let root_extended_metadata = ExtendedMetadata::new(root_path).await?;
+    tracker.set_source_filesystem(root_extended_metadata.device_id());
 
     // Traverse the directory tree
     analyze_directory_recursive(root_path, tracker).await?;
@@ -570,15 +631,15 @@ async fn analyze_directory_recursive(
 
     while let Some(entry) = entries.next_entry().await? {
         let entry_path = entry.path();
-        let metadata = entry.metadata().await?;
+        let extended_metadata = ExtendedMetadata::new(&entry_path).await?;
 
-        if metadata.is_dir() {
+        if extended_metadata.is_dir() {
             // Recursively analyze subdirectories
             analyze_directory_recursive(&entry_path, tracker).await?;
-        } else if metadata.is_file() {
+        } else if extended_metadata.is_file() {
             // Analyze file for hardlink detection
-            let dev = get_device_id(&metadata)?;
-            let ino = get_inode_number(&metadata)?;
+            let dev = extended_metadata.device_id();
+            let ino = extended_metadata.inode_number();
 
             // Check filesystem boundary
             if !tracker.is_same_filesystem(dev) {
@@ -600,22 +661,15 @@ async fn analyze_directory_recursive(
     Ok(())
 }
 
-/// Extract device ID from file metadata
+/// Extract device ID and inode number from file path using io_uring
 ///
-/// This is a helper function to get the filesystem device ID from metadata.
-fn get_device_id(metadata: &std::fs::Metadata) -> Result<u64> {
-    // For now, we'll use a placeholder since std::fs::Metadata doesn't expose st_dev
-    // In a real implementation, we'd use statx or similar
-    // TODO: Implement proper device ID extraction using io_uring statx
-    Ok(0) // Placeholder
-}
-
-/// Extract inode number from file metadata
-///
-/// This is a helper function to get the inode number from metadata.
-fn get_inode_number(metadata: &std::fs::Metadata) -> Result<u64> {
-    // For now, we'll use a placeholder since std::fs::Metadata doesn't expose st_ino
-    // In a real implementation, we'd use statx or similar
-    // TODO: Implement proper inode number extraction using io_uring statx
-    Ok(0) // Placeholder
+/// This function uses our io_uring statx operations to get filesystem information efficiently.
+async fn get_inode_info_io_uring(path: &Path) -> Result<(u64, u64)> {
+    // Create an ExtendedRio instance for io_uring operations
+    let extended_rio = io_uring_extended::ExtendedRio::new()
+        .map_err(|e| SyncError::FileSystem(format!("Failed to create ExtendedRio: {}", e)))?;
+    
+    // Use our io_uring statx_inode operation
+    extended_rio.statx_inode(path).await
+        .map_err(|e| SyncError::FileSystem(format!("Failed to get inode info for {}: {}", path.display(), e)))
 }
