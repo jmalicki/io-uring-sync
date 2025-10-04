@@ -2,12 +2,13 @@
 # This file enforces strict standards for dependencies, licensing, and security
 
 [advisories]
-# Check for security advisories
-deny = ["RUSTSEC-2020-0001", "RUSTSEC-2020-0002"]
 # Ignore specific advisories that are false positives or acceptable risks
-ignore = []
+ignore = [
+    "RUSTSEC-2020-0021",  # rio - no fix available, required for io_uring functionality
+    "RUSTSEC-2021-0119",  # nix - vulnerability in iou dependency, getgrouplist not used in our code
+]
 # Check for unmaintained crates
-unmaintained = "warn"
+#unmaintained = "allow"
 # Check for unsound crates
 unsound = "deny"
 # Check for yanked crates
@@ -34,14 +35,10 @@ copyleft = "warn"
 allow-osi-fsf-free = "neither"
 
 [bans]
-# Check for duplicate dependencies
-duplicates = "deny"
 # Check for multiple versions of the same crate
 multiple-versions = "warn"
 # Allow specific wildcard dependencies
 wildcards = "deny"
-# Allow specific workspace dependencies
-workspace = false
 
 [sources]
 # Allow specific registries
@@ -51,8 +48,3 @@ unknown-registry = "deny"
 # Allow specific git sources
 allow-git = []
 
-[workspace]
-# Define workspace metadata
-authors = ["Your Name <your.email@example.com>"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/jmalicki/io-uring-sync"
