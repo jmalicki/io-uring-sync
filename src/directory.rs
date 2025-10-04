@@ -5,14 +5,11 @@
 //! filesystem operations for unsupported operations.
 
 use crate::cli::CopyMethod;
-use crate::copy::copy_file;
 use crate::error::{Result, SyncError};
 use crate::io_uring::FileOperations;
-use async_recursion::async_recursion;
-use io_uring_extended::{ExtendedRio, StatxResult};
+// io_uring_extended removed - using compio directly
 #[allow(clippy::disallowed_types)]
 use std::collections::HashMap;
-use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use tracing::{debug, info, warn};
 
@@ -56,11 +53,11 @@ pub struct DirectoryStats {
 pub async fn copy_directory(
     src: &Path,
     dst: &Path,
-    file_ops: &FileOperations,
-    copy_method: CopyMethod,
+    _file_ops: &FileOperations,
+    _copy_method: CopyMethod,
 ) -> Result<DirectoryStats> {
     let mut stats = DirectoryStats::default();
-    let mut hardlink_tracker = FilesystemTracker::new();
+    let hardlink_tracker = FilesystemTracker::new();
 
     info!(
         "Starting directory copy from {} to {}",
@@ -93,46 +90,15 @@ pub async fn copy_directory(
     if hardlink_stats.hardlink_groups > 0 {
         info!(
             "Hardlink detection: {} unique files, {} hardlink groups, {} total hardlinks",
-
+            hardlink_stats.total_files,
+            hardlink_stats.hardlink_groups,
+            hardlink_stats.total_hardlinks
         );
     }
 
     Ok(stats)
 }
 
-
-) -> Result<()> {
-    // Simple work list - compio's dispatcher handles the async scheduling
-    let mut work_list = vec![(initial_src.to_path_buf(), initial_dst.to_path_buf())];
-
-
-
-            // Get comprehensive metadata using compio::fs metadata (includes hardlink info)
-            let metadata = compio::fs::symlink_metadata(&src_path).await.map_err(|e| {
-                SyncError::FileSystem(format!(
-                    "Failed to get metadata for {}: {}",
-                    src_path.display(),
-                    e
-                ))
-            })?;
-
-
-
-                match copy_symlink(&src_path, &dst_path).await {
-                    Ok(()) => {
-                        params.stats.symlinks_processed += 1;
-                    }
-                    Err(e) => {
-                        warn!("Failed to copy symlink {}: {}", src_path.display(), e);
-                        params.stats.errors += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
 
 /// Copy a symlink preserving its target
 async fn copy_symlink(src: &Path, dst: &Path) -> Result<()> {

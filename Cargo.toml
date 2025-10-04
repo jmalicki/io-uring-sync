@@ -19,7 +19,7 @@ name = "io-uring-sync"
 path = "src/main.rs"
 
 [workspace]
-members = ["crates/io-uring-extended"]
+# members = ["crates/io-uring-extended"]  # Removed io-uring-extended crate
 
 [dependencies]
 # Core async runtime
@@ -40,13 +40,13 @@ num_cpus = "1.0"
 async-recursion = "1.0"
 
 # io_uring libraries
-rio = "0.9"
 libc = "0.2"
+# rio removed - using compio instead
 # nix removed - using io_uring operations instead
 
-# Extended io_uring operations
-io-uring-extended = { path = "crates/io-uring-extended" }
-iou = "0.3.3"
+# Extended io_uring operations removed - using compio directly
+# io-uring-extended = { path = "crates/io-uring-extended" }
+# iou = "0.3.3"
 
 # Build dependencies
 [build-dependencies]
@@ -102,6 +102,5 @@ doc-check = ["doc", "--document-private-items", "--no-deps", "--all-features", "
 # Security audit configuration
 [audit]
 ignore = [
-    { advisory = "RUSTSEC-2020-0021", reason = "No fixed upgrade available for rio crate - required for io_uring functionality" },
     { advisory = "RUSTSEC-2021-0119", reason = "Vulnerability in iou dependency's nix usage - getgrouplist not used in our code" },
 ]

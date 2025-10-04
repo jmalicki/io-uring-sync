@@ -34,8 +34,7 @@
 use crate::cli::CopyMethod;
 use crate::error::{Result, SyncError};
 use compio::fs::OpenOptions;
-use io_uring_extended::ExtendedRio;
-use rio::new as rio_new;
+use compio::io::{AsyncReadAt, AsyncWriteAt};
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
@@ -43,133 +42,25 @@ use std::path::Path;
 pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()> {
     match method {
         CopyMethod::Auto => {
-            // Try copy_file_range first, fall back to read/write
-            match copy_file_range(src, dst).await {
+            // Try splice first, fall back to read/write
+            match copy_splice(src, dst).await {
                 Ok(()) => Ok(()),
                 Err(e) => {
-                    tracing::debug!("copy_file_range failed: {}, falling back to read/write", e);
+                    tracing::debug!("splice failed: {}, falling back to read/write", e);
                     copy_read_write(src, dst).await
                 }
             }
         }
-        CopyMethod::CopyFileRange => copy_file_range(src, dst).await,
+        CopyMethod::CopyFileRange => {
+            // CopyFileRange no longer supported, fall back to read/write
+            tracing::warn!("copy_file_range method not supported, falling back to read/write");
+            copy_read_write(src, dst).await
+        }
         CopyMethod::Splice => copy_splice(src, dst).await,
         CopyMethod::ReadWrite => copy_read_write(src, dst).await,
     }
 }
 
-/// Copy file using copy_file_range system call (optimal for same filesystem)
-///
-/// This function uses the copy_file_range system call for efficient in-kernel
-/// file copying. It's particularly effective when copying within the same
-/// filesystem as it can avoid copying data to userspace.
-///
-/// # Parameters
-///
-/// * `src` - Source file path
-/// * `dst` - Destination file path
-///
-/// # Returns
-///
-/// Returns `Ok(())` if the file was copied successfully, or `Err(SyncError)` if failed.
-///
-/// # Performance Notes
-///
-/// - Most efficient for large files (2-5x faster than read/write)
-/// - Optimal when source and destination are on the same filesystem
-/// - Uses in-kernel copying to avoid userspace data copies
-/// - May not work across different filesystems
-///
-/// # Examples
-///
-/// ```rust
-/// use io_uring_sync::copy::copy_file_range;
-///
-/// copy_file_range(src_path, dst_path).await?;
-/// ```
-async fn copy_file_range(src: &Path, dst: &Path) -> Result<()> {
-    // Create extended rio instance for copy_file_range support
-    let extended_rio = ExtendedRio::new()
-        .map_err(|e| SyncError::IoUring(format!("Failed to create ExtendedRio: {}", e)))?;
-
-    // Open source file
-    let src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
-        SyncError::FileSystem(format!(
-            "Failed to open source file {}: {}",
-            src.display(),
-            e
-        ))
-    })?;
-
-    // Open destination file
-    let dst_file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(dst)
-        .await
-        .map_err(|e| {
-            SyncError::FileSystem(format!(
-                "Failed to open destination file {}: {}",
-                dst.display(),
-                e
-            ))
-        })?;
-
-    // Get file descriptors
-    let src_fd = src_file.as_raw_fd();
-    let dst_fd = dst_file.as_raw_fd();
-
-    // Get file size
-    let metadata = src_file
-        .metadata()
-        .await
-        .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {}", e)))?;
-    let file_size = metadata.len();
-
-    // Use ExtendedRio's copy_file_range for efficient in-kernel copying
-    let mut offset = 0u64;
-    let mut remaining = file_size;
-
-    while remaining > 0 {
-        let chunk_size = std::cmp::min(remaining, 1024 * 1024 * 1024) as u32; // 1GB chunks
-
-        // Use ExtendedRio's copy_file_range
-        let result = extended_rio
-            .copy_file_range(src_fd, offset, dst_fd, offset, chunk_size)
-            .await
-            .map_err(|e| SyncError::CopyFailed(format!("copy_file_range failed: {}", e)))?;
-
-        if result <= 0 {
-            return Err(SyncError::CopyFailed(format!(
-                "copy_file_range returned invalid result: {}",
-                result
-            )));
-        }
-
-        let copied = result as u64;
-        remaining -= copied;
-        offset += copied;
-
-        tracing::debug!(
-            "ExtendedRio copy_file_range: copied {} bytes, {} remaining",
-            copied,
-            remaining
-        );
-    }
-
-    // Sync the destination file to ensure data is written to disk
-    dst_file
-        .sync_all()
-        .await
-        .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {}", e)))?;
-
-    tracing::debug!(
-        "ExtendedRio copy_file_range: successfully copied {} bytes",
-        file_size
-    );
-    Ok(())
-}
 
 /// Copy file using splice system call (zero-copy operations)
 ///
@@ -326,10 +217,10 @@ async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Copy file using traditional read/write operations (reliable fallback)
+/// Copy file using compio read/write operations (reliable fallback)
 ///
 /// This function provides a reliable fallback method for file copying using
-/// traditional read/write operations. While not as fast as copy_file_range or
+/// compio's async read/write operations. While not as fast as copy_file_range or
 /// splice, it works in all scenarios and provides guaranteed compatibility.
 ///
 /// # Parameters
@@ -344,7 +235,7 @@ async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
 /// # Performance Notes
 ///
 /// - Reliable fallback method that works everywhere
-/// - Uses buffered I/O for optimal performance
+/// - Uses compio's async I/O for optimal performance
 /// - Compatible with all filesystems and scenarios
 /// - Slower than copy_file_range but more reliable
 ///
@@ -356,10 +247,6 @@ async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
 /// copy_read_write(src_path, dst_path).await?;
 /// ```
 async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
-    // Initialize io_uring
-    let io_uring = rio_new()
-        .map_err(|e| SyncError::IoUring(format!("Failed to initialize io_uring: {}", e)))?;
-
     // Open source file
     let src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
         SyncError::FileSystem(format!(
@@ -370,7 +257,7 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     })?;
 
     // Open destination file
-    let dst_file = OpenOptions::new()
+    let mut dst_file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
@@ -391,37 +278,41 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {}", e)))?;
     let file_size = metadata.len();
 
-    // Use io_uring read_at/write_at operations
-    const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer (smaller to avoid stack overflow)
-    let mut buffer = [0u8; BUFFER_SIZE];
+    // Use compio's async read_at/write_at operations
+    const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer
     let mut offset = 0u64;
     let mut total_copied = 0u64;
 
     while total_copied < file_size {
-        // Submit read_at operation to io_uring
-        #[allow(clippy::unnecessary_mut_passed)]
-        let read_completion = io_uring.read_at(&src_file, &mut buffer, offset);
-
-        // Wait for read completion
-        let bytes_read = read_completion
-            .await
-            .map_err(|e| SyncError::IoUring(format!("read_at operation failed: {}", e)))?;
+        // Create a new buffer for each read operation
+        let buffer = vec![0u8; BUFFER_SIZE];
+        
+        // Read data from source file using compio
+        let buf_result = src_file
+            .read_at(buffer, offset)
+            .await;
+        
+        let bytes_read = buf_result.0.map_err(|e| {
+            SyncError::IoUring(format!("compio read_at operation failed: {}", e))
+        })?;
+        
+        let read_buffer = buf_result.1;
 
         if bytes_read == 0 {
             // End of file
             break;
         }
 
-        // Submit write_at operation to io_uring
-        // Note: rio::write_at writes the entire buffer, so we need to handle this carefully
-        let write_completion = io_uring.write_at(&dst_file, &buffer, offset);
+        // Write data to destination file using compio
+        let write_buf_result = dst_file
+            .write_at(read_buffer, offset)
+            .await;
 
-        // Wait for write completion
-        let bytes_written = write_completion
-            .await
-            .map_err(|e| SyncError::IoUring(format!("write_at operation failed: {}", e)))?;
+        let bytes_written = write_buf_result.0.map_err(|e| {
+            SyncError::IoUring(format!("compio write_at operation failed: {}", e))
+        })?;
 
-        // rio::write_at returns the number of bytes written, which should match bytes_read
+        // Ensure we wrote the expected number of bytes
         if bytes_written != bytes_read {
             return Err(SyncError::CopyFailed(format!(
                 "Write size mismatch: expected {}, got {}",
@@ -433,7 +324,7 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         offset += bytes_written as u64;
 
         tracing::debug!(
-            "io_uring read_at/write_at: copied {} bytes, total: {}/{}",
+            "compio read_at/write_at: copied {} bytes, total: {}/{}",
             bytes_written,
             total_copied,
             file_size
@@ -447,7 +338,7 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {}", e)))?;
 
     tracing::debug!(
-        "io_uring read_at/write_at: successfully copied {} bytes",
+        "compio read_at/write_at: successfully copied {} bytes",
         total_copied
     );
     Ok(())
