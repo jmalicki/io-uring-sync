@@ -75,7 +75,7 @@ jobs:
       run: |
         cargo clippy --all-targets --all-features -- \
           -D warnings \
-          -D clippy::missing_docs_in_crate_items \
+          -D clippy::missing_docs_in_private_items \
           -D clippy::missing_errors_doc \
           -D clippy::missing_panics_doc \
           -D clippy::must_use_candidate \

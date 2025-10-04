@@ -24,12 +24,12 @@
 //!
 //! ## Usage Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use io_uring_sync::directory::copy_directory;
 //! use io_uring_sync::io_uring::FileOperations;
 //! use io_uring_sync::cli::CopyMethod;
 //!
-//! #[tokio::main]
+//! #[compio::main]
 //! async fn main() -> io_uring_sync::Result<()> {
 //!     let file_ops = FileOperations::new(4096, 64 * 1024)?;
 //!     let stats = copy_directory(

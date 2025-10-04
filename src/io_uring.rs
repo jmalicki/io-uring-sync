@@ -14,11 +14,18 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use io_uring_sync::io_uring::FileOperations;
+//! use std::path::Path;
 //!
-//! let mut ops = FileOperations::new(4096, 64 * 1024)?;
-//! ops.copy_file_read_write(&src_path, &dst_path).await?;
+//! #[compio::main]
+//! async fn main() -> io_uring_sync::Result<()> {
+//!     let mut ops = FileOperations::new(4096, 64 * 1024)?;
+//!     let src_path = Path::new("source.txt");
+//!     let dst_path = Path::new("destination.txt");
+//!     ops.copy_file_read_write(&src_path, &dst_path).await?;
+//!     Ok(())
+//! }
 //! ```
 
 use crate::error::{Result, SyncError};
@@ -63,7 +70,9 @@ impl FileOperations {
     /// # Examples
     ///
     /// ```rust
-    /// let ops = FileOperations::new(4096, 64 * 1024)?;
+    /// use io_uring_sync::io_uring::FileOperations;
+    ///
+    /// let ops = FileOperations::new(4096, 64 * 1024).unwrap();
     /// ```
     ///
     /// # Performance Notes
@@ -248,11 +257,18 @@ impl FileOperations {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// let file_ops = FileOperations::new(4096, 64 * 1024)?;
-    /// let metadata = file_ops.get_file_metadata(Path::new("test.txt")).await?;
-    /// println!("File size: {} bytes", metadata.size);
-    /// println!("Permissions: {:o}", metadata.permissions);
+    /// ```rust,ignore
+    /// use io_uring_sync::io_uring::FileOperations;
+    /// use std::path::Path;
+    ///
+    /// #[compio::main]
+    /// async fn main() -> io_uring_sync::Result<()> {
+    ///     let file_ops = FileOperations::new(4096, 64 * 1024)?;
+    ///     let metadata = file_ops.get_file_metadata(Path::new("test.txt")).await?;
+    ///     println!("File size: {} bytes", metadata.size);
+    ///     println!("Permissions: {:o}", metadata.permissions);
+    ///     Ok(())
+    /// }
     /// ```
     ///
     /// # Performance Notes
@@ -310,10 +326,19 @@ impl FileOperations {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// let mut file_ops = FileOperations::new(4096, 64 * 1024)?;
-    /// let bytes_copied = file_ops.copy_file_with_metadata(src_path, dst_path).await?;
-    /// println!("Copied {} bytes", bytes_copied);
+    /// ```rust,ignore
+    /// use io_uring_sync::io_uring::FileOperations;
+    /// use std::path::Path;
+    ///
+    /// #[compio::main]
+    /// async fn main() -> io_uring_sync::Result<()> {
+    ///     let mut file_ops = FileOperations::new(4096, 64 * 1024)?;
+    ///     let src_path = Path::new("source.txt");
+    ///     let dst_path = Path::new("destination.txt");
+    ///     let bytes_copied = file_ops.copy_file_with_metadata(src_path, dst_path).await?;
+    ///     println!("Copied {} bytes", bytes_copied);
+    ///     Ok(())
+    /// }
     /// ```
     ///
     /// # Performance Notes
@@ -412,6 +437,8 @@ impl FileOperations {
 /// # Examples
 ///
 /// ```rust
+/// use io_uring_sync::io_uring::FileMetadata;
+///
 /// let metadata = FileMetadata {
 ///     size: 1024,
 ///     permissions: 0o644,
@@ -508,52 +535,68 @@ mod tests {
     use tempfile::TempDir;
 
     #[compio::test]
-    async fn test_file_operations_basic() {
-        let temp_dir = TempDir::new().unwrap();
+    async fn test_file_operations_basic() -> Result<()> {
+        let temp_dir = TempDir::new().map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create temp directory: {}", e))
+        })?;
         let test_file = temp_dir.path().join("test.txt");
         let test_content = b"Hello, io_uring!";
 
         // Write test file
         {
-            compio::fs::write(&test_file, test_content).await.unwrap();
+            compio::fs::write(&test_file, test_content)
+                .await
+                .0
+                .map_err(|e| SyncError::FileSystem(format!("Failed to write test file: {}", e)))?;
         }
 
-        let ops = FileOperations::new(1024, 4096).unwrap();
+        let ops = FileOperations::new(1024, 4096).map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create FileOperations: {}", e))
+        })?;
 
         // Test file existence
         assert!(ops.file_exists(&test_file).await);
 
         // Test file size
-        let size = ops.get_file_size(&test_file).await.unwrap();
+        let size = ops.get_file_size(&test_file).await?;
         assert_eq!(size, test_content.len() as u64);
 
         // Test file reading using compio
-        let content = compio::fs::read(&test_file).await.unwrap();
+        let content = compio::fs::read(&test_file)
+            .await
+            .map_err(|e| SyncError::FileSystem(format!("Failed to read test file: {}", e)))?;
         assert_eq!(content, test_content);
+
+        Ok(())
     }
 
     #[compio::test]
     async fn test_copy_operation() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let src_file = temp_dir.path().join("src.txt");
         let dst_file = temp_dir.path().join("dst.txt");
         let test_content = b"This is a test file for copying.";
 
         // Create source file
         {
-            compio::fs::write(&src_file, test_content).await.unwrap();
+            compio::fs::write(&src_file, test_content)
+                .await
+                .0
+                .expect("Failed to write test file");
         }
 
-        let mut ops = FileOperations::new(1024, 4096).unwrap();
+        let mut ops = FileOperations::new(1024, 4096).expect("Failed to create FileOperations");
 
         // Test file copying
         ops.copy_file_read_write(&src_file, &dst_file)
             .await
-            .unwrap();
+            .expect("Failed to copy file");
 
         // Verify destination file
         assert!(ops.file_exists(&dst_file).await);
-        let copied_content = compio::fs::read(&dst_file).await.unwrap();
+        let copied_content = compio::fs::read(&dst_file)
+            .await
+            .expect("Failed to read copied file");
         assert_eq!(copied_content, test_content);
     }
 

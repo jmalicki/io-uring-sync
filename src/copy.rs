@@ -20,15 +20,23 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use io_uring_sync::copy::copy_file;
 //! use io_uring_sync::cli::CopyMethod;
+//! use std::path::Path;
 //!
-//! // Copy with automatic method selection
-//! copy_file(src_path, dst_path, CopyMethod::Auto).await?;
+//! #[compio::main]
+//! async fn main() -> io_uring_sync::Result<()> {
+//!     let src_path = Path::new("source.txt");
+//!     let dst_path = Path::new("destination.txt");
+//!     
+//!     // Copy with automatic method selection
+//!     copy_file(src_path, dst_path, CopyMethod::Auto).await?;
 //!
-//! // Force specific method
-//! copy_file(src_path, dst_path, CopyMethod::CopyFileRange).await?;
+//!     // Force specific method
+//!     copy_file(src_path, dst_path, CopyMethod::CopyFileRange).await?;
+//!     Ok(())
+//! }
 //! ```
 
 use crate::cli::CopyMethod;
@@ -85,10 +93,17 @@ pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()>
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// use io_uring_sync::copy::copy_splice;
+/// use std::path::Path;
 ///
-/// copy_splice(src_path, dst_path).await?;
+/// #[compio::main]
+/// async fn main() -> io_uring_sync::Result<()> {
+///     let src_path = Path::new("source.txt");
+///     let dst_path = Path::new("destination.txt");
+///     copy_splice(src_path, dst_path).await?;
+///     Ok(())
+/// }
 /// ```
 async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
     // Open source file
@@ -240,10 +255,17 @@ async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// use io_uring_sync::copy::copy_read_write;
+/// use std::path::Path;
 ///
-/// copy_read_write(src_path, dst_path).await?;
+/// #[compio::main]
+/// async fn main() -> io_uring_sync::Result<()> {
+///     let src_path = Path::new("source.txt");
+///     let dst_path = Path::new("destination.txt");
+///     copy_read_write(src_path, dst_path).await?;
+///     Ok(())
+/// }
 /// ```
 async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     // Open source file

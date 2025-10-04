@@ -167,26 +167,35 @@ impl Args {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::SyncError;
     use compio::fs::File;
     use tempfile::TempDir;
 
-    async fn create_temp_file() -> (TempDir, PathBuf) {
-        let temp_dir = TempDir::new().unwrap();
+    async fn create_temp_file() -> Result<(TempDir, PathBuf)> {
+        let temp_dir = TempDir::new().map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create temp directory: {}", e))
+        })?;
         let file_path = temp_dir.path().join("test_file.txt");
-        File::create(&file_path).await.unwrap();
-        (temp_dir, file_path)
+        File::create(&file_path)
+            .await
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create test file: {}", e)))?;
+        Ok((temp_dir, file_path))
     }
 
-    async fn create_temp_dir() -> (TempDir, PathBuf) {
-        let temp_dir = TempDir::new().unwrap();
+    async fn create_temp_dir() -> Result<(TempDir, PathBuf)> {
+        let temp_dir = TempDir::new().map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create temp directory: {}", e))
+        })?;
         let sub_dir = temp_dir.path().join("test_dir");
-        compio::fs::create_dir(&sub_dir).await.unwrap();
-        (temp_dir, sub_dir)
+        compio::fs::create_dir(&sub_dir).await.map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create test directory: {}", e))
+        })?;
+        Ok((temp_dir, sub_dir))
     }
 
     #[compio::test]
     async fn test_validate_with_existing_file() {
-        let (temp_dir, file_path) = create_temp_file().await;
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),
@@ -208,7 +217,7 @@ mod tests {
 
     #[compio::test]
     async fn test_validate_with_existing_directory() {
-        let (temp_dir, dir_path) = create_temp_dir().await;
+        let (temp_dir, dir_path) = create_temp_dir().await.unwrap();
         let args = Args {
             source: dir_path,
             destination: temp_dir.path().join("dest"),
@@ -251,7 +260,7 @@ mod tests {
 
     #[compio::test]
     async fn test_validate_queue_depth_bounds() {
-        let (temp_dir, file_path) = create_temp_file().await;
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
 
         // Test minimum bound
         let args = Args {
@@ -292,7 +301,7 @@ mod tests {
 
     #[compio::test]
     async fn test_validate_conflicting_quiet_verbose() {
-        let (temp_dir, file_path) = create_temp_file().await;
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),
@@ -377,7 +386,7 @@ mod tests {
 
     #[compio::test]
     async fn test_is_directory_copy() {
-        let (temp_dir, dir_path) = create_temp_dir().await;
+        let (temp_dir, dir_path) = create_temp_dir().await.unwrap();
         let args = Args {
             source: dir_path,
             destination: temp_dir.path().join("dest"),
@@ -400,7 +409,7 @@ mod tests {
 
     #[compio::test]
     async fn test_is_file_copy() {
-        let (temp_dir, file_path) = create_temp_file().await;
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),

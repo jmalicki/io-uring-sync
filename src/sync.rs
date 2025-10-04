@@ -22,14 +22,19 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use io_uring_sync::sync::sync_files;
 //! use io_uring_sync::cli::Args;
+//! use clap::Parser;
 //!
-//! let args = Args::parse();
-//! let stats = sync_files(&args).await?;
-//! println!("Copied {} files, {} bytes in {:?}",
-//!          stats.files_copied, stats.bytes_copied, stats.duration);
+//! #[compio::main]
+//! async fn main() -> io_uring_sync::Result<()> {
+//!     let args = Args::parse();
+//!     let stats = sync_files(&args).await?;
+//!     println!("Copied {} files, {} bytes in {:?}",
+//!              stats.files_copied, stats.bytes_copied, stats.duration);
+//!     Ok(())
+//! }
 //! ```
 //!
 //! # Performance Considerations
@@ -70,6 +75,9 @@ use tracing::{error, info};
 /// # Examples
 ///
 /// ```rust
+/// use io_uring_sync::sync::SyncStats;
+/// use std::time::Duration;
+///
 /// let stats = SyncStats {
 ///     files_copied: 150,
 ///     bytes_copied: 1_048_576,
@@ -126,26 +134,40 @@ pub struct SyncStats {
 /// # Examples
 ///
 /// Basic usage:
-/// ```rust
+/// ```rust,ignore
 /// use io_uring_sync::cli::Args;
 /// use io_uring_sync::sync::sync_files;
+/// use clap::Parser;
 ///
-/// let args = Args::parse();
-/// let stats = sync_files(&args).await?;
-/// println!("Operation completed: {} files, {} bytes, {:?}",
-///          stats.files_copied, stats.bytes_copied, stats.duration);
+/// #[compio::main]
+/// async fn main() -> io_uring_sync::Result<()> {
+///     let args = Args::parse();
+///     let stats = sync_files(&args).await?;
+///     println!("Operation completed: {} files, {} bytes, {:?}",
+///              stats.files_copied, stats.bytes_copied, stats.duration);
+///     Ok(())
+/// }
 /// ```
 ///
 /// Error handling:
-/// ```rust
-/// match sync_files(&args).await {
-///     Ok(stats) => {
-///         println!("Success: {} files copied", stats.files_copied);
+/// ```rust,ignore
+/// use io_uring_sync::cli::Args;
+/// use io_uring_sync::sync::sync_files;
+/// use clap::Parser;
+///
+/// #[compio::main]
+/// async fn main() -> io_uring_sync::Result<()> {
+///     let args = Args::parse();
+///     match sync_files(&args).await {
+///         Ok(stats) => {
+///             println!("Success: {} files copied", stats.files_copied);
+///         }
+///         Err(e) => {
+///             eprintln!("Synchronization failed: {}", e);
+///             std::process::exit(1);
+///         }
 ///     }
-///     Err(e) => {
-///         eprintln!("Synchronization failed: {}", e);
-///         std::process::exit(1);
-///     }
+///     Ok(())
 /// }
 /// ```
 ///

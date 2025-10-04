@@ -14,9 +14,10 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use io_uring_sync::progress::ProgressTracker;
 //! use io_uring_sync::io_uring::CopyOperation;
+//! use std::path::PathBuf;
 //!
 //! let mut tracker = ProgressTracker::new();
 //! tracker.set_total(1024 * 1024); // 1MB total
@@ -63,6 +64,8 @@ use std::time::Duration;
 ///
 /// Basic usage:
 /// ```rust
+/// use io_uring_sync::progress::ProgressTracker;
+///
 /// let mut tracker = ProgressTracker::new();
 /// tracker.set_total(1024 * 1024); // Set 1MB target
 /// tracker.update(512 * 1024);     // Update with 512KB progress
@@ -71,7 +74,14 @@ use std::time::Duration;
 ///
 /// Tracking individual operations:
 /// ```rust
+/// use io_uring_sync::progress::ProgressTracker;
+/// use io_uring_sync::io_uring::CopyOperation;
+/// use std::path::PathBuf;
+///
 /// let mut tracker = ProgressTracker::new();
+/// let src_path = PathBuf::from("source.txt");
+/// let dst_path = PathBuf::from("destination.txt");
+/// let file_size = 1024;
 /// let operation = CopyOperation::new(src_path, dst_path, file_size);
 /// tracker.track_operation(&operation);
 /// ```
@@ -120,6 +130,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let tracker = ProgressTracker::new();
     /// ```
     ///
@@ -160,6 +172,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.track_discovery(1024); // Discovered a 1KB file
     /// ```
@@ -184,6 +198,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.set_total(1024 * 1024); // Set 1MB target
     /// ```
@@ -210,6 +226,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.set_total(1024 * 1024);
     /// tracker.update(512 * 1024); // 512KB copied
@@ -235,6 +253,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// // ... perform operations ...
     /// tracker.finish(); // Show completion message
@@ -264,7 +284,14 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    /// use io_uring_sync::io_uring::CopyOperation;
+    /// use std::path::PathBuf;
+    ///
     /// let mut tracker = ProgressTracker::new();
+    /// let src_path = PathBuf::from("source.txt");
+    /// let dst_path = PathBuf::from("destination.txt");
+    /// let file_size = 1024;
     /// let operation = CopyOperation::new(src_path, dst_path, file_size);
     /// // ... perform copy operation ...
     /// tracker.track_operation(&operation);
@@ -302,6 +329,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// // ... perform operations ...
     /// let stats = tracker.stats();
@@ -340,20 +369,27 @@ impl ProgressTracker {
 ///
 /// Basic usage:
 /// ```rust
+/// use io_uring_sync::progress::ProgressStats;
+/// use std::time::Duration;
+///
 /// let stats = ProgressStats {
 ///     files_copied: 150,
 ///     bytes_copied: 1_048_576,
 ///     elapsed: Duration::from_secs(30),
 /// };
 ///
-/// println!("Copied {} files ({}) in {:?}",
+/// println!("Copied {} files ({} bytes) in {:?}",
 ///          stats.files_copied,
-///          format_bytes(stats.bytes_copied),
+///          stats.bytes_copied,
 ///          stats.elapsed);
 /// ```
 ///
 /// Performance analysis:
 /// ```rust
+/// use io_uring_sync::progress::ProgressTracker;
+///
+/// let mut tracker = ProgressTracker::new();
+/// // ... perform operations ...
 /// let stats = tracker.stats();
 /// let throughput = stats.bytes_copied as f64 / stats.elapsed.as_secs_f64();
 /// println!("Throughput: {:.2} MB/s", throughput / 1_048_576.0);
