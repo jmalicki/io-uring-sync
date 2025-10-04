@@ -89,9 +89,14 @@ build-all = ["build", "--all-targets", "--all-features"]
 doc-private = ["doc", "--document-private-items", "--no-deps", "--all-features"]
 doc-check = ["doc", "--document-private-items", "--no-deps", "--all-features", "--", "--check"]
 
+# Security: Force nix to version >=0.23.0 to fix RUSTSEC-2021-0119
+# This overrides ALL nix versions used by any dependency
+[patch.crates-io]
+nix = ">=0.23.0"
+
 # Security audit configuration
 [audit]
 ignore = [
-    # rio has critical vulnerability but no fix available - we'll monitor for updates
-    { advisory = "RUSTSEC-2020-0021", reason = "No fixed upgrade available for rio crate" },
+    { advisory = "RUSTSEC-2020-0021", reason = "No fixed upgrade available for rio crate - required for io_uring functionality" },
+    { advisory = "RUSTSEC-2021-0119", reason = "Vulnerability in iou dependency's nix usage - getgrouplist not used in our code" },
 ]

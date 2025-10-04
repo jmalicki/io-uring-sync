@@ -17,29 +17,37 @@ repos:
       - id: black
         language_version: python3
 
+  # Rust formatting and linting for workspace
   - repo: https://github.com/pre-commit/mirrors-rustfmt
     rev: v1.5.1
     hooks:
       - id: rustfmt
         args: [--edition, "2021", --all]
+        # Run on all Rust files in workspace
+        files: ^(src/|crates/.*/src/).*\.rs$
 
   - repo: https://github.com/pre-commit/mirrors-clippy
     rev: v0.1.67
     hooks:
       - id: clippy
-        args: [--all-targets, --all-features, --, -D, warnings, -D, clippy::missing_docs_in_crate_items, -D, clippy::missing_errors_doc, -D, clippy::missing_panics_doc, -D, clippy::must_use_candidate]
+        args: [--workspace, --all-targets, --all-features, --, -D, warnings, -D, clippy::missing_docs_in_crate_items, -D, clippy::missing_errors_doc, -D, clippy::missing_panics_doc, -D, clippy::must_use_candidate]
+        # Run on all Rust files in workspace
+        files: ^(src/|crates/.*/src/).*\.rs$
 
+  # Comprehensive Rust quality checks for workspace
   - repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
     hooks:
       - id: fmt
+        args: [--all]
       - id: clippy
-        args: [--all-targets, --all-features, --, -D, warnings, -D, clippy::missing_docs_in_crate_items, -D, clippy::missing_errors_doc, -D, clippy::missing_panics_doc]
+        args: [--workspace, --all-targets, --all-features, --, -D, warnings, -D, clippy::missing_docs_in_crate_items, -D, clippy::missing_errors_doc, -D, clippy::missing_panics_doc]
       - id: cargo-check
+        args: [--workspace, --all-targets, --all-features]
       - id: cargo-test
-        args: [--all-features]
+        args: [--workspace, --all-features]
       - id: cargo-doc
-        args: [--document-private-items, --no-deps]
+        args: [--workspace, --document-private-items, --no-deps]
 
   # Security and dependency checking
   - repo: https://github.com/Yelp/detect-secrets

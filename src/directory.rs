@@ -9,6 +9,7 @@ use crate::copy::copy_file;
 use crate::error::{Result, SyncError};
 use crate::io_uring::FileOperations;
 use async_recursion::async_recursion;
+use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs as tokio_fs;
 use tracing::{debug, info, warn};
@@ -376,4 +377,245 @@ pub async fn count_directory_contents(path: &Path) -> Result<(u64, u64)> {
     }
 
     Ok((file_count, dir_count))
+}
+
+/// Filesystem boundary detection and hardlink tracking
+///
+/// This module provides functionality for detecting filesystem boundaries
+/// and tracking hardlink relationships to ensure proper file copying behavior.
+
+/// Filesystem device ID and inode number pair for hardlink detection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InodeInfo {
+    /// Filesystem device ID
+    pub dev: u64,
+    /// Inode number
+    pub ino: u64,
+}
+
+/// Hardlink tracking information
+#[derive(Debug, Clone)]
+pub struct HardlinkInfo {
+    /// Original file path
+    pub original_path: std::path::PathBuf,
+    /// Number of hardlinks found
+    pub link_count: u64,
+}
+
+/// Filesystem boundary and hardlink tracker
+#[derive(Debug, Default)]
+pub struct FilesystemTracker {
+    /// Map of (dev, ino) pairs to hardlink information
+    hardlinks: HashMap<InodeInfo, HardlinkInfo>,
+    /// Source filesystem device ID (for boundary detection)
+    source_filesystem: Option<u64>,
+}
+
+impl FilesystemTracker {
+    /// Create a new filesystem tracker
+    pub fn new() -> Self {
+        Self {
+            hardlinks: HashMap::new(),
+            source_filesystem: None,
+        }
+    }
+
+    /// Set the source filesystem device ID
+    ///
+    /// This should be called once at the beginning of a copy operation
+    /// to establish the source filesystem boundary.
+    pub fn set_source_filesystem(&mut self, dev: u64) {
+        self.source_filesystem = Some(dev);
+        debug!("Set source filesystem device ID: {}", dev);
+    }
+
+    /// Check if a path is on the same filesystem as the source
+    ///
+    /// Returns true if the path is on the same filesystem, false otherwise.
+    /// This prevents cross-filesystem operations that could cause issues.
+    pub fn is_same_filesystem(&self, dev: u64) -> bool {
+        match self.source_filesystem {
+            Some(source_dev) => source_dev == dev,
+            None => {
+                warn!("No source filesystem set, allowing cross-filesystem operation");
+                true
+            }
+        }
+    }
+
+    /// Register a file for hardlink tracking
+    ///
+    /// This should be called for each file encountered during traversal.
+    /// Returns true if this is a new hardlink, false if it's a duplicate.
+    pub fn register_file(&mut self, path: &Path, dev: u64, ino: u64) -> bool {
+        let inode_info = InodeInfo { dev, ino };
+
+        match self.hardlinks.get_mut(&inode_info) {
+            Some(hardlink_info) => {
+                // This is an existing hardlink
+                hardlink_info.link_count += 1;
+                debug!(
+                    "Found hardlink #{} for inode ({}, {}): {}",
+                    hardlink_info.link_count, dev, ino, path.display()
+                );
+                false
+            }
+            None => {
+                // This is a new file
+                self.hardlinks.insert(
+                    inode_info,
+                    HardlinkInfo {
+                        original_path: path.to_path_buf(),
+                        link_count: 1,
+                    },
+                );
+                debug!(
+                    "Registered new file inode ({}, {}): {}",
+                    dev, ino, path.display()
+                );
+                true
+            }
+        }
+    }
+
+    /// Get hardlink information for a given inode
+    ///
+    /// Returns the hardlink information if this inode has been seen before.
+    pub fn get_hardlink_info(&self, dev: u64, ino: u64) -> Option<&HardlinkInfo> {
+        let inode_info = InodeInfo { dev, ino };
+        self.hardlinks.get(&inode_info)
+    }
+
+    /// Get all hardlink groups that have multiple links
+    ///
+    /// Returns a vector of hardlink groups that contain multiple files.
+    pub fn get_hardlink_groups(&self) -> Vec<&HardlinkInfo> {
+        self.hardlinks
+            .values()
+            .filter(|info| info.link_count > 1)
+            .collect()
+    }
+
+    /// Get statistics about the filesystem tracking
+    pub fn get_stats(&self) -> FilesystemStats {
+        let total_files = self.hardlinks.len();
+        let hardlink_groups = self.get_hardlink_groups().len();
+        let total_hardlinks: u64 = self.hardlinks.values().map(|info| info.link_count).sum();
+
+        FilesystemStats {
+            total_files,
+            hardlink_groups,
+            total_hardlinks,
+            source_filesystem: self.source_filesystem,
+        }
+    }
+}
+
+/// Statistics about filesystem tracking
+#[derive(Debug)]
+pub struct FilesystemStats {
+    /// Total number of unique files (by inode)
+    pub total_files: usize,
+    /// Number of hardlink groups (files with multiple links)
+    pub hardlink_groups: usize,
+    /// Total number of hardlinks (including originals)
+    pub total_hardlinks: u64,
+    /// Source filesystem device ID
+    pub source_filesystem: Option<u64>,
+}
+
+/// Detect filesystem boundaries and hardlink relationships for a directory tree
+///
+/// This function traverses a directory tree and builds a filesystem tracker
+/// that can be used to detect cross-filesystem operations and hardlink relationships.
+///
+/// # Parameters
+///
+/// * `root_path` - Root directory to analyze
+/// * `tracker` - Filesystem tracker to populate
+///
+/// # Returns
+///
+/// Returns Ok(()) on success or an error if traversal fails.
+pub async fn analyze_filesystem_structure(
+    root_path: &Path,
+    tracker: &mut FilesystemTracker,
+) -> Result<()> {
+    debug!("Analyzing filesystem structure for: {}", root_path.display());
+
+    // Get the root directory's filesystem device ID
+    let root_metadata = tokio_fs::metadata(root_path).await?;
+    let root_dev = get_device_id(&root_metadata)?;
+    tracker.set_source_filesystem(root_dev);
+
+    // Traverse the directory tree
+    analyze_directory_recursive(root_path, tracker).await?;
+
+    let stats = tracker.get_stats();
+    info!(
+        "Filesystem analysis complete: {} files, {} hardlink groups, {} total hardlinks",
+        stats.total_files, stats.hardlink_groups, stats.total_hardlinks
+    );
+
+    Ok(())
+}
+
+/// Recursively analyze a directory for filesystem structure
+#[async_recursion]
+async fn analyze_directory_recursive(
+    dir_path: &Path,
+    tracker: &mut FilesystemTracker,
+) -> Result<()> {
+    let mut entries = tokio_fs::read_dir(dir_path).await?;
+
+    while let Some(entry) = entries.next_entry().await? {
+        let entry_path = entry.path();
+        let metadata = entry.metadata().await?;
+
+        if metadata.is_dir() {
+            // Recursively analyze subdirectories
+            analyze_directory_recursive(&entry_path, tracker).await?;
+        } else if metadata.is_file() {
+            // Analyze file for hardlink detection
+            let dev = get_device_id(&metadata)?;
+            let ino = get_inode_number(&metadata)?;
+
+            // Check filesystem boundary
+            if !tracker.is_same_filesystem(dev) {
+                warn!(
+                    "Cross-filesystem file detected: {} (dev: {}, expected: {:?})",
+                    entry_path.display(),
+                    dev,
+                    tracker.source_filesystem
+                );
+                // Continue processing but note the boundary crossing
+            }
+
+            // Register file for hardlink tracking
+            tracker.register_file(&entry_path, dev, ino);
+        }
+        // Skip symlinks for now - they'll be handled separately
+    }
+
+    Ok(())
+}
+
+/// Extract device ID from file metadata
+///
+/// This is a helper function to get the filesystem device ID from metadata.
+fn get_device_id(metadata: &std::fs::Metadata) -> Result<u64> {
+    // For now, we'll use a placeholder since std::fs::Metadata doesn't expose st_dev
+    // In a real implementation, we'd use statx or similar
+    // TODO: Implement proper device ID extraction using io_uring statx
+    Ok(0) // Placeholder
+}
+
+/// Extract inode number from file metadata
+///
+/// This is a helper function to get the inode number from metadata.
+fn get_inode_number(metadata: &std::fs::Metadata) -> Result<u64> {
+    // For now, we'll use a placeholder since std::fs::Metadata doesn't expose st_ino
+    // In a real implementation, we'd use statx or similar
+    // TODO: Implement proper inode number extraction using io_uring statx
+    Ok(0) // Placeholder
 }

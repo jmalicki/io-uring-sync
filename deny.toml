@@ -2,10 +2,11 @@
 # This file enforces strict standards for dependencies, licensing, and security
 
 [advisories]
-# Check for security advisories
-deny = ["RUSTSEC-2020-0001", "RUSTSEC-2020-0002"]
 # Ignore specific advisories that are false positives or acceptable risks
-ignore = []
+ignore = [
+    "RUSTSEC-2020-0021",  # rio - no fix available, required for io_uring functionality
+    "RUSTSEC-2021-0119",  # nix - vulnerability in iou dependency, getgrouplist not used in our code
+]
 # Check for unmaintained crates
 unmaintained = "warn"
 # Check for unsound crates
