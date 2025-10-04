@@ -38,10 +38,12 @@ use tracing::{debug, info, warn};
 /// ```
 #[derive(Clone)]
 pub struct SharedStats {
+    /// Inner stats wrapped in Arc<Mutex<>> for thread-safe access
     inner: Arc<Mutex<DirectoryStats>>,
 }
 
 impl SharedStats {
+    #[must_use]
     pub fn new(stats: DirectoryStats) -> Self {
         Self {
             inner: Arc::new(Mutex::new(stats)),
@@ -50,12 +52,14 @@ impl SharedStats {
 
     #[allow(dead_code)]
     #[allow(clippy::unwrap_used)]
+    #[must_use]
     pub fn files_copied(&self) -> u64 {
         self.inner.lock().unwrap().files_copied
     }
 
     #[allow(dead_code)]
     #[allow(clippy::unwrap_used)]
+    #[must_use]
     pub fn directories_created(&self) -> u64 {
         self.inner.lock().unwrap().directories_created
     }
@@ -138,6 +142,7 @@ impl SharedStats {
 /// ```
 #[derive(Clone)]
 pub struct SharedHardlinkTracker {
+    /// Inner tracker wrapped in Arc<Mutex<>> for thread-safe access
     inner: Arc<Mutex<FilesystemTracker>>,
 }
 
