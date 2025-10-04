@@ -547,7 +547,7 @@ mod tests {
             file.write_all(test_content).unwrap();
         }
 
-        let ops = FileOperations::new(1024, 4096).unwrap();
+        let mut ops = FileOperations::new(1024, 4096).unwrap();
 
         // Test file copying
         ops.copy_file_read_write(&src_file, &dst_file)
