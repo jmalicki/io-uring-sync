@@ -55,6 +55,9 @@ bytes = "1.0"
 # Cross-platform compatibility
 cfg-if = "1.0"
 
+# Benchmarking (optional)
+criterion = { version = "0.5", features = ["html_reports"], optional = true }
+
 [dev-dependencies]
 # Testing
 tempfile = "3.0"
@@ -62,19 +65,11 @@ assert_cmd = "2.0"
 predicates = "3.0"
 rstest = "0.18"
 
-# Benchmarking
-criterion = { version = "0.5", features = ["html_reports"] }
-
-# Code coverage
-tarpaulin = "0.27"
-
 # Documentation
 mdbook = "0.4"
 
 [features]
-default = ["logging", "progress"]
-logging = ["tracing-subscriber"]
-progress = ["indicatif"]
+default = []
 benchmarks = ["criterion"]
 
 [profile.release]

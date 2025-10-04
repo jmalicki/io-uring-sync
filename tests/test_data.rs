@@ -8,12 +8,12 @@ use tempfile::TempDir;
 pub fn create_test_directory() -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     let test_dir = temp_dir.path();
-    
+
     // Create directory structure
     fs::create_dir_all(test_dir.join("subdir1")).unwrap();
     fs::create_dir_all(test_dir.join("subdir2")).unwrap();
     fs::create_dir_all(test_dir.join("subdir1/nested")).unwrap();
-    
+
     // Create files of various sizes
     create_test_file(test_dir.join("small_file.txt"), 1024);
     create_test_file(test_dir.join("medium_file.bin"), 1024 * 1024);
@@ -21,7 +21,7 @@ pub fn create_test_directory() -> TempDir {
     create_test_file(test_dir.join("subdir1/file.txt"), 512);
     create_test_file(test_dir.join("subdir1/nested/deep.txt"), 256);
     create_test_file(test_dir.join("subdir2/another.bin"), 2048);
-    
+
     temp_dir
 }
 
@@ -35,18 +35,23 @@ fn create_test_file(path: std::path::PathBuf, size: usize) {
 pub fn create_test_directory_with_xattrs() -> TempDir {
     let temp_dir = create_test_directory();
     let test_dir = temp_dir.path();
-    
+
     // Add extended attributes to some files
     let file_path = test_dir.join("small_file.txt");
-    
+
     // Set a user attribute
     xattr::set(&file_path, "user.test_attr", "test_value".as_bytes()).unwrap();
-    
+
     // Set a system attribute (if supported)
     if cfg!(target_os = "linux") {
-        xattr::set(&file_path, "user.comment", "Test file with xattrs".as_bytes()).unwrap();
+        xattr::set(
+            &file_path,
+            "user.comment",
+            "Test file with xattrs".as_bytes(),
+        )
+        .unwrap();
     }
-    
+
     temp_dir
 }
 
@@ -54,7 +59,7 @@ pub fn create_test_directory_with_xattrs() -> TempDir {
 pub fn verify_directory_identical(src: &Path, dst: &Path) -> Result<(), String> {
     let src_entries = collect_directory_entries(src)?;
     let dst_entries = collect_directory_entries(dst)?;
-    
+
     if src_entries.len() != dst_entries.len() {
         return Err(format!(
             "Directory entry count mismatch: {} vs {}",
@@ -62,7 +67,7 @@ pub fn verify_directory_identical(src: &Path, dst: &Path) -> Result<(), String> 
             dst_entries.len()
         ));
     }
-    
+
     for (src_entry, dst_entry) in src_entries.iter().zip(dst_entries.iter()) {
         if src_entry != dst_entry {
             return Err(format!(
@@ -71,7 +76,7 @@ pub fn verify_directory_identical(src: &Path, dst: &Path) -> Result<(), String> 
             ));
         }
     }
-    
+
     Ok(())
 }
 
@@ -85,28 +90,30 @@ struct DirectoryEntry {
 
 fn collect_directory_entries(dir: &Path) -> Result<Vec<DirectoryEntry>, String> {
     let mut entries = Vec::new();
-    
+
     for entry in walkdir::WalkDir::new(dir) {
         let entry = entry.map_err(|e| format!("WalkDir error: {}", e))?;
         let path = entry.path();
-        
+
         if path.is_file() {
-            let metadata = fs::metadata(path)
-                .map_err(|e| format!("Metadata error for {:?}: {}", path, e))?;
-            
+            let metadata =
+                fs::metadata(path).map_err(|e| format!("Metadata error for {:?}: {}", path, e))?;
+
             entries.push(DirectoryEntry {
-                path: path.strip_prefix(dir)
+                path: path
+                    .strip_prefix(dir)
                     .unwrap()
                     .to_string_lossy()
                     .to_string(),
                 size: metadata.len(),
                 permissions: metadata.permissions().mode(),
-                modified: metadata.modified()
+                modified: metadata
+                    .modified()
                     .map_err(|e| format!("Modified time error: {}", e))?,
             });
         }
     }
-    
+
     entries.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(entries)
 }

@@ -11,14 +11,14 @@ pub struct SyncStats {
 }
 
 /// Main synchronization function
-pub async fn sync_files(args: &Args) -> Result<SyncStats> {
+pub async fn sync_files(_args: &Args) -> Result<SyncStats> {
     let start_time = Instant::now();
-    
+
     // TODO: Implement actual synchronization logic
     // For now, just return placeholder stats
-    
+
     let duration = start_time.elapsed();
-    
+
     Ok(SyncStats {
         files_copied: 0,
         bytes_copied: 0,

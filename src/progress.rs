@@ -1,7 +1,6 @@
 //! Progress tracking and reporting
 
 use indicatif::{ProgressBar, ProgressStyle};
-use std::time::Duration;
 
 pub struct ProgressTracker {
     progress_bar: ProgressBar,
