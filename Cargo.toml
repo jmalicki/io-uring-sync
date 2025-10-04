@@ -65,8 +65,13 @@ assert_cmd = "2.0"
 predicates = "3.0"
 rstest = "0.18"
 
-# Documentation
+# Documentation and linting
 mdbook = "0.4"
+cargo-make = "0.37"
+cargo-deny = "0.15"
+cargo-audit = "0.19"
+cargo-outdated = "0.13"
+cargo-expand = "1.0"
 
 [features]
 default = []
@@ -80,3 +85,15 @@ strip = true
 
 [profile.bench]
 inherits = "release"
+
+# Cargo aliases for common development tasks
+[alias]
+# Code quality aliases
+lint-strict = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings", "-D", "clippy::missing_docs_in_crate_items", "-D", "clippy::missing_errors_doc", "-D", "clippy::missing_panics_doc", "-D", "clippy::must_use_candidate", "-D", "clippy::unwrap_used", "-D", "clippy::expect_used", "-D", "clippy::panic", "-D", "clippy::todo", "-D", "clippy::unimplemented", "-D", "clippy::unreachable"]
+check-all = ["check", "--all-targets", "--all-features"]
+test-all = ["test", "--all-targets", "--all-features"]
+build-all = ["build", "--all-targets", "--all-features"]
+
+# Documentation aliases
+doc-private = ["doc", "--document-private-items", "--no-deps", "--all-features"]
+doc-check = ["doc", "--document-private-items", "--no-deps", "--all-features", "--", "--check"]

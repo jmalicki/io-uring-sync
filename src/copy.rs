@@ -1,22 +1,30 @@
 //! File copying operations using io_uring
 
-use crate::error::{Result, SyncError};
 use crate::cli::CopyMethod;
+use crate::error::{Result, SyncError};
+use crate::io_uring::FileOperations;
 use std::path::Path;
 
 /// Copy a single file using the specified method
 pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()> {
+    // Create file operations instance
+    let mut file_ops = FileOperations::new(4096, 64 * 1024)?;
+
     match method {
         CopyMethod::Auto => {
-            // Try copy_file_range first, fall back to read/write
-            match copy_file_range(src, dst).await {
-                Ok(()) => Ok(()),
-                Err(_) => copy_read_write(src, dst).await,
-            }
+            // For now, use read/write as the default implementation
+            // TODO: Implement copy_file_range and splice in future phases
+            file_ops.copy_file_read_write(src, dst).await
         }
-        CopyMethod::CopyFileRange => copy_file_range(src, dst).await,
-        CopyMethod::Splice => copy_splice(src, dst).await,
-        CopyMethod::ReadWrite => copy_read_write(src, dst).await,
+        CopyMethod::CopyFileRange => {
+            // TODO: Implement copy_file_range using io_uring
+            copy_file_range(src, dst).await
+        }
+        CopyMethod::Splice => {
+            // TODO: Implement splice using io_uring
+            copy_splice(src, dst).await
+        }
+        CopyMethod::ReadWrite => file_ops.copy_file_read_write(src, dst).await,
     }
 }
 
@@ -43,4 +51,3 @@ async fn copy_read_write(_src: &Path, _dst: &Path) -> Result<()> {
         "read/write not yet implemented".to_string(),
     ))
 }
-

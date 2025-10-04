@@ -1,0 +1,58 @@
+# Cargo-deny configuration for comprehensive code quality enforcement
+# This file enforces strict standards for dependencies, licensing, and security
+
+[advisories]
+# Check for security advisories
+deny = ["RUSTSEC-2020-0001", "RUSTSEC-2020-0002"]
+# Ignore specific advisories that are false positives or acceptable risks
+ignore = []
+# Check for unmaintained crates
+unmaintained = "warn"
+# Check for unsound crates
+unsound = "deny"
+# Check for yanked crates
+yanked = "deny"
+
+[licenses]
+# Allow specific licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+]
+# Reject unknown licenses
+default = "deny"
+# Allow copyleft licenses
+copyleft = "warn"
+# Allow dual licensing
+allow-osi-fsf-free = "neither"
+
+[bans]
+# Check for duplicate dependencies
+duplicates = "deny"
+# Check for multiple versions of the same crate
+multiple-versions = "warn"
+# Allow specific wildcard dependencies
+wildcards = "deny"
+# Allow specific workspace dependencies
+workspace = false
+
+[sources]
+# Allow specific registries
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Deny unknown sources
+unknown-registry = "deny"
+# Allow specific git sources
+allow-git = []
+
+[workspace]
+# Define workspace metadata
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jmalicki/io-uring-sync"
