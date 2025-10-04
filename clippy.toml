@@ -3,7 +3,6 @@
 
 # Documentation linting
 doc-valid-idents = ["self", "Self", "super", "crate", "Self", "T", "E", "Ok", "Err"]
-doc-link-with-http = true
 
 # Performance and correctness
 disallowed-names = ["foo", "bar", "baz", "tmp", "temp"]
