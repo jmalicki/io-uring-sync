@@ -47,6 +47,15 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 /// Copy a single file using the specified method
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Source file cannot be opened for reading
+/// - Destination file cannot be created or opened for writing
+/// - File copying operation fails (I/O errors, permission issues)
+/// - Metadata preservation fails
+/// - The specified copy method is not supported or fails
 pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()> {
     match method {
         CopyMethod::Auto => {

@@ -43,7 +43,7 @@ pub struct SharedStats {
 }
 
 impl SharedStats {
-    #[must_use]
+    
     pub fn new(stats: DirectoryStats) -> Self {
         Self {
             inner: Arc::new(Mutex::new(stats)),
@@ -51,31 +51,39 @@ impl SharedStats {
     }
 
     #[allow(dead_code)]
-    #[must_use]
+    /// Get the number of files copied
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn files_copied(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied)
     }
 
     #[allow(dead_code)]
-    #[must_use]
+    /// Get the number of directories created
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn directories_created(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created)
     }
 
     #[allow(dead_code)]
-    #[must_use]
+    
     pub fn bytes_copied(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied)
     }
 
     #[allow(dead_code)]
-    #[must_use]
+    
     pub fn symlinks_processed(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed)
     }
 
     #[allow(dead_code)]
-    #[must_use]
+    
     pub fn errors(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors)
     }
@@ -105,7 +113,7 @@ impl SharedStats {
         Ok(())
     }
 
-    #[must_use]
+    
     pub fn into_inner(self) -> Result<DirectoryStats> {
         let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
         inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
@@ -152,12 +160,12 @@ impl SharedHardlinkTracker {
         }
     }
 
-    #[must_use]
+    
     pub fn is_inode_copied(&self, inode: u64) -> Result<bool> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.is_inode_copied(inode))
     }
 
-    #[must_use]
+    
     pub fn get_original_path_for_inode(&self, inode: u64) -> Result<Option<PathBuf>> {
         Ok(self.inner
             .lock()
@@ -187,12 +195,12 @@ impl SharedHardlinkTracker {
     }
 
     #[allow(dead_code)]
-    #[must_use]
+    
     pub fn get_stats(&self) -> Result<FilesystemStats> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.get_stats())
     }
 
-    #[must_use]
+    
     pub fn into_inner(self) -> Result<FilesystemTracker> {
         let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
         inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
@@ -219,50 +227,50 @@ impl ExtendedMetadata {
     }
 
     /// Check if this is a directory
-    #[must_use]
+    
     pub fn is_dir(&self) -> bool {
         self.metadata.is_dir()
     }
 
     /// Check if this is a regular file
-    #[must_use]
+    
     pub fn is_file(&self) -> bool {
         self.metadata.is_file()
     }
 
     /// Check if this is a symlink
-    #[must_use]
+    
     pub fn is_symlink(&self) -> bool {
         self.metadata.file_type().is_symlink()
     }
 
     /// Get file size
-    #[must_use]
+    
     pub fn len(&self) -> u64 {
         self.metadata.len()
     }
 
     /// Check if file is empty
     #[allow(dead_code)]
-    #[must_use]
+    
     pub fn is_empty(&self) -> bool {
         self.metadata.len() == 0
     }
 
     /// Get device ID (for filesystem boundary detection)
-    #[must_use]
+    
     pub fn device_id(&self) -> u64 {
         self.metadata.dev()
     }
 
     /// Get inode number (for hardlink detection)
-    #[must_use]
+    
     pub fn inode_number(&self) -> u64 {
         self.metadata.ino()
     }
 
     /// Get link count (for hardlink detection)
-    #[must_use]
+    
     pub fn link_count(&self) -> u64 {
         self.metadata.nlink()
     }
@@ -934,7 +942,7 @@ pub struct FilesystemTracker {
 #[allow(dead_code)]
 impl FilesystemTracker {
     /// Create a new filesystem tracker
-    #[must_use]
+    
     pub fn new() -> Self {
         Self {
             #[allow(clippy::disallowed_types)]
@@ -1017,7 +1025,7 @@ impl FilesystemTracker {
     /// Get hardlink information for a given inode
     ///
     /// Returns the hardlink information if this inode has been seen before.
-    #[must_use]
+    
     pub fn get_hardlink_info(&self, dev: u64, ino: u64) -> Option<&HardlinkInfo> {
         let inode_info = InodeInfo { dev, ino };
         self.hardlinks.get(&inode_info)
@@ -1026,7 +1034,7 @@ impl FilesystemTracker {
     /// Get all hardlink groups that have multiple links
     ///
     /// Returns a vector of hardlink groups that contain multiple files.
-    #[must_use]
+    
     pub fn get_hardlink_groups(&self) -> Vec<&HardlinkInfo> {
         self.hardlinks
             .values()
@@ -1038,7 +1046,7 @@ impl FilesystemTracker {
     ///
     /// Returns true if this inode has been processed and copied to the destination.
     /// This is used to determine whether to copy file content or create a hardlink.
-    #[must_use]
+    
     pub fn is_inode_copied(&self, ino: u64) -> bool {
         self.hardlinks
             .values()
@@ -1064,7 +1072,7 @@ impl FilesystemTracker {
     ///
     /// Returns the destination path where this inode's content was first copied.
     /// This is used to create hardlinks pointing to the original copied file.
-    #[must_use]
+    
     pub fn get_original_path_for_inode(&self, ino: u64) -> Option<&Path> {
         self.hardlinks
             .values()
@@ -1073,7 +1081,7 @@ impl FilesystemTracker {
     }
 
     /// Get statistics about the filesystem tracking
-    #[must_use]
+    
     pub fn get_stats(&self) -> FilesystemStats {
         let total_files = self.hardlinks.len();
         let hardlink_groups = self.get_hardlink_groups().len();
