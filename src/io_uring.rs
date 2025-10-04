@@ -23,6 +23,7 @@
 
 use crate::error::{Result, SyncError};
 use std::path::Path;
+use tracing::debug;
 use compio::io::{AsyncReadAtExt, AsyncWriteAtExt};
 
 /// Basic file operations using async I/O
@@ -110,13 +111,13 @@ impl FileOperations {
     /// - This method loads the entire file into memory at once
     /// - Memory usage is equal to file size
     pub async fn read_file(&mut self, path: &Path) -> Result<Vec<u8>> {
-        let mut file = compio::fs::File::open(path).await.map_err(|e| {
+        let file = compio::fs::File::open(path).await.map_err(|e| {
             SyncError::FileSystem(format!("Failed to open file {}: {}", path.display(), e))
         })?;
 
-        let mut buffer = Vec::new();
+        let buffer = Vec::new();
         let result = file.read_to_end_at(buffer, 0).await;
-        let (bytes_read, buffer) = match result.0 {
+        let (_bytes_read, buffer) = match result.0 {
             Ok(bytes) => (bytes, result.1),
             Err(e) => return Err(SyncError::FileSystem(format!("Failed to read file {}: {}", path.display(), e))),
         };
@@ -130,8 +131,10 @@ impl FileOperations {
             SyncError::FileSystem(format!("Failed to create file {}: {}", path.display(), e))
         })?;
 
-        let result = file.write_all_at(content, 0).await;
-        let bytes_written = match result.0 {
+        // Clone content to avoid lifetime issues with compio
+        let content = content.to_vec();
+        let result = file.write_all_at(content.clone(), 0).await;
+        let _bytes_written = match result.0 {
             Ok(bytes) => bytes,
             Err(e) => return Err(SyncError::FileSystem(format!("Failed to write file {}: {}", path.display(), e))),
         };
@@ -140,6 +143,7 @@ impl FileOperations {
             SyncError::FileSystem(format!("Failed to sync file {}: {}", path.display(), e))
         })?;
 
+        debug!("Wrote {} bytes to {}", content.len(), path.display());
         Ok(())
     }
 
