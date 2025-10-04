@@ -203,9 +203,10 @@ This document outlines the research findings for developing a highly efficient b
    - **Status**: ⚠️ Limited support in current Rust libraries
 
 6. **openat/close** - File/directory opening/closing
-   - **Use Case**: File descriptor management
-   - **Performance**: Async file operations
-   - **Status**: ✅ Widely supported
+   - **Use Case**: File descriptor management, async file opening/closing
+   - **Performance**: Async file operations, reduced blocking on file open/close
+   - **Status**: ✅ Supported in io_uring since kernel 5.1 (IORING_OP_OPENAT, IORING_OP_CLOSE)
+   - **Strategy**: Use io_uring for async file descriptor management to avoid blocking operations
 
 7. **mkdirat** - Directory creation
    - **Use Case**: Creating target directory structure
@@ -254,6 +255,44 @@ This document outlines the research findings for developing a highly efficient b
     - **Performance**: Async sync operations
     - **Status**: ✅ Available in io_uring
 
+#### Direct I/O Operations (Priority: MEDIUM - Future Enhancement)
+16. **O_DIRECT support** - Direct I/O bypassing page cache
+    - **Use Case**: High-performance I/O for large files, database operations
+    - **Performance**: Eliminates page cache overhead, reduces memory usage
+    - **Requirements**: Aligned buffers (typically 512-byte alignment), aligned file offsets
+    - **Status**: ✅ Supported in io_uring with IORING_OP_OPENAT (O_DIRECT flag)
+    - **Strategy**: Optional feature for Phase 3+ with aligned buffer management
+
+17. **fallocate** - File space preallocation
+    - **Use Case**: Preallocate disk space for files, especially critical for O_DIRECT performance
+    - **Performance**: Reduces fragmentation, ensures contiguous blocks, improves O_DIRECT efficiency
+    - **Requirements**: Must be done before O_DIRECT operations for optimal performance
+    - **Status**: ✅ Supported in io_uring with IORING_OP_FALLOCATE (since kernel 5.1)
+    - **Strategy**: Essential for O_DIRECT operations, implement in Phase 3+ with aligned buffer management
+
+#### Symlink Operations (Priority: HIGH)
+18. **symlinkat/readlink** - Symbolic link management
+    - **Use Case**: Creating and reading symbolic links, preserving symlink targets during copy
+    - **Performance**: Async symlink operations, essential for complete file system traversal
+    - **Requirements**: Must handle symlink creation and target resolution
+    - **Status**: ✅ Supported in io_uring with IORING_OP_SYMLINKAT and IORING_OP_READLINK
+    - **Strategy**: Critical for rsync-like functionality, implement in Phase 2.2+ for directory traversal
+
+#### Filesystem and Hardlink Operations (Priority: HIGH)
+19. **statx** - Extended file statistics for filesystem boundary detection
+    - **Use Case**: Detecting filesystem boundaries, identifying hardlinks via (st_dev, st_ino) pairs
+    - **Performance**: Async metadata collection, prevents cross-filesystem traversal
+    - **Requirements**: Must track device IDs (st_dev) and inode numbers (st_ino)
+    - **Status**: ✅ Supported in io_uring with IORING_OP_STATX (since kernel 5.1)
+    - **Strategy**: Essential for robust directory traversal, implement in Phase 2.2+ with hardlink detection
+
+20. **Hardlink detection** - Identifying duplicate inodes
+    - **Use Case**: Avoiding duplicate processing of hardlinked files, preserving hardlink relationships
+    - **Performance**: Critical for efficiency when copying files with multiple hardlinks
+    - **Requirements**: Track (st_dev, st_ino) pairs during traversal
+    - **Status**: ✅ Achievable via statx operations in io_uring
+    - **Strategy**: Implement hardlink tracking alongside filesystem boundary detection
+
 ## 7. Library Support Analysis
 
 ### rio Library Support Assessment
@@ -264,8 +303,11 @@ This document outlines the research findings for developing a highly efficient b
 - **statx**: ✅ Supported
 - **fchmod/fchown**: ✅ Supported
 - **xattr operations**: ❌ Not supported
-- **openat/close**: ✅ Supported
+- **openat/close**: ✅ Supported (IORING_OP_OPENAT, IORING_OP_CLOSE)
+- **symlinkat/readlink**: ✅ Supported (IORING_OP_SYMLINKAT, IORING_OP_READLINK)
 - **read/write**: ✅ Core functionality
+- **O_DIRECT**: ✅ Supported via openat flags
+- **fallocate**: ✅ Supported (IORING_OP_FALLOCATE)
 - **Overall Assessment**: ⚠️ Limited - requires significant manual workarounds
 
 ### tokio-uring Library Support Assessment
@@ -276,8 +318,11 @@ This document outlines the research findings for developing a highly efficient b
 - **statx**: ⚠️ Limited support
 - **fchmod/fchown**: ❌ Not supported
 - **xattr operations**: ❌ Not supported
-- **openat/close**: ✅ Supported
+- **openat/close**: ✅ Supported (IORING_OP_OPENAT, IORING_OP_CLOSE)
+- **symlinkat/readlink**: ✅ Supported (IORING_OP_SYMLINKAT, IORING_OP_READLINK)
 - **read/write**: ✅ Core functionality
+- **O_DIRECT**: ✅ Supported via openat flags
+- **fallocate**: ✅ Supported (IORING_OP_FALLOCATE)
 - **Overall Assessment**: ⚠️ Very Limited - primarily file I/O focused
 
 ### Glommio Library Support Assessment
@@ -288,8 +333,11 @@ This document outlines the research findings for developing a highly efficient b
 - **statx**: ✅ Supported
 - **fchmod/fchown**: ❌ Not supported
 - **xattr operations**: ❌ Not supported
-- **openat/close**: ✅ Supported
+- **openat/close**: ✅ Supported (IORING_OP_OPENAT, IORING_OP_CLOSE)
+- **symlinkat/readlink**: ✅ Supported (IORING_OP_SYMLINKAT, IORING_OP_READLINK)
 - **read/write**: ✅ Core functionality
+- **O_DIRECT**: ✅ Supported via openat flags
+- **fallocate**: ✅ Supported (IORING_OP_FALLOCATE)
 - **Overall Assessment**: ⚠️ Limited - good for basic file I/O only
 
 ### Recommended Approach
@@ -301,6 +349,28 @@ Given the limited support in existing libraries, a **hybrid approach** is recomm
    - Custom xattr handling
    - Fallback directory traversal using std::fs
 3. **Consider liburing bindings** for operations not supported by rio
+
+### Filesystem Boundary and Hardlink Strategy
+
+#### Filesystem Boundary Detection
+- **Method**: Use `statx` to compare `st_dev` (device ID) values during traversal
+- **Implementation**: Track root filesystem device ID, skip entries with different `st_dev`
+- **Benefits**: Prevents cross-filesystem traversal, avoids mount point issues
+- **Command-line Option**: `--one-file-system` (similar to `rsync -x`)
+
+#### Hardlink Detection and Preservation
+- **Method**: Track `(st_dev, st_ino)` pairs during traversal using `statx`
+- **Implementation**: 
+  - Maintain a hash map of `(device_id, inode_number) -> file_path`
+  - When encountering duplicate `(st_dev, st_ino)`, create hardlink instead of copying
+  - Use `link()` system call for hardlink creation
+- **Benefits**: Preserves disk space, maintains file system semantics
+- **Command-line Option**: `--preserve-hardlinks` (similar to `rsync -H`)
+
+#### Performance Considerations
+- **Async Coordination**: Use `statx` via io_uring for non-blocking metadata collection
+- **Memory Efficiency**: Use efficient data structures (HashMap) for inode tracking
+- **Batch Processing**: Collect metadata for multiple files before processing decisions
 
 ## 8. Scalability and Queueing Architecture
 
