@@ -12,6 +12,8 @@
 
 use rio::Rio;
 use iou::IoUring;
+use iou::sqe::{StatxFlags, StatxMode};
+use std::ffi::CString;
 use std::os::unix::io::RawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::io::{self, Error};
@@ -376,10 +378,10 @@ impl ExtendedRio {
         }
     }
 
-    /// Get comprehensive file metadata using statx
+    /// Get comprehensive file metadata using io_uring statx
     ///
     /// Retrieves all file statistics including filesystem device ID, inode number,
-    /// file size, permissions, timestamps, and file type information.
+    /// file size, permissions, timestamps, and file type information using io_uring.
     /// This replaces the need for separate metadata() and stat() calls.
     ///
     /// # Parameters
@@ -393,6 +395,67 @@ impl ExtendedRio {
         &self,
         path: &std::path::Path,
     ) -> Result<StatxResult> {
+        // Use io_uring statx for async operation
+        self.statx_full_uring(path).await
+    }
+
+    /// Async io_uring statx implementation
+    async fn statx_full_uring(&self, path: &std::path::Path) -> Result<StatxResult> {
+        let path_c = CString::new(path.as_os_str().as_bytes())
+            .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
+        
+        let mut statx_buf: libc::statx = unsafe { std::mem::zeroed() };
+        
+        // Create a new IoUring instance for this operation
+        let mut ring = IoUring::new(1).map_err(ExtendedError::IoUring)?;
+        
+        // Prepare the statx operation
+        unsafe {
+            let mut sqe = ring.prepare_sqe().ok_or_else(|| {
+                ExtendedError::IoUring(Error::new(io::ErrorKind::Other, "Failed to get SQE"))
+            })?;
+            
+            sqe.prep_statx(
+                -1, // Use current working directory (AT_FDCWD)
+                &path_c,
+                StatxFlags::empty(), // No special flags
+                StatxMode::all(), // Get all available information
+                &mut statx_buf,
+            );
+            
+            sqe.set_user_data(0x1234); // Use a unique identifier
+        }
+        
+        // Submit the operation
+        ring.submit_sqes().map_err(ExtendedError::IoUring)?;
+        
+        // Wait for completion
+        let cqe = ring.wait_for_cqe().map_err(ExtendedError::IoUring)?;
+        
+        let result = cqe.result().map_err(ExtendedError::IoUring)?;
+        if (result as i32) < 0 {
+            return Err(ExtendedError::IoUring(Error::from_raw_os_error(-(result as i32))));
+        }
+        
+        // Convert libc::statx to StatxResult
+        Ok(StatxResult {
+            device_id: statx_buf.stx_dev_major as u64 * 256 + statx_buf.stx_dev_minor as u64,
+            inode_number: statx_buf.stx_ino as u64,
+            file_size: statx_buf.stx_size as u64,
+            link_count: statx_buf.stx_nlink as u64,
+            permissions: statx_buf.stx_mode as u32,
+            is_file: (statx_buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFREG,
+            is_dir: (statx_buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFDIR,
+            is_symlink: (statx_buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFLNK,
+            modified_time: statx_buf.stx_mtime.tv_sec,
+            accessed_time: statx_buf.stx_atime.tv_sec,
+            created_time: statx_buf.stx_ctime.tv_sec,
+        })
+    }
+
+    /// Synchronous statx implementation (fallback)
+    #[allow(dead_code)]
+    fn statx_full_sync(&self, path: &std::path::Path) -> Result<StatxResult> {
         let path_c = std::ffi::CString::new(path.as_os_str().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
         let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
