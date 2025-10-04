@@ -22,7 +22,6 @@ pub struct ExtendedMetadata {
     pub metadata: std::fs::Metadata,
 }
 
-
 #[allow(dead_code)]
 impl ExtendedMetadata {
     /// Create extended metadata using compio's built-in metadata support
@@ -172,7 +171,13 @@ pub async fn copy_directory(
     hardlink_tracker.set_source_filesystem(root_metadata.device_id());
 
     // Traverse source directory iteratively using compio's dispatcher
-    traverse_and_copy_directory_iterative(src, dst, file_ops, copy_method, &mut stats, &mut hardlink_tracker).await?;
+    let params = TraversalParams {
+        file_ops,
+        copy_method,
+        stats: &mut stats,
+        hardlink_tracker: &mut hardlink_tracker,
+    };
+    traverse_and_copy_directory_iterative(src, dst, params).await?;
 
     // Log hardlink detection results
     let hardlink_stats = hardlink_tracker.get_stats();
@@ -183,11 +188,22 @@ pub async fn copy_directory(
     if hardlink_stats.hardlink_groups > 0 {
         info!(
             "Hardlink detection: {} unique files, {} hardlink groups, {} total hardlinks",
-            hardlink_stats.total_files, hardlink_stats.hardlink_groups, hardlink_stats.total_hardlinks
+            hardlink_stats.total_files,
+            hardlink_stats.hardlink_groups,
+            hardlink_stats.total_hardlinks
         );
     }
 
     Ok(stats)
+}
+
+/// Parameters for directory traversal operations
+#[derive(Debug)]
+struct TraversalParams<'a> {
+    file_ops: &'a FileOperations,
+    copy_method: CopyMethod,
+    stats: &'a mut DirectoryStats,
+    hardlink_tracker: &'a mut FilesystemTracker,
 }
 
 /// Iterative directory traversal using compio's dispatcher
@@ -198,21 +214,20 @@ pub async fn copy_directory(
 async fn traverse_and_copy_directory_iterative(
     initial_src: &Path,
     initial_dst: &Path,
-    file_ops: &FileOperations,
-    copy_method: CopyMethod,
-    stats: &mut DirectoryStats,
-    hardlink_tracker: &mut FilesystemTracker,
+    params: TraversalParams<'_>,
 ) -> Result<()> {
     // Simple work list - compio's dispatcher handles the async scheduling
     let mut work_list = vec![(initial_src.to_path_buf(), initial_dst.to_path_buf())];
-    
+
     while let Some((src, dst)) = work_list.pop() {
         let entries = std::fs::read_dir(&src).map_err(|e| {
             SyncError::FileSystem(format!("Failed to read directory {}: {}", src.display(), e))
         })?;
 
         for entry_result in entries {
-            let entry = entry_result.map_err(|e| SyncError::FileSystem(format!("Failed to read directory entry: {}", e)))?;
+            let entry = entry_result.map_err(|e| {
+                SyncError::FileSystem(format!("Failed to read directory entry: {}", e))
+            })?;
             let src_path = entry.path();
             let file_name = src_path.file_name().ok_or_else(|| {
                 SyncError::FileSystem(format!("Invalid file name in {}", src_path.display()))
@@ -235,14 +250,18 @@ async fn traverse_and_copy_directory_iterative(
                             e
                         ))
                     })?;
-                    stats.directories_created += 1;
+                    params.stats.directories_created += 1;
                 }
 
                 // Add subdirectory to work list for later processing
                 work_list.push((src_path, dst_path));
             } else if extended_metadata.is_file() {
                 // Handle regular file with hardlink detection
-                debug!("Processing file: {} (link_count: {})", src_path.display(), extended_metadata.link_count());
+                debug!(
+                    "Processing file: {} (link_count: {})",
+                    src_path.display(),
+                    extended_metadata.link_count()
+                );
 
                 let device_id = extended_metadata.device_id();
                 let inode_number = extended_metadata.inode_number();
@@ -250,17 +269,34 @@ async fn traverse_and_copy_directory_iterative(
 
                 // Register file with hardlink tracker (optimization: skip if link_count == 1)
                 if link_count > 1 {
-                    hardlink_tracker.register_file(&src_path, device_id, inode_number, link_count);
-                    debug!("Registered hardlink: {} (inode: {}, links: {})", src_path.display(), inode_number, link_count);
+                    params.hardlink_tracker.register_file(
+                        &src_path,
+                        device_id,
+                        inode_number,
+                        link_count,
+                    );
+                    debug!(
+                        "Registered hardlink: {} (inode: {}, links: {})",
+                        src_path.display(),
+                        inode_number,
+                        link_count
+                    );
                 }
 
                 // Check if this inode has already been copied (for hardlinks)
-                if link_count > 1 && hardlink_tracker.is_inode_copied(inode_number) {
+                if link_count > 1 && params.hardlink_tracker.is_inode_copied(inode_number) {
                     // This is a hardlink - create a hardlink instead of copying content
-                    debug!("Creating hardlink for {} (inode: {})", src_path.display(), inode_number);
-                    
+                    debug!(
+                        "Creating hardlink for {} (inode: {})",
+                        src_path.display(),
+                        inode_number
+                    );
+
                     // Find the original file path for this inode
-                    if let Some(original_path) = hardlink_tracker.get_original_path_for_inode(inode_number) {
+                    if let Some(original_path) = params
+                        .hardlink_tracker
+                        .get_original_path_for_inode(inode_number)
+                    {
                         // Create destination directory if needed
                         if let Some(parent) = dst_path.parent() {
                             if !parent.exists() {
@@ -273,38 +309,50 @@ async fn traverse_and_copy_directory_iterative(
                                 })?;
                             }
                         }
-                        
+
                         // Create hardlink using std filesystem operations (compio has Send issues)
-                        match std::fs::hard_link(&original_path, &dst_path) {
+                        match std::fs::hard_link(original_path, &dst_path) {
                             Ok(()) => {
-                                stats.files_copied += 1;
-                                debug!("Created hardlink: {} -> {}", dst_path.display(), original_path.display());
+                                params.stats.files_copied += 1;
+                                debug!(
+                                    "Created hardlink: {} -> {}",
+                                    dst_path.display(),
+                                    original_path.display()
+                                );
                             }
                             Err(e) => {
-                                warn!("Failed to create hardlink for {}: {}", src_path.display(), e);
-                                stats.errors += 1;
+                                warn!(
+                                    "Failed to create hardlink for {}: {}",
+                                    src_path.display(),
+                                    e
+                                );
+                                params.stats.errors += 1;
                             }
                         }
                     } else {
                         warn!("Could not find original path for inode {}", inode_number);
-                        stats.errors += 1;
+                        params.stats.errors += 1;
                     }
                 } else {
                     // First time seeing this inode - copy the file content normally
                     debug!("Copying file content: {}", src_path.display());
-                    
-                    match copy_file(&src_path, &dst_path, copy_method.clone()).await {
+
+                    match copy_file(&src_path, &dst_path, params.copy_method.clone()).await {
                         Ok(()) => {
-                            stats.files_copied += 1;
-                            stats.bytes_copied += extended_metadata.len();
+                            params.stats.files_copied += 1;
+                            params.stats.bytes_copied += extended_metadata.len();
 
                             // Mark this inode as copied for future hardlink creation
                             if link_count > 1 {
-                                hardlink_tracker.mark_inode_copied(inode_number, &dst_path);
+                                params
+                                    .hardlink_tracker
+                                    .mark_inode_copied(inode_number, &dst_path);
                             }
 
                             // Preserve metadata
-                            if let Err(e) = preserve_file_metadata(&src_path, &dst_path, file_ops).await {
+                            if let Err(e) =
+                                preserve_file_metadata(&src_path, &dst_path, params.file_ops).await
+                            {
                                 warn!(
                                     "Failed to preserve metadata for {}: {}",
                                     dst_path.display(),
@@ -314,7 +362,7 @@ async fn traverse_and_copy_directory_iterative(
                         }
                         Err(e) => {
                             warn!("Failed to copy file {}: {}", src_path.display(), e);
-                            stats.errors += 1;
+                            params.stats.errors += 1;
                         }
                     }
                 }
@@ -324,11 +372,11 @@ async fn traverse_and_copy_directory_iterative(
 
                 match copy_symlink(&src_path, &dst_path).await {
                     Ok(()) => {
-                        stats.symlinks_processed += 1;
+                        params.stats.symlinks_processed += 1;
                     }
                     Err(e) => {
                         warn!("Failed to copy symlink {}: {}", src_path.display(), e);
-                        stats.errors += 1;
+                        params.stats.errors += 1;
                     }
                 }
             }
@@ -386,7 +434,7 @@ async fn copy_symlink(src: &Path, dst: &Path) -> Result<()> {
 /// Preserve file metadata (permissions, ownership, timestamps)
 async fn preserve_file_metadata(src: &Path, dst: &Path, file_ops: &FileOperations) -> Result<()> {
     // Get source metadata
-    let metadata = file_ops.get_file_metadata(src).await.map_err(|e| {
+    let _metadata = file_ops.get_file_metadata(src).await.map_err(|e| {
         SyncError::FileSystem(format!(
             "Failed to get source metadata for {}: {}",
             src.display(),
@@ -397,7 +445,10 @@ async fn preserve_file_metadata(src: &Path, dst: &Path, file_ops: &FileOperation
     // TODO: Implement metadata preservation using compio's API
     // For now, we'll skip metadata preservation as compio's API is still evolving
     // This will be implemented in a future phase with proper compio bindings
-    tracing::debug!("Metadata preservation skipped for {} (compio API limitations)", dst.display());
+    tracing::debug!(
+        "Metadata preservation skipped for {} (compio API limitations)",
+        dst.display()
+    );
 
     // Set timestamps (currently skipped due to unstable Rust features)
     // TODO: Implement timestamp preservation using libc
@@ -422,7 +473,7 @@ async fn preserve_file_metadata(src: &Path, dst: &Path, file_ops: &FileOperation
 pub async fn get_directory_size(path: &Path) -> Result<u64> {
     let mut total_size = 0u64;
     let mut work_list = vec![path.to_path_buf()];
-    
+
     while let Some(current_path) = work_list.pop() {
         let entries = std::fs::read_dir(&current_path).map_err(|e| {
             SyncError::FileSystem(format!(
@@ -433,7 +484,9 @@ pub async fn get_directory_size(path: &Path) -> Result<u64> {
         })?;
 
         for entry_result in entries {
-            let entry = entry_result.map_err(|e| SyncError::FileSystem(format!("Failed to read directory entry: {}", e)))?;
+            let entry = entry_result.map_err(|e| {
+                SyncError::FileSystem(format!("Failed to read directory entry: {}", e))
+            })?;
             let entry_path = entry.path();
             let metadata = entry.metadata().map_err(|e| {
                 SyncError::FileSystem(format!(
@@ -473,7 +526,7 @@ pub async fn count_directory_contents(path: &Path) -> Result<(u64, u64)> {
     let mut file_count = 0u64;
     let mut dir_count = 0u64;
     let mut work_list = vec![path.to_path_buf()];
-    
+
     while let Some(current_path) = work_list.pop() {
         let entries = std::fs::read_dir(&current_path).map_err(|e| {
             SyncError::FileSystem(format!(
@@ -484,7 +537,9 @@ pub async fn count_directory_contents(path: &Path) -> Result<(u64, u64)> {
         })?;
 
         for entry_result in entries {
-            let entry = entry_result.map_err(|e| SyncError::FileSystem(format!("Failed to read directory entry: {}", e)))?;
+            let entry = entry_result.map_err(|e| {
+                SyncError::FileSystem(format!("Failed to read directory entry: {}", e))
+            })?;
             let entry_path = entry.path();
             let metadata = entry.metadata().map_err(|e| {
                 SyncError::FileSystem(format!(
@@ -713,4 +768,3 @@ pub struct FilesystemStats {
     /// Source filesystem device ID
     pub source_filesystem: Option<u64>,
 }
-

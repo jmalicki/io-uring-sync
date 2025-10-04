@@ -22,9 +22,9 @@
 //! ```
 
 use crate::error::{Result, SyncError};
+use compio::io::{AsyncReadAt, AsyncWriteAtExt};
 use std::path::Path;
 use tracing::debug;
-use compio::io::{AsyncReadAt, AsyncWriteAtExt};
 
 /// Basic file operations using async I/O
 ///
@@ -41,6 +41,7 @@ use compio::io::{AsyncReadAt, AsyncWriteAtExt};
 /// - Buffer size should be tuned based on system memory and expected file sizes
 /// - Larger buffers reduce system call overhead but increase memory usage
 /// - Default buffer size of 64KB provides good balance for most workloads
+#[derive(Debug)]
 pub struct FileOperations {
     /// Buffer size for I/O operations in bytes
     #[allow(dead_code)]
@@ -90,6 +91,7 @@ impl FileOperations {
     /// # Returns
     ///
     /// Returns `Ok(())` on success or `Err(SyncError)` on failure.
+    #[allow(dead_code)]
     pub async fn copy_file_read_write(&mut self, src: &Path, dst: &Path) -> Result<()> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {
@@ -104,15 +106,24 @@ impl FileOperations {
 
         // Open source and destination files
         let mut src_file = compio::fs::File::open(src).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to open source file {}: {}", src.display(), e))
+            SyncError::FileSystem(format!(
+                "Failed to open source file {}: {}",
+                src.display(),
+                e
+            ))
         })?;
 
         let mut dst_file = compio::fs::File::create(dst).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create destination file {}: {}", dst.display(), e))
+            SyncError::FileSystem(format!(
+                "Failed to create destination file {}: {}",
+                dst.display(),
+                e
+            ))
         })?;
 
         // Use the descriptor-based copy operation
-        self.copy_file_descriptors(&mut src_file, &mut dst_file).await?;
+        self.copy_file_descriptors(&mut src_file, &mut dst_file)
+            .await?;
 
         debug!("Copied file from {} to {}", src.display(), dst.display());
         Ok(())
@@ -145,12 +156,15 @@ impl FileOperations {
         loop {
             // Read chunk from source using managed buffer
             let result = src_file.read_at(buffer, offset).await;
-            
+
             let bytes_read = match result.0 {
                 Ok(n) => n,
-                Err(e) => return Err(SyncError::FileSystem(format!(
-                    "Failed to read from source file: {}", e
-                ))),
+                Err(e) => {
+                    return Err(SyncError::FileSystem(format!(
+                        "Failed to read from source file: {}",
+                        e
+                    )))
+                }
             };
 
             // If we read 0 bytes, we've reached end of file
@@ -160,16 +174,19 @@ impl FileOperations {
 
             // Create write buffer from the read data using compio's managed buffer
             let write_buffer = result.1[..bytes_read].to_vec();
-            
+
             // Write chunk to destination using managed buffer
             let write_result = dst_file.write_all_at(write_buffer, offset).await;
             match write_result.0 {
                 Ok(()) => {
                     // write_all_at returns () on success
                 }
-                Err(e) => return Err(SyncError::FileSystem(format!(
-                    "Failed to write to destination file: {}", e
-                ))),
+                Err(e) => {
+                    return Err(SyncError::FileSystem(format!(
+                        "Failed to write to destination file: {}",
+                        e
+                    )))
+                }
             }
 
             offset += bytes_read as u64;
@@ -184,6 +201,7 @@ impl FileOperations {
     }
 
     /// Get file size
+    #[allow(dead_code)]
     pub async fn get_file_size(&self, path: &Path) -> Result<u64> {
         let metadata = compio::fs::metadata(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
@@ -274,9 +292,6 @@ impl FileOperations {
         })
     }
 
-
-
-
     /// Copy file with full metadata preservation using file descriptors
     ///
     /// This function copies a file and preserves all metadata including permissions,
@@ -322,25 +337,42 @@ impl FileOperations {
 
         // Open source and destination files
         let mut src_file = compio::fs::File::open(src).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to open source file {}: {}", src.display(), e))
+            SyncError::FileSystem(format!(
+                "Failed to open source file {}: {}",
+                src.display(),
+                e
+            ))
         })?;
 
         let mut dst_file = compio::fs::File::create(dst).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create destination file {}: {}", dst.display(), e))
+            SyncError::FileSystem(format!(
+                "Failed to create destination file {}: {}",
+                dst.display(),
+                e
+            ))
         })?;
 
         // Get source metadata using the open file descriptor
-        let src_metadata = src_file.metadata().await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to get source metadata: {}", e))
-        })?;
+        let src_metadata = src_file
+            .metadata()
+            .await
+            .map_err(|e| SyncError::FileSystem(format!("Failed to get source metadata: {}", e)))?;
 
         // Copy file content using the descriptor-based operation
-        let offset = self.copy_file_descriptors(&mut src_file, &mut dst_file).await?;
+        let offset = self
+            .copy_file_descriptors(&mut src_file, &mut dst_file)
+            .await?;
 
         // Preserve metadata using file descriptors (more efficient than path-based operations)
-        self.preserve_metadata_from_fd(&src_file, &dst_file, &src_metadata).await?;
+        self.preserve_metadata_from_fd(&src_file, &dst_file, &src_metadata)
+            .await?;
 
-        debug!("Copied {} bytes from {} to {} with metadata preservation", offset, src.display(), dst.display());
+        debug!(
+            "Copied {} bytes from {} to {} with metadata preservation",
+            offset,
+            src.display(),
+            dst.display()
+        );
         Ok(offset)
     }
 

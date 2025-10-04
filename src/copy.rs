@@ -33,11 +33,11 @@
 
 use crate::cli::CopyMethod;
 use crate::error::{Result, SyncError};
+use compio::fs::OpenOptions;
 use io_uring_extended::ExtendedRio;
 use rio::new as rio_new;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
-use compio::fs::OpenOptions;
 
 /// Copy a single file using the specified method
 pub async fn copy_file(src: &Path, dst: &Path, method: CopyMethod) -> Result<()> {

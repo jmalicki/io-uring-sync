@@ -39,7 +39,7 @@
 //!         CopyMethod::Auto,
 //!     ).await?;
 //!     
-//!     println!("Copied {} files, {} directories, {} bytes", 
+//!     println!("Copied {} files, {} directories, {} bytes",
 //!              stats.files_copied, stats.directories_created, stats.bytes_copied);
 //!     Ok(())
 //! }

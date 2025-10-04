@@ -11,9 +11,9 @@
 #![allow(unsafe_code)]
 
 use rio::Rio;
-use std::os::unix::io::RawFd;
-use std::os::unix::ffi::OsStrExt;
 use std::io::{self, Error};
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::io::RawFd;
 use thiserror::Error;
 
 /// Extended Rio that adds missing operations
@@ -169,24 +169,14 @@ impl ExtendedRio {
     /// # Returns
     ///
     /// Returns Ok(()) on success or an error.
-    pub async fn setxattr(
-        &self,
-        path: &std::path::Path,
-        name: &str,
-        value: &[u8],
-    ) -> Result<()> {
+    pub async fn setxattr(&self, path: &std::path::Path, name: &str, value: &[u8]) -> Result<()> {
         // For now, use synchronous syscall
         // TODO: Implement async io_uring xattr operations
         self.setxattr_syscall(path, name, value)
     }
 
     /// Synchronous setxattr implementation
-    fn setxattr_syscall(
-        &self,
-        path: &std::path::Path,
-        name: &str,
-        value: &[u8],
-    ) -> Result<()> {
+    fn setxattr_syscall(&self, path: &std::path::Path, name: &str, value: &[u8]) -> Result<()> {
         let path_c = std::ffi::CString::new(path.to_string_lossy().as_bytes())
             .map_err(|e| ExtendedError::NotSupported(format!("Invalid path: {}", e)))?;
         let name_c = std::ffi::CString::new(name.as_bytes())
