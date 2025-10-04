@@ -30,8 +30,8 @@ impl ExtendedMetadata {
     /// for efficient async metadata retrieval including device ID, inode number,
     /// size, permissions, timestamps, and file type.
     pub async fn new(path: &Path) -> Result<Self> {
-        // Get metadata using std::fs (compio has Send issues)
-        let metadata = std::fs::metadata(path).map_err(|e| {
+        // Get metadata using std::fs symlink_metadata (doesn't follow symlinks)
+        let metadata = std::fs::symlink_metadata(path).map_err(|e| {
             SyncError::FileSystem(format!(
                 "Failed to get metadata for {}: {}",
                 path.display(),

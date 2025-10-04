@@ -8,7 +8,7 @@ use std::io::Write;
 use tempfile::TempDir;
 
 /// Test that hardlinks are properly detected and copied during directory traversal
-#[tokio::test]
+#[compio::test]
 async fn test_integrated_hardlink_copying() {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let src_path = temp_dir.path().join("src");
@@ -125,7 +125,7 @@ async fn test_integrated_hardlink_copying() {
 }
 
 /// Test that filesystem boundary detection works during traversal
-#[tokio::test]
+#[compio::test]
 async fn test_filesystem_boundary_detection() {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let src_path = temp_dir.path().join("src");
@@ -166,7 +166,7 @@ async fn test_filesystem_boundary_detection() {
 }
 
 /// Test that symlinks are handled during integrated traversal
-#[tokio::test]
+#[compio::test]
 async fn test_symlink_handling() {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let src_path = temp_dir.path().join("src");
@@ -193,11 +193,13 @@ async fn test_symlink_handling() {
         .await
         .expect("Failed to copy directory");
 
+
     // Should complete successfully
     assert!(stats.errors == 0, "Should have no symlink errors");
     assert!(
         stats.symlinks_processed >= 1,
-        "Should have processed at least 1 symlink"
+        "Should have processed at least 1 symlink, but got {}",
+        stats.symlinks_processed
     );
 
     // Verify symlink was copied
@@ -212,7 +214,7 @@ async fn test_symlink_handling() {
 }
 
 /// Test FilesystemTracker functionality
-#[tokio::test]
+#[compio::test]
 async fn test_filesystem_tracker_functionality() {
     let mut tracker = FilesystemTracker::new();
 
