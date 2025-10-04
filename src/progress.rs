@@ -141,6 +141,7 @@ impl ProgressTracker {
     /// - No memory allocation beyond the struct itself
     /// - Progress bar styling is applied immediately
     #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn new() -> Self {
         let pb = ProgressBar::new(0);
         pb.set_style(

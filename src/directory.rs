@@ -48,46 +48,62 @@ impl SharedStats {
         }
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn files_copied(&self) -> u64 {
         self.inner.lock().unwrap().files_copied
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn directories_created(&self) -> u64 {
         self.inner.lock().unwrap().directories_created
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn bytes_copied(&self) -> u64 {
         self.inner.lock().unwrap().bytes_copied
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn symlinks_processed(&self) -> u64 {
         self.inner.lock().unwrap().symlinks_processed
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn errors(&self) -> u64 {
         self.inner.lock().unwrap().errors
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn increment_files_copied(&self) {
         self.inner.lock().unwrap().files_copied += 1;
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn increment_directories_created(&self) {
         self.inner.lock().unwrap().directories_created += 1;
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn increment_bytes_copied(&self, bytes: u64) {
         self.inner.lock().unwrap().bytes_copied += bytes;
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn increment_symlinks_processed(&self) {
         self.inner.lock().unwrap().symlinks_processed += 1;
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn increment_errors(&self) {
         self.inner.lock().unwrap().errors += 1;
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn into_inner(self) -> DirectoryStats {
         Arc::try_unwrap(self.inner).unwrap().into_inner().unwrap()
     }
@@ -132,10 +148,12 @@ impl SharedHardlinkTracker {
         }
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn is_inode_copied(&self, inode: u64) -> bool {
         self.inner.lock().unwrap().is_inode_copied(inode)
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn get_original_path_for_inode(&self, inode: u64) -> Option<PathBuf> {
         self.inner
             .lock()
@@ -144,10 +162,13 @@ impl SharedHardlinkTracker {
             .map(|p| p.to_path_buf())
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) {
         self.inner.lock().unwrap().mark_inode_copied(inode, &path);
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn register_file(&self, path: PathBuf, device_id: u64, inode: u64, link_count: u64) {
         self.inner
             .lock()
@@ -155,14 +176,19 @@ impl SharedHardlinkTracker {
             .register_file(&path, device_id, inode, link_count);
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn set_source_filesystem(&self, device_id: u64) {
         self.inner.lock().unwrap().set_source_filesystem(device_id);
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
     pub fn get_stats(&self) -> FilesystemStats {
         self.inner.lock().unwrap().get_stats()
     }
 
+    #[allow(clippy::unwrap_used)]
     pub fn into_inner(self) -> FilesystemTracker {
         Arc::try_unwrap(self.inner).unwrap().into_inner().unwrap()
     }
@@ -208,6 +234,7 @@ impl ExtendedMetadata {
     }
 
     /// Check if file is empty
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.metadata.len() == 0
     }
@@ -865,6 +892,7 @@ pub struct InodeInfo {
 #[derive(Debug, Clone)]
 pub struct HardlinkInfo {
     /// Original file path
+    #[allow(dead_code)]
     pub original_path: std::path::PathBuf,
     /// Inode number
     pub inode_number: u64,
@@ -1048,6 +1076,7 @@ pub struct FilesystemStats {
     /// Total number of hardlinks (including originals)
     pub total_hardlinks: u64,
     /// Source filesystem device ID
+    #[allow(dead_code)]
     pub source_filesystem: Option<u64>,
 }
 
