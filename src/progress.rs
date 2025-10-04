@@ -45,6 +45,7 @@
 
 use crate::io_uring::CopyOperation;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::time::Duration;
 
 /// Progress tracker for file synchronization operations
 ///

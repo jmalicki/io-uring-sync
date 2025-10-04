@@ -189,7 +189,7 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
 
     // Initialize file operations with configured parameters
     // Queue depth and buffer size are validated by the CLI module
-    let file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
+    let mut file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
 
     // Handle single file copy
     if args.is_file_copy() {
