@@ -58,6 +58,7 @@ const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer
 /// - File copying operation fails (I/O errors, permission issues)
 /// - Metadata preservation fails
 /// - The specified copy method is not supported or fails
+#[allow(clippy::future_not_send)]
 pub async fn copy_file(src: &Path, dst: &Path) -> Result<()> {
     // Simplified: always use read/write method
     // This is the only reliable method that works everywhere
@@ -100,6 +101,7 @@ pub async fn copy_file(src: &Path, dst: &Path) -> Result<()> {
 ///     Ok(())
 /// }
 /// ```
+#[allow(clippy::future_not_send)]
 async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     // Capture source timestamps BEFORE any reads to avoid atime/mtime drift
     let (src_accessed, src_modified) = get_precise_timestamps(src).await?;
@@ -165,8 +167,7 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         // Ensure we wrote the expected number of bytes
         if bytes_written != bytes_read {
             return Err(SyncError::CopyFailed(format!(
-                "Write size mismatch: expected {}, got {}",
-                bytes_read, bytes_written
+                "Write size mismatch: expected {bytes_read}, got {bytes_written}"
             )));
         }
 
@@ -227,6 +228,7 @@ async fn preserve_metadata(src: &Path, dst: &Path) -> Result<()> {
 }
 
 /// Preserve only file permissions from source to destination
+#[allow(clippy::unused_async)]
 async fn preserve_permissions(src: &Path, dst: &Path) -> Result<()> {
     let src_metadata = metadata(src)
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {e}")))?;
@@ -266,8 +268,7 @@ async fn get_precise_timestamps(path: &Path) -> Result<(SystemTime, SystemTime)>
     // Use spawn_blocking for the syscall since compio doesn't have stat support
     compio::runtime::spawn_blocking(move || {
         let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
-        let stat_ptr: *mut libc::stat = &mut stat_buf;
-        let result = unsafe { libc::stat(path_cstr.as_ptr(), stat_ptr) };
+        let result = unsafe { libc::stat(path_cstr.as_ptr(), &raw mut stat_buf) };
 
         if result == -1 {
             let errno = std::io::Error::last_os_error();
@@ -279,8 +280,10 @@ async fn get_precise_timestamps(path: &Path) -> Result<(SystemTime, SystemTime)>
             // Convert timespec to SystemTime
             let accessed_nanos: u32 = u32::try_from(stat_buf.st_atime_nsec).unwrap_or(0);
             let modified_nanos: u32 = u32::try_from(stat_buf.st_mtime_nsec).unwrap_or(0);
+            #[allow(clippy::cast_sign_loss)]
             let accessed = SystemTime::UNIX_EPOCH
                 + std::time::Duration::new(stat_buf.st_atime as u64, accessed_nanos);
+            #[allow(clippy::cast_sign_loss)]
             let modified = SystemTime::UNIX_EPOCH
                 + std::time::Duration::new(stat_buf.st_mtime as u64, modified_nanos);
             Ok((accessed, modified))
@@ -358,8 +361,10 @@ fn system_time_to_timespec(time: SystemTime) -> libc::timespec {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default();
 
+    #[allow(clippy::cast_possible_wrap)]
+    let tv_sec = duration.as_secs() as libc::time_t;
     libc::timespec {
-        tv_sec: duration.as_secs() as libc::time_t,
+        tv_sec,
         tv_nsec: libc::c_long::from(duration.subsec_nanos()),
     }
 }

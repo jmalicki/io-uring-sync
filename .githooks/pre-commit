@@ -4,6 +4,6 @@ set -euo pipefail
 # Format check
 cargo fmt --all -- --check
 
-# Clippy strict check (no deps)
-cargo clippy --no-deps -q -- -D warnings
+# Clippy strict check (no deps). Tests that need unwrap/expect must locally allow them.
+cargo clippy --no-deps -q -- -D warnings -W clippy::all -W clippy::pedantic -W clippy::nursery
 

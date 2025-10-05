@@ -9,7 +9,7 @@ pub enum SyncError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// io_uring specific error
+    /// `io_uring` specific error
     #[error("io_uring error: {0}")]
     IoUring(String),
 

@@ -68,7 +68,7 @@ async fn test_timestamp_preservation() {
     println!("Copied modified: {:?}", copied_modified);
 
     // Timestamps should be very close (within a few milliseconds due to system precision)
-    let accessed_diff = copied_accessed
+    let _accessed_diff = copied_accessed
         .duration_since(original_accessed)
         .unwrap_or_default();
     let modified_diff = copied_modified
@@ -76,7 +76,7 @@ async fn test_timestamp_preservation() {
         .unwrap_or_default();
 
     assert!(
-        accessed_diff.as_millis() < 100,
+        _accessed_diff.as_millis() < 100,
         "Accessed time should be preserved within 100ms"
     );
     assert!(
