@@ -72,20 +72,40 @@ impl SharedStats {
     }
 
     #[allow(dead_code)]
+    /// Get the number of bytes copied
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn bytes_copied(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied)
     }
 
     #[allow(dead_code)]
+    /// Get the number of symlinks processed
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn symlinks_processed(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed)
     }
 
     #[allow(dead_code)]
+    /// Get the number of errors encountered
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn errors(&self) -> Result<u64> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors)
     }
 
+    /// Increment the number of files copied
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_files_copied(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied += 1;
         Ok(())
