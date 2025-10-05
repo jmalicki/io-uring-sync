@@ -1,11 +1,19 @@
 //! Test data generation utilities
 
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tempfile::TempDir;
 
 /// Create test directory structure with various file types
+///
+/// # Panics
+///
+/// This function will panic if the temporary directory cannot be created.
+#[must_use]
 pub fn create_test_directory() -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     let test_dir = temp_dir.path();

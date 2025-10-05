@@ -140,6 +140,11 @@ impl ProgressTracker {
     /// - Initialization is O(1) and very fast
     /// - No memory allocation beyond the struct itself
     /// - Progress bar styling is applied immediately
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the progress bar template is invalid.
+    /// This should never happen with the hardcoded template string.
     #[allow(dead_code)]
     #[allow(clippy::unwrap_used)]
     #[must_use]

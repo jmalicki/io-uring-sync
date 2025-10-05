@@ -111,27 +111,53 @@ impl SharedStats {
         Ok(())
     }
 
+    /// Increment the number of directories created
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_directories_created(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created += 1;
         Ok(())
     }
 
+    /// Increment the number of bytes copied
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_bytes_copied(&self, bytes: u64) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied += bytes;
         Ok(())
     }
 
+    /// Increment the number of symlinks processed
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_symlinks_processed(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed += 1;
         Ok(())
     }
 
+    /// Increment the number of errors encountered
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_errors(&self) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors += 1;
         Ok(())
     }
 
-    
+    /// Extract the inner DirectoryStats from the shared wrapper
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Multiple references to the Arc exist (cannot unwrap)
+    /// - The internal mutex is poisoned
     pub fn into_inner(self) -> Result<DirectoryStats> {
         let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
         inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
@@ -179,12 +205,20 @@ impl SharedHardlinkTracker {
         }
     }
 
-    
+    /// Check if an inode has already been copied
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn is_inode_copied(&self, inode: u64) -> Result<bool> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.is_inode_copied(inode))
     }
 
-    
+    /// Get the original path for an inode that has been copied
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn get_original_path_for_inode(&self, inode: u64) -> Result<Option<PathBuf>> {
         Ok(self.inner
             .lock()
@@ -193,12 +227,22 @@ impl SharedHardlinkTracker {
             .map(|p| p.to_path_buf()))
     }
 
+    /// Mark an inode as copied
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.mark_inode_copied(inode, &path);
         Ok(())
     }
 
     #[allow(dead_code)]
+    /// Register a file with the hardlink tracker
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn register_file(&self, path: PathBuf, device_id: u64, inode: u64, link_count: u64) -> Result<()> {
         self.inner
             .lock()
@@ -208,17 +252,33 @@ impl SharedHardlinkTracker {
     }
 
     #[allow(dead_code)]
+    /// Set the source filesystem device ID
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn set_source_filesystem(&self, device_id: u64) -> Result<()> {
         self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.set_source_filesystem(device_id);
         Ok(())
     }
 
     #[allow(dead_code)]
+    /// Get filesystem tracking statistics
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the internal mutex is poisoned.
     pub fn get_stats(&self) -> Result<FilesystemStats> {
         Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.get_stats())
     }
 
-    
+    /// Extract the inner FilesystemTracker from the shared wrapper
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Multiple references to the Arc exist (cannot unwrap)
+    /// - The internal mutex is poisoned
     pub fn into_inner(self) -> Result<FilesystemTracker> {
         let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
         inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
@@ -233,6 +293,13 @@ pub struct ExtendedMetadata {
 
 impl ExtendedMetadata {
     /// Create extended metadata using compio's built-in metadata support
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The path does not exist
+    /// - Permission is denied to read the path
+    /// - The path is not accessible
     pub async fn new(path: &Path) -> Result<Self> {
         let metadata = std::fs::symlink_metadata(path).map_err(|e| {
             SyncError::FileSystem(format!(
@@ -276,16 +343,19 @@ impl ExtendedMetadata {
     }
 
     /// Get device ID (for filesystem boundary detection)
+    #[must_use]
     pub fn device_id(&self) -> u64 {
         self.metadata.dev()
     }
 
     /// Get inode number (for hardlink detection)
+    #[must_use]
     pub fn inode_number(&self) -> u64 {
         self.metadata.ino()
     }
 
     /// Get link count (for hardlink detection)
+    #[must_use]
     pub fn link_count(&self) -> u64 {
         self.metadata.nlink()
     }
@@ -326,6 +396,14 @@ pub struct DirectoryStats {
 /// # Returns
 ///
 /// Returns directory copy statistics or an error.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Source directory cannot be read
+/// - Destination directory cannot be created
+/// - File copying operations fail
+/// - Directory traversal fails
 pub async fn copy_directory(
     src: &Path,
     dst: &Path,
@@ -957,6 +1035,7 @@ pub struct FilesystemTracker {
 #[allow(dead_code)]
 impl FilesystemTracker {
     /// Create a new filesystem tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             #[allow(clippy::disallowed_types)]
@@ -1039,6 +1118,7 @@ impl FilesystemTracker {
     /// Get hardlink information for a given inode
     ///
     /// Returns the hardlink information if this inode has been seen before.
+    #[must_use]
     pub fn get_hardlink_info(&self, dev: u64, ino: u64) -> Option<&HardlinkInfo> {
         let inode_info = InodeInfo { dev, ino };
         self.hardlinks.get(&inode_info)
@@ -1047,6 +1127,7 @@ impl FilesystemTracker {
     /// Get all hardlink groups that have multiple links
     ///
     /// Returns a vector of hardlink groups that contain multiple files.
+    #[must_use]
     pub fn get_hardlink_groups(&self) -> Vec<&HardlinkInfo> {
         self.hardlinks
             .values()
@@ -1058,6 +1139,7 @@ impl FilesystemTracker {
     ///
     /// Returns true if this inode has been processed and copied to the destination.
     /// This is used to determine whether to copy file content or create a hardlink.
+    #[must_use]
     pub fn is_inode_copied(&self, ino: u64) -> bool {
         self.hardlinks
             .values()
@@ -1083,6 +1165,7 @@ impl FilesystemTracker {
     ///
     /// Returns the destination path where this inode's content was first copied.
     /// This is used to create hardlinks pointing to the original copied file.
+    #[must_use]
     pub fn get_original_path_for_inode(&self, ino: u64) -> Option<&Path> {
         self.hardlinks
             .values()
@@ -1091,6 +1174,7 @@ impl FilesystemTracker {
     }
 
     /// Get statistics about the filesystem tracking
+    #[must_use]
     pub fn get_stats(&self) -> FilesystemStats {
         let total_files = self.hardlinks.len();
         let hardlink_groups = self.get_hardlink_groups().len();

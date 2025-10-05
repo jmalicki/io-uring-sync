@@ -80,6 +80,12 @@ impl FileOperations {
     /// - Buffer size should be a power of 2 for optimal performance
     /// - Typical values: 4KB (small files), 64KB (general purpose), 1MB (large files)
     /// - Larger buffers reduce system call overhead but increase memory usage
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Buffer size is invalid (must be > 0)
+    /// - Memory allocation fails
     pub fn new(_queue_depth: usize, buffer_size: usize) -> Result<Self> {
         // For Phase 1.2, we'll use async I/O as a foundation
         // TODO: Implement actual io_uring integration in future phases
@@ -100,6 +106,14 @@ impl FileOperations {
     /// # Returns
     ///
     /// Returns `Ok(())` on success or `Err(SyncError)` on failure.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Source file cannot be opened for reading
+    /// - Destination file cannot be created or opened for writing
+    /// - File copying operation fails (I/O errors, permission issues)
+    /// - Metadata preservation fails
     #[allow(dead_code)]
     pub async fn copy_file_read_write(&mut self, src: &Path, dst: &Path) -> Result<()> {
         // Ensure destination directory exists
@@ -210,6 +224,13 @@ impl FileOperations {
     }
 
     /// Get file size
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The path does not exist
+    /// - Permission is denied to read the path
+    /// - The path is not accessible
     #[allow(dead_code)]
     pub async fn get_file_size(&self, path: &Path) -> Result<u64> {
         let metadata = compio::fs::metadata(path).await.map_err(|e| {
@@ -230,6 +251,13 @@ impl FileOperations {
     }
 
     /// Create directory
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Parent directory does not exist and cannot be created
+    /// - Permission is denied to create the directory
+    /// - The path already exists and is not a directory
     pub async fn create_dir(&self, path: &Path) -> Result<()> {
         compio::fs::create_dir_all(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
@@ -277,6 +305,13 @@ impl FileOperations {
     /// - Metadata is cached by the filesystem for performance
     /// - Network filesystems may have higher latency
     /// - All metadata is retrieved in a single system call
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The path does not exist
+    /// - Permission is denied to read the path
+    /// - The path is not accessible
     pub async fn get_file_metadata(&self, path: &Path) -> Result<FileMetadata> {
         let metadata = compio::fs::metadata(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
@@ -348,6 +383,14 @@ impl FileOperations {
     /// - Uses efficient async I/O operations
     /// - Metadata operations are performed on open file descriptors
     /// - Memory usage is controlled by buffer size
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Source file cannot be opened for reading
+    /// - Destination file cannot be created or opened for writing
+    /// - File copying operation fails (I/O errors, permission issues)
+    /// - Metadata preservation fails
     pub async fn copy_file_with_metadata(&mut self, src: &Path, dst: &Path) -> Result<u64> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {
