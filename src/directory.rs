@@ -805,45 +805,12 @@ async fn process_directory_entry_with_compio(
     Ok(())
 }
 
-/// Process a regular file with hardlink detection and copying
-///
-/// This function handles regular file copying with intelligent hardlink detection.
-/// It tracks inodes to detect when multiple files share the same content (hardlinks)
-/// and creates hardlinks instead of copying the same content multiple times.
-///
-/// # Hardlink Detection Algorithm
-///
-/// 1. **Registration**: Files with link_count > 1 are registered in the tracker
-/// 2. **Detection**: When processing a file, check if its inode has been copied
-/// 3. **Hardlink Creation**: If already copied, create a hardlink to the original
-/// 4. **Content Copying**: If not copied, copy the content and mark the inode
-///
-/// # Parameters
-///
-/// * `src_path` - Source file path
-/// * `dst_path` - Destination file path
-/// * `metadata` - Extended metadata including inode and link count
-/// * `file_ops` - File operations handler with io_uring support
-/// * `copy_method` - Copy method (e.g., io_uring, fallback)
-/// * `stats` - Shared statistics tracking
-/// * `hardlink_tracker` - Shared hardlink detection and tracking
-///
-/// # Returns
-///
-/// Returns `Ok(())` if the file is processed successfully, or `Err(SyncError)` if processing fails.
-///
-/// # Errors
-///
-/// This function will return an error if:
-/// - File copying fails
-/// - Hardlink creation fails
-/// - Metadata preservation fails
 #[allow(clippy::too_many_arguments)]
 async fn process_file(
     src_path: PathBuf,
     dst_path: PathBuf,
     metadata: ExtendedMetadata,
-    file_ops: &'static FileOperations,
+    _file_ops: &'static FileOperations,
     _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
@@ -858,57 +825,15 @@ async fn process_file(
     let inode_number = metadata.inode_number();
     let link_count = metadata.link_count();
 
-    // Update stats
-    stats.increment_files_copied()?;
-    stats.increment_bytes_copied(metadata.len())?;
-
     // Check if this inode has already been copied (for hardlinks)
     if link_count > 1 && hardlink_tracker.is_inode_copied(inode_number)? {
-        // This is a hardlink - create a hardlink instead of copying content
-        debug!(
-            "Creating hardlink for {} (inode: {})",
-            src_path.display(),
-            inode_number
-        );
-
-        // Find the original file path for this inode
-        if let Some(original_path) = hardlink_tracker.get_original_path_for_inode(inode_number)? {
-            // Create destination directory if needed
-            if let Some(parent) = dst_path.parent() {
-                if !parent.exists() {
-                    std::fs::create_dir_all(parent).map_err(|e| {
-                        SyncError::FileSystem(format!(
-                            "Failed to create parent directory {}: {}",
-                            parent.display(),
-                            e
-                        ))
-                    })?;
-                }
-            }
-
-            // Create hardlink using std filesystem operations (compio has Send issues)
-            match std::fs::hard_link(&original_path, &dst_path) {
-                Ok(()) => {
-                    stats.increment_files_copied()?;
-                    debug!(
-                        "Created hardlink: {} -> {}",
-                        dst_path.display(),
-                        original_path.display()
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to create hardlink for {}: {}",
-                        src_path.display(),
-                        e
-                    );
-                    stats.increment_errors()?;
-                }
-            }
-        } else {
-            warn!("Could not find original path for inode {}", inode_number);
-            stats.increment_errors()?;
-        }
+        handle_existing_hardlink(
+            &dst_path,
+            &src_path,
+            inode_number,
+            &stats,
+            &hardlink_tracker,
+        )?;
     } else {
         // First time seeing this inode - copy the file content normally
         debug!("Copying file content: {}", src_path.display());
@@ -917,26 +842,107 @@ async fn process_file(
             Ok(()) => {
                 stats.increment_files_copied()?;
                 stats.increment_bytes_copied(metadata.len())?;
-
-                // Mark this inode as copied for future hardlink creation
-                if link_count > 1 {
-                    hardlink_tracker.mark_inode_copied(inode_number, dst_path.clone())?;
-                }
-
-                // Preserve metadata
-                if let Err(e) = preserve_file_metadata(&src_path, &dst_path, file_ops).await {
-                    warn!(
-                        "Failed to preserve metadata for {}: {}",
-                        dst_path.display(),
-                        e
-                    );
-                }
+                hardlink_tracker.mark_inode_copied(inode_number, dst_path.clone())?;
+                debug!("Copied file: {}", dst_path.display());
             }
             Err(e) => {
-                warn!("Failed to copy file {}: {}", src_path.display(), e);
+                warn!(
+                    "Failed to copy file {} -> {}: {}",
+                    src_path.display(),
+                    dst_path.display(),
+                    e
+                );
                 stats.increment_errors()?;
             }
         }
+    }
+
+    Ok(())
+}
+
+/// Handle creation of a hardlink when the inode has already been copied
+///
+/// This helper is invoked when a file's inode has been seen previously (i.e.,
+/// the file is part of a hardlink set). Instead of copying file contents again,
+/// it creates a hardlink in the destination that points to the original copied
+/// path. It also ensures the destination's parent directory exists and updates
+/// shared statistics accordingly.
+///
+/// # Parameters
+///
+/// - `dst_path`: Destination path where the hardlink should be created
+/// - `src_path`: Source path (used for logging and error context)
+/// - `inode_number`: The inode identifier for the file being processed
+/// - `stats`: Shared statistics tracker used to record successes/errors
+/// - `hardlink_tracker`: Tracker used to look up the original path for this inode
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the hardlink was created successfully (or if an expected
+/// recovery path was handled), otherwise returns `Err(SyncError)`.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - The original path associated with `inode_number` cannot be determined
+/// - The destination parent directory cannot be created when needed
+/// - The hardlink creation via `std::fs::hard_link` fails unexpectedly
+///
+/// # Side Effects
+///
+/// - Increments the files-copied counter on successful hardlink creation
+/// - Increments the error counter on failures
+fn handle_existing_hardlink(
+    dst_path: &Path,
+    src_path: &Path,
+    inode_number: u64,
+    stats: &SharedStats,
+    hardlink_tracker: &SharedHardlinkTracker,
+) -> Result<()> {
+    // This is a hardlink - create a hardlink instead of copying content
+    debug!(
+        "Creating hardlink for {} (inode: {})",
+        src_path.display(),
+        inode_number
+    );
+
+    // Find the original file path for this inode
+    if let Some(original_path) = hardlink_tracker.get_original_path_for_inode(inode_number)? {
+        // Create destination directory if needed
+        if let Some(parent) = dst_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    SyncError::FileSystem(format!(
+                        "Failed to create parent directory {}: {}",
+                        parent.display(),
+                        e
+                    ))
+                })?;
+            }
+        }
+
+        // Create hardlink using std filesystem operations (compio has Send issues)
+        match std::fs::hard_link(&original_path, dst_path) {
+            Ok(()) => {
+                stats.increment_files_copied()?;
+                debug!(
+                    "Created hardlink: {} -> {}",
+                    dst_path.display(),
+                    original_path.display()
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to create hardlink for {}: {}",
+                    src_path.display(),
+                    e
+                );
+                stats.increment_errors()?;
+            }
+        }
+    } else {
+        warn!("Could not find original path for inode {}", inode_number);
+        stats.increment_errors()?;
     }
 
     Ok(())
@@ -1030,6 +1036,7 @@ async fn copy_symlink(src: &Path, dst: &Path) -> Result<()> {
 }
 
 /// Preserve file metadata (permissions, ownership, timestamps)
+#[allow(dead_code)]
 async fn preserve_file_metadata(src: &Path, dst: &Path, file_ops: &FileOperations) -> Result<()> {
     // Get source metadata
     let _metadata = file_ops.get_file_metadata(src).await.map_err(|e| {

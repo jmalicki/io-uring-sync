@@ -4,6 +4,6 @@ set -euo pipefail
 # Format check
 cargo fmt --all -- --check
 
-# Optional: clippy fast check (comment out to speed up)
-# cargo clippy -q -- -D warnings
+# Clippy strict check (no deps)
+cargo clippy --no-deps -q -- -D warnings
 
