@@ -44,6 +44,7 @@ pub struct SharedStats {
 
 impl SharedStats {
     
+    #[must_use]
     pub fn new(stats: DirectoryStats) -> Self {
         Self {
             inner: Arc::new(Mutex::new(stats)),
@@ -151,6 +152,7 @@ pub struct SharedHardlinkTracker {
 }
 
 impl SharedHardlinkTracker {
+    #[must_use]
     pub fn new(tracker: FilesystemTracker) -> Self {
         Self {
             inner: Arc::new(Mutex::new(tracker)),
@@ -223,27 +225,32 @@ impl ExtendedMetadata {
     }
 
     /// Check if this is a directory
+    #[must_use]
     pub fn is_dir(&self) -> bool {
         self.metadata.is_dir()
     }
 
     /// Check if this is a regular file
+    #[must_use]
     pub fn is_file(&self) -> bool {
         self.metadata.is_file()
     }
 
     /// Check if this is a symlink
+    #[must_use]
     pub fn is_symlink(&self) -> bool {
         self.metadata.file_type().is_symlink()
     }
 
     /// Get file size
+    #[must_use]
     pub fn len(&self) -> u64 {
         self.metadata.len()
     }
 
     /// Check if file is empty
     #[allow(dead_code)]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.metadata.len() == 0
     }
@@ -1031,7 +1038,6 @@ impl FilesystemTracker {
     ///
     /// Returns true if this inode has been processed and copied to the destination.
     /// This is used to determine whether to copy file content or create a hardlink.
-    
     pub fn is_inode_copied(&self, ino: u64) -> bool {
         self.hardlinks
             .values()
@@ -1057,7 +1063,6 @@ impl FilesystemTracker {
     ///
     /// Returns the destination path where this inode's content was first copied.
     /// This is used to create hardlinks pointing to the original copied file.
-    
     pub fn get_original_path_for_inode(&self, ino: u64) -> Option<&Path> {
         self.hardlinks
             .values()
