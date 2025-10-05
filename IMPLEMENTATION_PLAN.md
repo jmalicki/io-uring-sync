@@ -42,11 +42,12 @@ This document outlines the detailed implementation plan for io-uring-sync, inclu
 ## Current Status
 
 ### ✅ **COMPLETED WORK (Phase 2)**
-- **Metadata Preservation**: Comprehensive permission and timestamp preservation with nanosecond precision
+- **Metadata Preservation**: Comprehensive permission preservation and reliable timestamp preservation at the seconds level
+  - Nanosecond precision is a known CI limitation; tracked in issue [#9](https://github.com/jmalicki/io-uring-sync/issues/9)
 - **Test Coverage**: Extensive unit tests and integration tests for metadata preservation
-- **Code Quality**: All clippy warnings fixed, comprehensive documentation added
+- **Code Quality**: All easy clippy/documentation issues fixed; comprehensive documentation added
 - **Simplified Architecture**: Removed complex copy_file_range approach, focused on reliable read/write operations
-- **Performance Optimization**: Added fadvise support and nanosecond timestamp preservation
+- **Performance Optimization**: Added fadvise support
 - **Directory Operations**: Enhanced directory traversal with compio async patterns
 - **Future Planning**: Comprehensive implementation plans for standalone projects
 
@@ -54,7 +55,7 @@ This document outlines the detailed implementation plan for io-uring-sync, inclu
 - **Advanced Features**: Extended attributes (xattr) support for ACLs and SELinux contexts
 - **Device Operations**: Special file operations (mknod, mkfifo) for device files
 - **Performance Optimization**: Advanced fadvise optimizations and error recovery
-- **Future Planning**: Comprehensive implementation plans for standalone projects
+- **Timestamp Precision**: Restoring nanosecond precision in CI (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
 
 ## Architecture Decisions
 
@@ -192,27 +193,23 @@ This ensures incremental review and allows for easy rollback if needed.
 - **Code Quality**: All formatting, linting, and security checks passing
 
 ### ✅ **COMPLETED WORK (Phase 2)**
-- **Metadata Preservation**: Comprehensive permission and timestamp preservation with nanosecond precision
+- **Metadata Preservation**: Reliable permission + timestamp preservation (seconds-level). Nanosecond precision: see [#9](https://github.com/jmalicki/io-uring-sync/issues/9)
 - **Test Coverage**: Extensive unit tests and integration tests for metadata preservation
-- **Code Quality**: All clippy warnings fixed, comprehensive documentation added
-- **Simplified Architecture**: Removed complex copy_file_range approach, focused on reliable read/write operations
-- **Performance Optimization**: Added fadvise support and nanosecond timestamp preservation
+- **Code Quality**: Easy clippy/documentation issues fixed
+- **Simplified Architecture**: Reliable read/write copy path only
+- **Performance Optimization**: fadvise support
 
 ### 📋 **UPDATED IMMEDIATE NEXT STEPS (Priority Order)**
 
 #### Step 1: Focus on Core Functionality (Week 4) ✅ **COMPLETED**
-**Why This Is Critical**: We've simplified the approach and focused on what actually works.
-**What We Accomplished**:
-1. ✅ Simplified copy operations to use reliable compio read/write
-2. ✅ Added comprehensive metadata preservation with nanosecond timestamps
-3. ✅ Created extensive test coverage for edge cases and performance scenarios
-4. ✅ Fixed all clippy warnings and improved code quality
-5. ✅ Added fadvise support for large file optimization
-6. ✅ Implemented permission and timestamp preservation
+- ✅ Simplified copy operations to use reliable compio read/write
+- ✅ Added comprehensive metadata preservation (seconds-level)
+- ✅ Created extensive test coverage for edge cases and performance scenarios
+- ✅ Fixed easy clippy warnings and improved code quality
+- ✅ Added fadvise support for large file optimization
+- ✅ Implemented permission and timestamp preservation
 
 #### Step 2: Enhanced Directory Operations (Week 5-6) 🔄 **IN PROGRESS**
-**Why This Is Critical**: Complete the directory traversal with proper symlink and hardlink handling.
-**Updated Implementation Plan**:
 1. ✅ Enhanced directory traversal with compio async patterns
 2. ✅ Improved symlink handling with compio patterns
 3. ✅ Hardlink detection and preservation working
@@ -222,8 +219,6 @@ This ensures incremental review and allows for easy rollback if needed.
 7. [ ] Add performance benchmarks for directory operations
 
 #### Step 3: Advanced Features and Optimization (Week 6-7) 🔄 **IN PROGRESS**
-**Why This Is Critical**: Add advanced features that provide real value to users.
-**Updated Implementation Plan**:
 1. [ ] Add extended attributes (xattr) support for ACLs and SELinux contexts
 2. [ ] Implement advanced symlink operations (readlinkat, symlinkat)
 3. [ ] Add device file operations (mknod, mkfifo) for special files
@@ -232,8 +227,6 @@ This ensures incremental review and allows for easy rollback if needed.
 6. [ ] Create performance benchmarks and optimization guides
 
 #### Step 4: Future Project Planning (Week 7-8) 📋 **PLANNED**
-**Why This Is Critical**: Plan for long-term impact and ecosystem contributions.
-**Implementation Plan**:
 1. ✅ Create comprehensive implementation plan for `compio-fs-extended` standalone project
 2. ✅ Create roadmap for Linux kernel io_uring contributions
 3. [ ] Evaluate market opportunities for async filesystem operations library
@@ -352,7 +345,7 @@ This ensures incremental review and allows for easy rollback if needed.
 #### 2.1 Core Functionality and Metadata Preservation (Week 4) ✅ **COMPLETED**
 **Deliverables:**
 - ✅ Simplified copy operations using reliable compio read/write
-- ✅ Comprehensive metadata preservation with nanosecond timestamps
+- ✅ Comprehensive metadata preservation (seconds-level)
 - ✅ Extensive test coverage for edge cases and performance scenarios
 - ✅ Code quality improvements and clippy warning fixes
 - ✅ fadvise support for large file optimization
@@ -364,7 +357,7 @@ This ensures incremental review and allows for easy rollback if needed.
 - ✅ fadvise optimizations for large file operations
 - ✅ Comprehensive metadata preservation working
 - ✅ Extensive test coverage implemented
-- ✅ All clippy warnings resolved
+- ✅ All easy clippy warnings resolved
 
 **Testing Requirements:**
 - ✅ Comprehensive unit tests for metadata preservation
@@ -373,19 +366,17 @@ This ensures incremental review and allows for easy rollback if needed.
 - ✅ Cross-filesystem fallback tests
 - ✅ fadvise optimization verification tests
 - ✅ Internationalization tests (unicode filenames, special characters)
+- ℹ️ Nanosecond timestamp tests are temporarily ignored in CI (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
 
 **Phase Completion Workflow:**
 - ✅ Run `cargo fmt` to format all code
 - ✅ Ensure all functions have comprehensive unit tests
 - ✅ Implement system tests for metadata preservation
-- ✅ Run `cargo test` - all tests pass
-- ✅ Run `cargo clippy` - all warnings resolved
-- ✅ Commit with message: `feat: simplify copy operations and fix clippy warnings`
-- ✅ Commit with message: `test: add comprehensive metadata preservation test coverage`
+- ✅ Run `cargo test` - all tests pass (with nanos tests ignored in CI)
+- ✅ Run `cargo clippy` - easy warnings resolved
 - ✅ Create PR targeting `phase-1` branch
-- ✅ Continue on `phase-2` branch for next deliverable
 
-#### 2.2 Enhanced Directory Traversal (Week 5) ✅ **COMPLETED**
+#### 2.2 Enhanced Directory Traversal (Week 5) 🔄 **IN PROGRESS**
 **Deliverables:**
 - ✅ Hybrid directory traversal (std::fs + compio::fs)
 - ✅ Parallel directory scanning with compio async patterns
@@ -638,30 +629,20 @@ This ensures incremental review and allows for easy rollback if needed.
 - **Latency**: <1ms per operation for small files ✅ **ACHIEVED** (using compio managed buffers)
 - **Scalability**: Linear scaling with CPU cores up to 32 cores ✅ **ACHIEVED** (using compio async patterns)
 - **Memory**: <100MB base memory usage + 1MB per 1000 files ✅ **ACHIEVED** (using compio managed buffer pools)
-- **Queue Depth Management**: Configurable semaphore limits prevent memory exhaustion ✅ **ACHIEVED**
-- **File Access Optimization**: fadvise hints improve large file copy performance ✅ **ACHIEVED**
 
 ### Quality Targets
-- **Test Coverage**: >90% code coverage ✅ **ACHIEVED**
-- **Error Handling**: Graceful handling of all error conditions ✅ **ACHIEVED**
-- **Documentation**: 100% public API documentation ✅ **ACHIEVED**
+- **Test Coverage**: High coverage on critical paths ✅ **ACHIEVED**
+- **Documentation**: Public APIs documented ✅ **ACHIEVED**
 - **Compatibility**: Support for Linux kernel 5.6+ and Rust 1.90+ ✅ **ACHIEVED**
-- **compio Integration**: All operations use compio async patterns ✅ **ACHIEVED**
-- **Subcrate Architecture**: Modular design with compio-fs-extended and compio-semaphore ✅ **ACHIEVED**
 
 ### Reliability Targets
 - **Data Integrity**: 100% file integrity verification ✅ **ACHIEVED**
-- **Metadata Preservation**: Complete metadata preservation using compio::fs ✅ **ACHIEVED**
-- **Error Recovery**: Recovery from all transient failures ✅ **ACHIEVED**
-- **Stability**: No memory leaks or crashes under normal operation ✅ **ACHIEVED**
-- **Queue Management**: Semaphore prevents resource exhaustion ✅ **ACHIEVED**
-- **Buffer Safety**: compio managed buffers prevent memory leaks ✅ **ACHIEVED**
+- **Timestamp Preservation**: Seconds-level preservation ✅ **ACHIEVED**; nanosecond precision ❗ **DEFERRED** (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
 
 ### Advanced Features (New Targets)
-- **Nanosecond Timestamps**: Preserve sub-second timestamp precision ✅ **ACHIEVED**
+- **Nanosecond Timestamps**: Preserve sub-second timestamp precision ❗ **DEFERRED** (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
 - **Complex Permissions**: Handle all permission scenarios including special bits ✅ **ACHIEVED**
 - **Directory Operations**: Parallel traversal with compio async patterns ✅ **ACHIEVED**
-- **Future Planning**: Comprehensive roadmap for ecosystem contributions ✅ **ACHIEVED**
 
 ## Risk Mitigation
 
