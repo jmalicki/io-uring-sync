@@ -52,6 +52,7 @@ impl ExtendedFile {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use]
     pub fn new(file: File) -> Self {
         Self { inner: file }
     }
@@ -74,6 +75,7 @@ impl ExtendedFile {
     /// This method creates a wrapper that can perform operations on the file
     /// but doesn't own it. The underlying file must remain valid for the lifetime
     /// of the ExtendedFile.
+    #[must_use]
     pub fn from_ref(file: &File) -> Self {
         // We need to clone the file handle to avoid lifetime issues
         // This is safe because File implements Clone
@@ -87,6 +89,7 @@ impl ExtendedFile {
     /// # Returns
     ///
     /// A reference to the underlying File
+    #[must_use]
     pub fn inner(&self) -> &File {
         &self.inner
     }
@@ -105,6 +108,7 @@ impl ExtendedFile {
     /// # Returns
     ///
     /// The underlying File
+    #[must_use]
     pub fn into_inner(self) -> File {
         self.inner
     }

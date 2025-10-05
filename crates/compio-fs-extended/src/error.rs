@@ -59,16 +59,19 @@ pub enum ExtendedError {
 
 impl ExtendedError {
     /// Check if error is due to operation not being supported
+    #[must_use]
     pub fn is_not_supported(&self) -> bool {
         matches!(self, ExtendedError::NotSupported(_))
     }
 
     /// Check if error is due to invalid parameters
+    #[must_use]
     pub fn is_invalid_parameters(&self) -> bool {
         matches!(self, ExtendedError::InvalidParameters(_))
     }
 
     /// Check if error is due to system call failure
+    #[must_use]
     pub fn is_system_call_error(&self) -> bool {
         matches!(self, ExtendedError::SystemCall(_))
     }
@@ -77,6 +80,10 @@ impl ExtendedError {
 /// Helper trait for converting system call results to ExtendedError
 pub trait SyscallResult<T> {
     /// Convert system call result to ExtendedError
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the system call failed
     fn into_extended_error(self, operation: &str) -> Result<T>;
 }
 
@@ -87,51 +94,61 @@ impl<T> SyscallResult<T> for std::result::Result<T, std::io::Error> {
 }
 
 /// Helper for creating copy_file_range specific errors
+#[must_use]
 pub fn copy_file_range_error(msg: &str) -> ExtendedError {
     ExtendedError::CopyFileRange(msg.to_string())
 }
 
 /// Helper for creating fadvise specific errors
+#[must_use]
 pub fn fadvise_error(msg: &str) -> ExtendedError {
     ExtendedError::Fadvise(msg.to_string())
 }
 
 /// Helper for creating fallocate specific errors
+#[must_use]
 pub fn fallocate_error(msg: &str) -> ExtendedError {
     ExtendedError::Fallocate(msg.to_string())
 }
 
 /// Helper for creating symlink specific errors
+#[must_use]
 pub fn symlink_error(msg: &str) -> ExtendedError {
     ExtendedError::Symlink(msg.to_string())
 }
 
 /// Helper for creating hardlink specific errors
+#[must_use]
 pub fn hardlink_error(msg: &str) -> ExtendedError {
     ExtendedError::Hardlink(msg.to_string())
 }
 
 /// Helper for creating directory specific errors
+#[must_use]
 pub fn directory_error(msg: &str) -> ExtendedError {
     ExtendedError::Directory(msg.to_string())
 }
 
 /// Helper for creating xattr specific errors
+#[must_use]
 pub fn xattr_error(msg: &str) -> ExtendedError {
     ExtendedError::Xattr(msg.to_string())
 }
 
 /// Helper for creating filesystem detection errors
+#[must_use]
 pub fn filesystem_detection_error(msg: &str) -> ExtendedError {
     ExtendedError::FilesystemDetection(msg.to_string())
 }
 
 /// Helper for creating not supported errors
+#[must_use]
 pub fn not_supported_error(msg: &str) -> ExtendedError {
     ExtendedError::NotSupported(msg.to_string())
 }
 
 /// Helper for creating invalid parameters errors
+#[must_use]
 pub fn invalid_parameters_error(msg: &str) -> ExtendedError {
     ExtendedError::InvalidParameters(msg.to_string())
 }

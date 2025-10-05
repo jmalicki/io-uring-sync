@@ -5,6 +5,7 @@ use compio::fs::File;
 use std::path::Path;
 
 /// Trait for xattr operations
+#[allow(async_fn_in_trait)]
 pub trait XattrOps {
     /// Get an extended attribute value
     ///
@@ -102,6 +103,10 @@ pub trait XattrOps {
 }
 
 /// Implementation of xattr operations using io_uring opcodes
+///
+/// # Errors
+///
+/// This function will return an error if the xattr operation fails
 pub async fn get_xattr_impl(_file: &File, _name: &str) -> Result<Vec<u8>> {
     // TODO: Implement using io_uring opcodes (IORING_OP_GETXATTR)
     // This requires integration with compio's io_uring infrastructure
@@ -111,6 +116,10 @@ pub async fn get_xattr_impl(_file: &File, _name: &str) -> Result<Vec<u8>> {
 }
 
 /// Implementation of xattr setting using io_uring opcodes
+///
+/// # Errors
+///
+/// This function will return an error if the xattr operation fails
 pub async fn set_xattr_impl(_file: &File, _name: &str, _value: &[u8]) -> Result<()> {
     // TODO: Implement using io_uring opcodes (IORING_OP_SETXATTR)
     // This requires integration with compio's io_uring infrastructure
@@ -120,6 +129,10 @@ pub async fn set_xattr_impl(_file: &File, _name: &str, _value: &[u8]) -> Result<
 }
 
 /// Implementation of xattr listing using io_uring opcodes
+///
+/// # Errors
+///
+/// This function will return an error if the xattr operation fails
 pub async fn list_xattr_impl(_file: &File) -> Result<Vec<String>> {
     // TODO: Implement using io_uring opcodes (IORING_OP_LISTXATTR)
     // This requires integration with compio's io_uring infrastructure

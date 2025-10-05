@@ -104,6 +104,10 @@ pub async fn fallocate(file: &File, offset: u64, len: u64, mode: u32) -> Result<
 /// Preallocate space to a file with default mode (allocate space)
 ///
 /// This is a convenience function that uses the default allocation mode.
+///
+/// # Errors
+///
+/// This function will return an error if the fallocate operation fails
 pub async fn preallocate(file: &File, len: u64) -> Result<()> {
     fallocate(file, 0, len, mode::DEFAULT).await
 }
@@ -111,6 +115,10 @@ pub async fn preallocate(file: &File, len: u64) -> Result<()> {
 /// Preallocate space to a file keeping the current size
 ///
 /// This is useful for preallocating space without changing the file size.
+///
+/// # Errors
+///
+/// This function will return an error if the fallocate operation fails
 pub async fn preallocate_keep_size(file: &File, offset: u64, len: u64) -> Result<()> {
     fallocate(file, offset, len, mode::KEEP_SIZE).await
 }
@@ -118,6 +126,10 @@ pub async fn preallocate_keep_size(file: &File, offset: u64, len: u64) -> Result
 /// Punch a hole in a file (deallocate space)
 ///
 /// This removes the allocated space for the specified range, creating a hole.
+///
+/// # Errors
+///
+/// This function will return an error if the fallocate operation fails
 pub async fn punch_hole(file: &File, offset: u64, len: u64) -> Result<()> {
     fallocate(file, offset, len, mode::PUNCH_HOLE).await
 }
@@ -125,6 +137,10 @@ pub async fn punch_hole(file: &File, offset: u64, len: u64) -> Result<()> {
 /// Zero out a range in a file
 ///
 /// This writes zeros to the specified range without changing the file size.
+///
+/// # Errors
+///
+/// This function will return an error if the fallocate operation fails
 pub async fn zero_range(file: &File, offset: u64, len: u64) -> Result<()> {
     fallocate(file, offset, len, mode::ZERO_RANGE).await
 }

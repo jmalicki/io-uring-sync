@@ -5,6 +5,7 @@ use compio::fs::File;
 use std::os::unix::io::AsRawFd;
 
 /// Trait for fadvise operations
+#[allow(async_fn_in_trait)]
 pub trait Fadvise {
     /// Provide advice about file access patterns to the kernel
     ///
@@ -61,6 +62,10 @@ pub mod advice {
 }
 
 /// Implementation of fadvise using direct syscalls
+///
+/// # Errors
+///
+/// This function will return an error if the fadvise operation fails
 pub async fn fadvise_impl(file: &File, advice: i32, offset: u64, len: u64) -> Result<()> {
     let fd = file.as_raw_fd();
 
@@ -87,6 +92,10 @@ pub async fn fadvise_impl(file: &File, advice: i32, offset: u64, len: u64) -> Re
 /// # Returns
 ///
 /// `Ok(())` if the optimization was successfully applied
+///
+/// # Errors
+///
+/// This function will return an error if the fadvise operation fails
 pub async fn optimize_for_sequential_access(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::SEQUENTIAL, offset, len).await
 }
@@ -102,6 +111,10 @@ pub async fn optimize_for_sequential_access(file: &File, offset: u64, len: u64) 
 /// # Returns
 ///
 /// `Ok(())` if the optimization was successfully applied
+///
+/// # Errors
+///
+/// This function will return an error if the fadvise operation fails
 pub async fn optimize_for_random_access(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::RANDOM, offset, len).await
 }
@@ -117,6 +130,10 @@ pub async fn optimize_for_random_access(file: &File, offset: u64, len: u64) -> R
 /// # Returns
 ///
 /// `Ok(())` if the hint was successfully applied
+///
+/// # Errors
+///
+/// This function will return an error if the fadvise operation fails
 pub async fn hint_dont_need(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::DONTNEED, offset, len).await
 }
@@ -132,6 +149,10 @@ pub async fn hint_dont_need(file: &File, offset: u64, len: u64) -> Result<()> {
 /// # Returns
 ///
 /// `Ok(())` if the hint was successfully applied
+///
+/// # Errors
+///
+/// This function will return an error if the fadvise operation fails
 pub async fn hint_will_need(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::WILLNEED, offset, len).await
 }
@@ -147,6 +168,10 @@ pub async fn hint_will_need(file: &File, offset: u64, len: u64) -> Result<()> {
 /// # Returns
 ///
 /// `Ok(())` if the hint was successfully applied
+///
+/// # Errors
+///
+/// This function will return an error if the fadvise operation fails
 pub async fn hint_no_reuse(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::NOREUSE, offset, len).await
 }

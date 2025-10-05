@@ -5,6 +5,7 @@ use compio::fs::File;
 use std::path::Path;
 
 /// Trait for directory operations
+#[allow(async_fn_in_trait)]
 pub trait DirectoryOps {
     /// Create a directory
     ///
@@ -68,6 +69,10 @@ pub trait DirectoryOps {
 }
 
 /// Implementation of directory operations using direct syscalls
+///
+/// # Errors
+///
+/// This function will return an error if the directory creation fails
 pub async fn create_directory_impl(_file: &File, _path: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
@@ -77,6 +82,10 @@ pub async fn create_directory_impl(_file: &File, _path: &Path) -> Result<()> {
 }
 
 /// Implementation of directory removal using direct syscalls
+///
+/// # Errors
+///
+/// This function will return an error if the directory removal fails
 pub async fn remove_directory_impl(_file: &File, _path: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
@@ -229,6 +238,7 @@ pub async fn create_directory_recursive(path: &Path) -> Result<()> {
 /// # Returns
 ///
 /// `true` if the path is a directory, `false` otherwise
+#[must_use]
 pub fn is_directory(path: &Path) -> bool {
     std::fs::metadata(path)
         .map(|meta| meta.is_dir())
@@ -244,6 +254,7 @@ pub fn is_directory(path: &Path) -> bool {
 /// # Returns
 ///
 /// `true` if the directory is empty, `false` otherwise
+#[must_use]
 pub fn is_directory_empty(path: &Path) -> bool {
     std::fs::read_dir(path)
         .map(|mut entries| entries.next().is_none())
@@ -259,22 +270,21 @@ pub fn is_directory_empty(path: &Path) -> bool {
 /// # Returns
 ///
 /// The total size in bytes, or `None` if the operation fails
+#[must_use]
 pub fn get_directory_size(path: &Path) -> Option<u64> {
     let mut total_size = 0u64;
 
     fn calculate_size(path: &Path, total: &mut u64) -> bool {
         if let Ok(entries) = std::fs::read_dir(path) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let entry_path = entry.path();
-                    if let Ok(metadata) = std::fs::metadata(&entry_path) {
-                        if metadata.is_dir() {
-                            if !calculate_size(&entry_path, total) {
-                                return false;
-                            }
-                        } else {
-                            *total += metadata.len();
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if let Ok(metadata) = std::fs::metadata(&entry_path) {
+                    if metadata.is_dir() {
+                        if !calculate_size(&entry_path, total) {
+                            return false;
                         }
+                    } else {
+                        *total += metadata.len();
                     }
                 }
             }

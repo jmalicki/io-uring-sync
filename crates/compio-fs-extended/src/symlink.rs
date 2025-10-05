@@ -5,6 +5,7 @@ use compio::fs::File;
 use std::path::Path;
 
 /// Trait for symlink operations
+#[allow(async_fn_in_trait)]
 pub trait SymlinkOps {
     /// Read the target of a symbolic link
     ///
@@ -67,6 +68,10 @@ pub trait SymlinkOps {
 }
 
 /// Implementation of symlink operations using direct syscalls
+///
+/// # Errors
+///
+/// This function will return an error if the symlink read fails
 pub async fn read_symlink_impl(_file: &File) -> Result<std::path::PathBuf> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
@@ -76,6 +81,10 @@ pub async fn read_symlink_impl(_file: &File) -> Result<std::path::PathBuf> {
 }
 
 /// Implementation of symlink creation using direct syscalls
+///
+/// # Errors
+///
+/// This function will return an error if the symlink creation fails
 pub async fn create_symlink_impl(_file: &File, _target: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
@@ -183,6 +192,7 @@ pub async fn read_symlink_at_path(link_path: &Path) -> Result<std::path::PathBuf
 /// # Returns
 ///
 /// `true` if the path is a symbolic link, `false` otherwise
+#[must_use]
 pub fn is_symlink(path: &Path) -> bool {
     if let Ok(metadata) = std::fs::symlink_metadata(path) {
         metadata.file_type().is_symlink()
