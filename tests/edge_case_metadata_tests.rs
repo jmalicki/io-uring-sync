@@ -346,7 +346,7 @@ async fn test_metadata_preservation_long_filename() {
     let copied_accessed = dst_metadata.accessed().unwrap();
     let copied_modified = dst_metadata.modified().unwrap();
 
-    let accessed_diff = copied_accessed
+    let _accessed_diff = copied_accessed
         .duration_since(original_accessed)
         .unwrap_or_default();
     let modified_diff = copied_modified
