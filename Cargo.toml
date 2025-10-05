@@ -65,6 +65,10 @@ rstest = "0.26"
 walkdir = "2.0"
 xattr = "1.0"
 
+# Testcontainers for integration testing
+testcontainers = "0.20"
+tokio = { version = "1.0", features = ["full"] }
+
 # Documentation and linting
 mdbook = "0.4"
 cargo-make = "0.37"

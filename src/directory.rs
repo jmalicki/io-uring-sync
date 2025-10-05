@@ -494,7 +494,7 @@ pub async fn copy_directory(
     src: &Path,
     dst: &Path,
     file_ops: &FileOperations,
-    copy_method: CopyMethod,
+    _copy_method: CopyMethod,
 ) -> Result<DirectoryStats> {
     let mut stats = DirectoryStats::default();
     let mut hardlink_tracker = FilesystemTracker::new();
@@ -527,7 +527,7 @@ pub async fn copy_directory(
         src.to_path_buf(),
         dst.to_path_buf(),
         file_ops,
-        copy_method,
+        _copy_method,
         &mut stats,
         &mut hardlink_tracker,
     )
@@ -596,7 +596,7 @@ async fn traverse_and_copy_directory_iterative(
     initial_src: PathBuf,
     initial_dst: PathBuf,
     file_ops: &FileOperations,
-    copy_method: CopyMethod,
+    _copy_method: CopyMethod,
     stats: &mut DirectoryStats,
     hardlink_tracker: &mut FilesystemTracker,
 ) -> Result<()> {
@@ -616,7 +616,7 @@ async fn traverse_and_copy_directory_iterative(
         initial_src,
         initial_dst,
         file_ops_static,
-        copy_method,
+        _copy_method,
         shared_stats.clone(),
         shared_hardlink_tracker.clone(),
     )
@@ -677,7 +677,7 @@ async fn process_directory_entry_with_compio(
     src_path: PathBuf,
     dst_path: PathBuf,
     file_ops: &'static FileOperations,
-    copy_method: CopyMethod,
+    _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
 ) -> Result<()> {
@@ -723,6 +723,7 @@ async fn process_directory_entry_with_compio(
         // This is the key innovation: instead of recursion or manual worklists,
         // we dispatch all child entries to the same function, creating a tree
         // of concurrent operations that compio manages efficiently
+        let copy_method = _copy_method.clone();
         for entry_result in entries {
             let entry = entry_result.map_err(|e| {
                 SyncError::FileSystem(format!("Failed to read directory entry: {}", e))
@@ -787,7 +788,7 @@ async fn process_directory_entry_with_compio(
             dst_path,
             extended_metadata,
             file_ops,
-            copy_method,
+            _copy_method,
             stats,
             hardlink_tracker,
         )
@@ -843,7 +844,7 @@ async fn process_file(
     dst_path: PathBuf,
     metadata: ExtendedMetadata,
     file_ops: &'static FileOperations,
-    copy_method: CopyMethod,
+    _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
 ) -> Result<()> {
@@ -912,7 +913,7 @@ async fn process_file(
         // First time seeing this inode - copy the file content normally
         debug!("Copying file content: {}", src_path.display());
 
-        match copy_file(&src_path, &dst_path, copy_method).await {
+        match copy_file(&src_path, &dst_path).await {
             Ok(()) => {
                 stats.increment_files_copied()?;
                 stats.increment_bytes_copied(metadata.len())?;
