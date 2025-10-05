@@ -20,6 +20,9 @@ This document outlines the research findings for developing a highly efficient b
 - **Benefits**: Significantly reduces context switches and memory copies
 - **Performance**: Can achieve near-zero-copy file operations for same-filesystem copies
 - **Reference**: [Linux man pages - copy_file_range](https://man7.org/linux/man-pages/man2/copy_file_range.2.html)
+- **⚠️ CRITICAL LIMITATION**: While the kernel supports copy_file_range in io_uring, **no Rust io_uring library currently exposes this functionality**
+- **Impact**: Cannot achieve optimal zero-copy performance for same-filesystem operations
+- **Workaround**: Must use compio read/write operations for all file copying
 
 #### sendfile Support
 - **Availability**: Supported in io_uring for efficient file-to-socket transfers
@@ -212,7 +215,8 @@ This document outlines the research findings for developing a highly efficient b
 1. **copy_file_range** - In-kernel file copying (kernel 5.6+, io_uring support 5.6+)
    - **Use Case**: Primary file copying mechanism for same-filesystem operations
    - **Performance**: Near-zero-copy, minimal context switches
-   - **Status**: ✅ Supported in modern kernels
+   - **Status**: ❌ **NOT ACHIEVABLE** - No Rust io_uring library exposes this functionality
+   - **Impact**: Must fall back to read/write operations for all file copying
 
 2. **splice** - Zero-copy data transfer between file descriptors
    - **Use Case**: Efficient copying when copy_file_range unavailable
@@ -563,32 +567,24 @@ impl ExtendedRio {
 **Current Status**:
 - ❌ **Critical Gap**: No Rust library provides copy_file_range support
 - **Impact**: Cannot achieve optimal zero-copy performance for same-filesystem operations
+- **⚠️ UPDATED ASSESSMENT**: While the kernel supports copy_file_range in io_uring, **no Rust io_uring library currently exposes this functionality**
 - **Workarounds**:
-  1. **Manual syscall**: Direct system call implementation using nix or libc
-  2. **Fallback to read/write**: Use standard io_uring read/write operations
-  3. **splice operations**: Use splice as alternative zero-copy mechanism
+  1. ~~**Manual syscall**: Direct system call implementation using nix or libc~~ **NOT FEASIBLE** - io_uring integration required
+  2. **Fallback to read/write**: Use standard io_uring read/write operations (ONLY VIABLE OPTION)
+  3. ~~**splice operations**: Use splice as alternative zero-copy mechanism~~ **NOT APPLICABLE** - splice not suitable for file-to-file copying
 
 **Implementation Strategy**:
 ```rust
-// Conceptual implementation
-async fn copy_file_range_async(
-    src_fd: i32,
-    dst_fd: i32,
-    src_offset: u64,
-    dst_offset: u64,
-    len: u64,
-) -> Result<usize> {
-    // Manual syscall implementation
-    unsafe {
-        libc::copy_file_range(
-            src_fd,
-            &mut src_offset as *mut _,
-            dst_fd,
-            &mut dst_offset as *mut _,
-            len as usize,
-            0,
-        )
-    }
+// ❌ NOT ACHIEVABLE - No Rust io_uring library exposes copy_file_range
+// Must use compio read/write operations for all file copying
+
+// ✅ ACTUAL IMPLEMENTATION - Use compio read/write
+async fn copy_file_with_compio(
+    src: &Path,
+    dst: &Path,
+) -> Result<()> {
+    // Use compio::fs::File with read_at/write_at operations
+    // This is the only viable approach with current Rust io_uring libraries
 }
 ```
 
