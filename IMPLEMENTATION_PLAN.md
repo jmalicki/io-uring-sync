@@ -367,6 +367,7 @@ This ensures incremental review and allows for easy rollback if needed.
 - ✅ fadvise optimization verification tests
 - ✅ Internationalization tests (unicode filenames, special characters)
 - ℹ️ Nanosecond timestamp tests are temporarily ignored in CI (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
+  - Planned fix: replace libc::stat fallback with an async `io_uring` STATX operation submitted via `compio::runtime::submit` (custom OpCode), extract nsec fields, and re-enable nanos tests.
 
 **Phase Completion Workflow:**
 - ✅ Run `cargo fmt` to format all code
