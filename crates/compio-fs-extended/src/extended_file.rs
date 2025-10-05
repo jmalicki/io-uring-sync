@@ -1,14 +1,14 @@
 //! Extended file operations wrapper around compio::fs::File
 
-use compio::fs::File;
-use crate::error::Result;
 use crate::copy::CopyFileRange;
-use crate::fadvise::Fadvise;
-use crate::symlink::SymlinkOps;
-use crate::hardlink::HardlinkOps;
 use crate::directory::DirectoryOps;
+use crate::error::Result;
+use crate::fadvise::Fadvise;
+use crate::hardlink::HardlinkOps;
+use crate::symlink::SymlinkOps;
 #[cfg(feature = "xattr")]
 use crate::xattr::XattrOps;
+use compio::fs::File;
 
 /// Extended file wrapper that adds additional operations to compio::fs::File
 ///
@@ -93,7 +93,8 @@ impl CopyFileRange for ExtendedFile {
         len: u64,
     ) -> Result<usize> {
         // Delegate to the copy module implementation
-        crate::copy::copy_file_range_impl(&self.inner, &dst.inner, src_offset, dst_offset, len).await
+        crate::copy::copy_file_range_impl(&self.inner, &dst.inner, src_offset, dst_offset, len)
+            .await
     }
 }
 

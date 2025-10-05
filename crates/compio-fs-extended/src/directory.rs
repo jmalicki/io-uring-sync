@@ -1,7 +1,7 @@
 //! Directory operations for creating and managing directories
 
+use crate::error::{directory_error, Result};
 use compio::fs::File;
-use crate::error::{Result, directory_error};
 use std::path::Path;
 
 /// Trait for directory operations
@@ -71,14 +71,18 @@ pub trait DirectoryOps {
 pub async fn create_directory_impl(_file: &File, _path: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
-    Err(directory_error("create_directory not yet implemented - requires path tracking"))
+    Err(directory_error(
+        "create_directory not yet implemented - requires path tracking",
+    ))
 }
 
 /// Implementation of directory removal using direct syscalls
 pub async fn remove_directory_impl(_file: &File, _path: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
-    Err(directory_error("remove_directory not yet implemented - requires path tracking"))
+    Err(directory_error(
+        "remove_directory not yet implemented - requires path tracking",
+    ))
 }
 
 /// Create a directory at the given path
@@ -111,10 +115,7 @@ pub async fn create_directory_at_path(path: &Path) -> Result<()> {
 
     if result != 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(directory_error(&format!(
-            "mkdir failed: {}",
-            errno
-        )));
+        return Err(directory_error(&format!("mkdir failed: {}", errno)));
     }
 
     Ok(())
@@ -142,19 +143,11 @@ pub async fn create_directory_with_mode(path: &Path, mode: u32) -> Result<()> {
     let path_cstr = std::ffi::CString::new(path.to_string_lossy().as_bytes())
         .map_err(|e| directory_error(&format!("Invalid path: {}", e)))?;
 
-    let result = unsafe {
-        libc::mkdir(
-            path_cstr.as_ptr(),
-            mode,
-        )
-    };
+    let result = unsafe { libc::mkdir(path_cstr.as_ptr(), mode) };
 
     if result != 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(directory_error(&format!(
-            "mkdir failed: {}",
-            errno
-        )));
+        return Err(directory_error(&format!("mkdir failed: {}", errno)));
     }
 
     Ok(())
@@ -181,16 +174,11 @@ pub async fn remove_directory_at_path(path: &Path) -> Result<()> {
     let path_cstr = std::ffi::CString::new(path.to_string_lossy().as_bytes())
         .map_err(|e| directory_error(&format!("Invalid path: {}", e)))?;
 
-    let result = unsafe {
-        libc::rmdir(path_cstr.as_ptr())
-    };
+    let result = unsafe { libc::rmdir(path_cstr.as_ptr()) };
 
     if result != 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(directory_error(&format!(
-            "rmdir failed: {}",
-            errno
-        )));
+        return Err(directory_error(&format!("rmdir failed: {}", errno)));
     }
 
     Ok(())
@@ -273,7 +261,7 @@ pub fn is_directory_empty(path: &Path) -> bool {
 /// The total size in bytes, or `None` if the operation fails
 pub fn get_directory_size(path: &Path) -> Option<u64> {
     let mut total_size = 0u64;
-    
+
     fn calculate_size(path: &Path, total: &mut u64) -> bool {
         if let Ok(entries) = std::fs::read_dir(path) {
             for entry in entries {
@@ -293,7 +281,7 @@ pub fn get_directory_size(path: &Path) -> Option<u64> {
         }
         true
     }
-    
+
     if calculate_size(path, &mut total_size) {
         Some(total_size)
     } else {
@@ -304,8 +292,8 @@ pub fn get_directory_size(path: &Path) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_create_directory() {

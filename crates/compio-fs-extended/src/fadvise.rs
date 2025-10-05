@@ -1,7 +1,7 @@
 //! fadvise operations for file access pattern optimization
 
+use crate::error::{fadvise_error, Result};
 use compio::fs::File;
-use crate::error::{Result, fadvise_error};
 use std::os::unix::io::AsRawFd;
 
 /// Trait for fadvise operations
@@ -61,22 +61,10 @@ pub mod advice {
 }
 
 /// Implementation of fadvise using direct syscalls
-pub async fn fadvise_impl(
-    file: &File,
-    advice: i32,
-    offset: u64,
-    len: u64,
-) -> Result<()> {
+pub async fn fadvise_impl(file: &File, advice: i32, offset: u64, len: u64) -> Result<()> {
     let fd = file.as_raw_fd();
 
-    let result = unsafe {
-        libc::posix_fadvise(
-            fd,
-            offset as i64,
-            len as i64,
-            advice,
-        )
-    };
+    let result = unsafe { libc::posix_fadvise(fd, offset as i64, len as i64, advice) };
 
     if result != 0 {
         return Err(fadvise_error(&format!(
@@ -99,11 +87,7 @@ pub async fn fadvise_impl(
 /// # Returns
 ///
 /// `Ok(())` if the optimization was successfully applied
-pub async fn optimize_for_sequential_access(
-    file: &File,
-    offset: u64,
-    len: u64,
-) -> Result<()> {
+pub async fn optimize_for_sequential_access(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::SEQUENTIAL, offset, len).await
 }
 
@@ -118,11 +102,7 @@ pub async fn optimize_for_sequential_access(
 /// # Returns
 ///
 /// `Ok(())` if the optimization was successfully applied
-pub async fn optimize_for_random_access(
-    file: &File,
-    offset: u64,
-    len: u64,
-) -> Result<()> {
+pub async fn optimize_for_random_access(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::RANDOM, offset, len).await
 }
 
@@ -137,11 +117,7 @@ pub async fn optimize_for_random_access(
 /// # Returns
 ///
 /// `Ok(())` if the hint was successfully applied
-pub async fn hint_dont_need(
-    file: &File,
-    offset: u64,
-    len: u64,
-) -> Result<()> {
+pub async fn hint_dont_need(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::DONTNEED, offset, len).await
 }
 
@@ -156,11 +132,7 @@ pub async fn hint_dont_need(
 /// # Returns
 ///
 /// `Ok(())` if the hint was successfully applied
-pub async fn hint_will_need(
-    file: &File,
-    offset: u64,
-    len: u64,
-) -> Result<()> {
+pub async fn hint_will_need(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::WILLNEED, offset, len).await
 }
 
@@ -175,20 +147,16 @@ pub async fn hint_will_need(
 /// # Returns
 ///
 /// `Ok(())` if the hint was successfully applied
-pub async fn hint_no_reuse(
-    file: &File,
-    offset: u64,
-    len: u64,
-) -> Result<()> {
+pub async fn hint_no_reuse(file: &File, offset: u64, len: u64) -> Result<()> {
     fadvise_impl(file, advice::NOREUSE, offset, len).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use compio::fs::File;
     use std::fs::write;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_fadvise_sequential() {

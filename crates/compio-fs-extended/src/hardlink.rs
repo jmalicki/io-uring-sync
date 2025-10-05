@@ -1,7 +1,7 @@
 //! Hardlink operations for creating hard links
 
+use crate::error::{hardlink_error, Result};
 use compio::fs::File;
-use crate::error::{Result, hardlink_error};
 use std::path::Path;
 
 /// Trait for hardlink operations
@@ -41,7 +41,9 @@ pub trait HardlinkOps {
 pub async fn create_hardlink_impl(_file: &File, _target: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
-    Err(hardlink_error("create_hardlink not yet implemented - requires path tracking"))
+    Err(hardlink_error(
+        "create_hardlink not yet implemented - requires path tracking",
+    ))
 }
 
 /// Create a hard link at the given path
@@ -62,21 +64,13 @@ pub async fn create_hardlink_impl(_file: &File, _target: &Path) -> Result<()> {
 /// - The original and link are on different filesystems
 /// - Permission is denied
 /// - The operation fails due to I/O errors
-pub async fn create_hardlink_at_path(
-    original_path: &Path,
-    link_path: &Path,
-) -> Result<()> {
+pub async fn create_hardlink_at_path(original_path: &Path, link_path: &Path) -> Result<()> {
     let original_cstr = std::ffi::CString::new(original_path.to_string_lossy().as_bytes())
         .map_err(|e| hardlink_error(&format!("Invalid original path: {}", e)))?;
     let link_cstr = std::ffi::CString::new(link_path.to_string_lossy().as_bytes())
         .map_err(|e| hardlink_error(&format!("Invalid link path: {}", e)))?;
 
-    let result = unsafe {
-        libc::link(
-            original_cstr.as_ptr(),
-            link_cstr.as_ptr(),
-        )
-    };
+    let result = unsafe { libc::link(original_cstr.as_ptr(), link_cstr.as_ptr()) };
 
     if result != 0 {
         let errno = std::io::Error::last_os_error();
@@ -119,12 +113,10 @@ pub fn are_same_file(path1: &Path, path2: &Path) -> bool {
 ///
 /// The number of hard links, or `None` if the operation fails
 pub fn get_link_count(path: &Path) -> Option<u64> {
-    std::fs::metadata(path)
-        .ok()
-        .and_then(|meta| {
-            use std::os::unix::fs::MetadataExt;
-            Some(meta.nlink())
-        })
+    std::fs::metadata(path).ok().and_then(|meta| {
+        use std::os::unix::fs::MetadataExt;
+        Some(meta.nlink())
+    })
 }
 
 /// Check if a file has multiple hard links
@@ -155,15 +147,20 @@ pub fn has_multiple_links(path: &Path) -> bool {
 /// This is a simplified implementation that only checks the immediate directory.
 /// A full implementation would need to traverse the filesystem.
 pub fn find_hard_links(path: &Path) -> Result<Vec<std::path::PathBuf>> {
-    let original_meta = std::fs::metadata(path)
-        .map_err(|e| hardlink_error(&format!("Failed to get metadata for {}: {}", path.display(), e)))?;
-    
+    let original_meta = std::fs::metadata(path).map_err(|e| {
+        hardlink_error(&format!(
+            "Failed to get metadata for {}: {}",
+            path.display(),
+            e
+        ))
+    })?;
+
     use std::os::unix::fs::MetadataExt;
     let original_ino = original_meta.ino();
     let original_dev = original_meta.dev();
 
     let mut hard_links = Vec::new();
-    
+
     if let Some(parent) = path.parent() {
         if let Ok(entries) = std::fs::read_dir(parent) {
             for entry in entries {
@@ -185,8 +182,8 @@ pub fn find_hard_links(path: &Path) -> Result<Vec<std::path::PathBuf>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_create_hardlink() {
@@ -198,12 +195,17 @@ mod tests {
         fs::write(&original_path, "original content").unwrap();
 
         // Create hard link
-        create_hardlink_at_path(&original_path, &link_path).await.unwrap();
+        create_hardlink_at_path(&original_path, &link_path)
+            .await
+            .unwrap();
 
         // Verify both files exist and have the same content
         assert!(original_path.exists());
         assert!(link_path.exists());
-        assert_eq!(fs::read(&original_path).unwrap(), fs::read(&link_path).unwrap());
+        assert_eq!(
+            fs::read(&original_path).unwrap(),
+            fs::read(&link_path).unwrap()
+        );
 
         // Verify they are the same file
         assert!(are_same_file(&original_path, &link_path));
@@ -224,7 +226,9 @@ mod tests {
         fs::write(&original_path, "content").unwrap();
 
         // Create hard link
-        create_hardlink_at_path(&original_path, &link_path).await.unwrap();
+        create_hardlink_at_path(&original_path, &link_path)
+            .await
+            .unwrap();
 
         // Create different file
         fs::write(&different_path, "different content").unwrap();
@@ -249,7 +253,9 @@ mod tests {
         assert!(!has_multiple_links(&original_path));
 
         // Create hard link
-        create_hardlink_at_path(&original_path, &link_path).await.unwrap();
+        create_hardlink_at_path(&original_path, &link_path)
+            .await
+            .unwrap();
 
         // Now should have 2 links
         assert_eq!(get_link_count(&original_path), Some(2));
@@ -268,7 +274,9 @@ mod tests {
         fs::write(&original_path, "content").unwrap();
 
         // Create hard link
-        create_hardlink_at_path(&original_path, &link_path).await.unwrap();
+        create_hardlink_at_path(&original_path, &link_path)
+            .await
+            .unwrap();
 
         // Find hard links
         let hard_links = find_hard_links(&original_path).unwrap();

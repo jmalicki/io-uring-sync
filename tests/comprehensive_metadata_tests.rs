@@ -240,10 +240,7 @@ async fn test_permission_preservation_restrictive_permissions() {
                 continue;
             }
             Err(e) => {
-                assert!(
-                    e.to_string().is_empty(),
-                    "Unexpected error copying file: {e}"
-                );
+                panic!("Unexpected error copying file: {}", e);
             }
         }
 

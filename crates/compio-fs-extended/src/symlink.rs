@@ -1,7 +1,7 @@
 //! Symlink operations for creating and reading symbolic links
 
+use crate::error::{symlink_error, Result};
 use compio::fs::File;
-use crate::error::{Result, symlink_error};
 use std::path::Path;
 
 /// Trait for symlink operations
@@ -70,14 +70,18 @@ pub trait SymlinkOps {
 pub async fn read_symlink_impl(_file: &File) -> Result<std::path::PathBuf> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
-    Err(symlink_error("read_symlink not yet implemented - requires path tracking"))
+    Err(symlink_error(
+        "read_symlink not yet implemented - requires path tracking",
+    ))
 }
 
 /// Implementation of symlink creation using direct syscalls
 pub async fn create_symlink_impl(_file: &File, _target: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
-    Err(symlink_error("create_symlink not yet implemented - requires path tracking"))
+    Err(symlink_error(
+        "create_symlink not yet implemented - requires path tracking",
+    ))
 }
 
 /// Create a symbolic link at the given path
@@ -98,21 +102,13 @@ pub async fn create_symlink_impl(_file: &File, _target: &Path) -> Result<()> {
 /// - The target path is invalid
 /// - Permission is denied
 /// - The operation fails due to I/O errors
-pub async fn create_symlink_at_path(
-    link_path: &Path,
-    target: &Path,
-) -> Result<()> {
+pub async fn create_symlink_at_path(link_path: &Path, target: &Path) -> Result<()> {
     let link_path_cstr = std::ffi::CString::new(link_path.to_string_lossy().as_bytes())
         .map_err(|e| symlink_error(&format!("Invalid link path: {}", e)))?;
     let target_cstr = std::ffi::CString::new(target.to_string_lossy().as_bytes())
         .map_err(|e| symlink_error(&format!("Invalid target path: {}", e)))?;
 
-    let result = unsafe {
-        libc::symlink(
-            target_cstr.as_ptr(),
-            link_path_cstr.as_ptr(),
-        )
-    };
+    let result = unsafe { libc::symlink(target_cstr.as_ptr(), link_path_cstr.as_ptr()) };
 
     if result != 0 {
         let errno = std::io::Error::last_os_error();
@@ -146,20 +142,11 @@ pub async fn read_symlink_at_path(link_path: &Path) -> Result<std::path::PathBuf
         .map_err(|e| symlink_error(&format!("Invalid link path: {}", e)))?;
 
     // Get the target size first
-    let target_size = unsafe {
-        libc::readlink(
-            link_path_cstr.as_ptr(),
-            std::ptr::null_mut(),
-            0,
-        )
-    };
+    let target_size = unsafe { libc::readlink(link_path_cstr.as_ptr(), std::ptr::null_mut(), 0) };
 
     if target_size < 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(symlink_error(&format!(
-            "readlink failed: {}",
-            errno
-        )));
+        return Err(symlink_error(&format!("readlink failed: {}", errno)));
     }
 
     // Allocate buffer for the target
@@ -176,17 +163,14 @@ pub async fn read_symlink_at_path(link_path: &Path) -> Result<std::path::PathBuf
 
     if actual_size < 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(symlink_error(&format!(
-            "readlink failed: {}",
-            errno
-        )));
+        return Err(symlink_error(&format!("readlink failed: {}", errno)));
     }
 
     // Convert to PathBuf
     target_buf.truncate(actual_size as usize);
     let target_str = String::from_utf8(target_buf)
         .map_err(|e| symlink_error(&format!("Invalid UTF-8 in symlink target: {}", e)))?;
-    
+
     Ok(std::path::PathBuf::from(target_str))
 }
 
@@ -230,8 +214,8 @@ pub async fn is_broken_symlink(link_path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_create_and_read_symlink() {
@@ -243,7 +227,9 @@ mod tests {
         fs::write(&target_path, "target content").unwrap();
 
         // Create symbolic link
-        create_symlink_at_path(&link_path, &target_path).await.unwrap();
+        create_symlink_at_path(&link_path, &target_path)
+            .await
+            .unwrap();
 
         // Read symbolic link
         let target = read_symlink_at_path(&link_path).await.unwrap();
@@ -260,7 +246,9 @@ mod tests {
         let link_path = temp_dir.path().join("broken_link.txt");
 
         // Create broken symbolic link
-        create_symlink_at_path(&link_path, &target_path).await.unwrap();
+        create_symlink_at_path(&link_path, &target_path)
+            .await
+            .unwrap();
 
         // Check if it's broken
         assert!(is_broken_symlink(&link_path).await);
@@ -277,7 +265,9 @@ mod tests {
         assert!(!is_symlink(&file_path));
 
         // Create symbolic link
-        create_symlink_at_path(&link_path, &file_path).await.unwrap();
+        create_symlink_at_path(&link_path, &file_path)
+            .await
+            .unwrap();
         assert!(is_symlink(&link_path));
     }
 }

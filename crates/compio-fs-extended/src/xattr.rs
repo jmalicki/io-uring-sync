@@ -1,7 +1,7 @@
 //! Extended attributes (xattr) operations using io_uring opcodes
 
+use crate::error::{xattr_error, Result};
 use compio::fs::File;
-use crate::error::{Result, xattr_error};
 use std::path::Path;
 
 /// Trait for xattr operations
@@ -105,21 +105,27 @@ pub trait XattrOps {
 pub async fn get_xattr_impl(_file: &File, _name: &str) -> Result<Vec<u8>> {
     // TODO: Implement using io_uring opcodes (IORING_OP_GETXATTR)
     // This requires integration with compio's io_uring infrastructure
-    Err(xattr_error("get_xattr not yet implemented - requires io_uring opcodes"))
+    Err(xattr_error(
+        "get_xattr not yet implemented - requires io_uring opcodes",
+    ))
 }
 
 /// Implementation of xattr setting using io_uring opcodes
 pub async fn set_xattr_impl(_file: &File, _name: &str, _value: &[u8]) -> Result<()> {
     // TODO: Implement using io_uring opcodes (IORING_OP_SETXATTR)
     // This requires integration with compio's io_uring infrastructure
-    Err(xattr_error("set_xattr not yet implemented - requires io_uring opcodes"))
+    Err(xattr_error(
+        "set_xattr not yet implemented - requires io_uring opcodes",
+    ))
 }
 
 /// Implementation of xattr listing using io_uring opcodes
 pub async fn list_xattr_impl(_file: &File) -> Result<Vec<String>> {
     // TODO: Implement using io_uring opcodes (IORING_OP_LISTXATTR)
     // This requires integration with compio's io_uring infrastructure
-    Err(xattr_error("list_xattr not yet implemented - requires io_uring opcodes"))
+    Err(xattr_error(
+        "list_xattr not yet implemented - requires io_uring opcodes",
+    ))
 }
 
 /// Get an extended attribute value at the given path
@@ -142,8 +148,8 @@ pub async fn list_xattr_impl(_file: &File) -> Result<Vec<String>> {
 pub async fn get_xattr_at_path(path: &Path, name: &str) -> Result<Vec<u8>> {
     let path_cstr = std::ffi::CString::new(path.to_string_lossy().as_bytes())
         .map_err(|e| xattr_error(&format!("Invalid path: {}", e)))?;
-    let name_cstr = std::ffi::CString::new(name)
-        .map_err(|e| xattr_error(&format!("Invalid name: {}", e)))?;
+    let name_cstr =
+        std::ffi::CString::new(name).map_err(|e| xattr_error(&format!("Invalid name: {}", e)))?;
 
     // Get the size first
     let size = unsafe {
@@ -157,10 +163,7 @@ pub async fn get_xattr_at_path(path: &Path, name: &str) -> Result<Vec<u8>> {
 
     if size < 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(xattr_error(&format!(
-            "getxattr failed: {}",
-            errno
-        )));
+        return Err(xattr_error(&format!("getxattr failed: {}", errno)));
     }
 
     // Allocate buffer and get the value
@@ -176,10 +179,7 @@ pub async fn get_xattr_at_path(path: &Path, name: &str) -> Result<Vec<u8>> {
 
     if actual_size < 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(xattr_error(&format!(
-            "getxattr failed: {}",
-            errno
-        )));
+        return Err(xattr_error(&format!("getxattr failed: {}", errno)));
     }
 
     buffer.truncate(actual_size as usize);
@@ -206,8 +206,8 @@ pub async fn get_xattr_at_path(path: &Path, name: &str) -> Result<Vec<u8>> {
 pub async fn set_xattr_at_path(path: &Path, name: &str, value: &[u8]) -> Result<()> {
     let path_cstr = std::ffi::CString::new(path.to_string_lossy().as_bytes())
         .map_err(|e| xattr_error(&format!("Invalid path: {}", e)))?;
-    let name_cstr = std::ffi::CString::new(name)
-        .map_err(|e| xattr_error(&format!("Invalid name: {}", e)))?;
+    let name_cstr =
+        std::ffi::CString::new(name).map_err(|e| xattr_error(&format!("Invalid name: {}", e)))?;
 
     let result = unsafe {
         libc::setxattr(
@@ -221,10 +221,7 @@ pub async fn set_xattr_at_path(path: &Path, name: &str, value: &[u8]) -> Result<
 
     if result != 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(xattr_error(&format!(
-            "setxattr failed: {}",
-            errno
-        )));
+        return Err(xattr_error(&format!("setxattr failed: {}", errno)));
     }
 
     Ok(())
@@ -250,20 +247,11 @@ pub async fn list_xattr_at_path(path: &Path) -> Result<Vec<String>> {
         .map_err(|e| xattr_error(&format!("Invalid path: {}", e)))?;
 
     // Get the size first
-    let size = unsafe {
-        libc::listxattr(
-            path_cstr.as_ptr(),
-            std::ptr::null_mut(),
-            0,
-        )
-    };
+    let size = unsafe { libc::listxattr(path_cstr.as_ptr(), std::ptr::null_mut(), 0) };
 
     if size < 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(xattr_error(&format!(
-            "listxattr failed: {}",
-            errno
-        )));
+        return Err(xattr_error(&format!("listxattr failed: {}", errno)));
     }
 
     if size == 0 {
@@ -282,10 +270,7 @@ pub async fn list_xattr_at_path(path: &Path) -> Result<Vec<String>> {
 
     if actual_size < 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(xattr_error(&format!(
-            "listxattr failed: {}",
-            errno
-        )));
+        return Err(xattr_error(&format!("listxattr failed: {}", errno)));
     }
 
     // Parse the null-separated list
@@ -325,22 +310,14 @@ pub async fn list_xattr_at_path(path: &Path) -> Result<Vec<String>> {
 pub async fn remove_xattr_at_path(path: &Path, name: &str) -> Result<()> {
     let path_cstr = std::ffi::CString::new(path.to_string_lossy().as_bytes())
         .map_err(|e| xattr_error(&format!("Invalid path: {}", e)))?;
-    let name_cstr = std::ffi::CString::new(name)
-        .map_err(|e| xattr_error(&format!("Invalid name: {}", e)))?;
+    let name_cstr =
+        std::ffi::CString::new(name).map_err(|e| xattr_error(&format!("Invalid name: {}", e)))?;
 
-    let result = unsafe {
-        libc::removexattr(
-            path_cstr.as_ptr(),
-            name_cstr.as_ptr(),
-        )
-    };
+    let result = unsafe { libc::removexattr(path_cstr.as_ptr(), name_cstr.as_ptr()) };
 
     if result != 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(xattr_error(&format!(
-            "removexattr failed: {}",
-            errno
-        )));
+        return Err(xattr_error(&format!("removexattr failed: {}", errno)));
     }
 
     Ok(())
@@ -359,7 +336,7 @@ pub async fn is_xattr_supported(path: &Path) -> bool {
     // Try to set a test attribute
     let test_name = "user.compio_fs_extended_test";
     let test_value = b"test";
-    
+
     match set_xattr_at_path(path, test_name, test_value).await {
         Ok(_) => {
             // Clean up the test attribute
@@ -373,8 +350,8 @@ pub async fn is_xattr_supported(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_xattr_operations() {
@@ -387,7 +364,9 @@ mod tests {
         // Test xattr support
         if is_xattr_supported(&file_path).await {
             // Test set and get
-            set_xattr_at_path(&file_path, "user.test", b"test_value").await.unwrap();
+            set_xattr_at_path(&file_path, "user.test", b"test_value")
+                .await
+                .unwrap();
             let value = get_xattr_at_path(&file_path, "user.test").await.unwrap();
             assert_eq!(value, b"test_value");
 

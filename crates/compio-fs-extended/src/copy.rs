@@ -1,7 +1,7 @@
 //! copy_file_range operations for efficient same-filesystem copies
 
+use crate::error::{copy_file_range_error, Result};
 use compio::fs::File;
-use crate::error::{Result, copy_file_range_error};
 use std::os::unix::io::AsRawFd;
 
 /// Trait for copy_file_range operations
@@ -73,7 +73,7 @@ pub async fn copy_file_range_impl(
     let result = unsafe {
         let mut src_off = src_offset as i64;
         let mut dst_off = dst_offset as i64;
-        
+
         libc::copy_file_range(
             src_fd,
             &mut src_off,
@@ -150,7 +150,9 @@ pub async fn copy_file_range_with_fallback(
         Err(_) => {
             // Fallback to read/write operations
             // This would need to be implemented using compio's read/write operations
-            Err(copy_file_range_error("copy_file_range not supported and fallback not implemented"))
+            Err(copy_file_range_error(
+                "copy_file_range not supported and fallback not implemented",
+            ))
         }
     }
 }
@@ -158,9 +160,9 @@ pub async fn copy_file_range_with_fallback(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use compio::fs::File;
     use std::fs::write;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_copy_file_range_basic() {
@@ -177,7 +179,7 @@ mod tests {
 
         // Test copy_file_range
         let result = copy_file_range_impl(&src_file, &dst_file, 0, 0, 13).await;
-        
+
         // The operation might fail if not supported, which is expected
         match result {
             Ok(bytes_copied) => {

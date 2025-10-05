@@ -35,24 +35,24 @@
 //! ```
 
 pub mod copy;
-pub mod fadvise;
-pub mod symlink;
-pub mod hardlink;
 pub mod directory;
-pub mod xattr;
 pub mod error;
 pub mod extended_file;
+pub mod fadvise;
+pub mod hardlink;
+pub mod symlink;
+pub mod xattr;
 
 // Re-export main types
-pub use extended_file::ExtendedFile;
 pub use error::{ExtendedError, Result};
+pub use extended_file::ExtendedFile;
 
 // Re-export specific operation modules
 pub use copy::CopyFileRange;
-pub use fadvise::Fadvise;
-pub use symlink::SymlinkOps;
-pub use hardlink::HardlinkOps;
 pub use directory::DirectoryOps;
+pub use fadvise::Fadvise;
+pub use hardlink::HardlinkOps;
+pub use symlink::SymlinkOps;
 pub use xattr::XattrOps;
 
 /// Version information
