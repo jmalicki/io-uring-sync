@@ -141,7 +141,11 @@ impl Args {
     /// Get the actual CPU count to use
     #[must_use]
     pub fn effective_cpu_count(&self) -> usize {
-        if self.cpu_count == 0 { num_cpus::get() } else { self.cpu_count }
+        if self.cpu_count == 0 {
+            num_cpus::get()
+        } else {
+            self.cpu_count
+        }
     }
 
     /// Get the actual buffer size in bytes
@@ -185,9 +189,8 @@ mod tests {
     use tempfile::TempDir;
 
     async fn create_temp_file() -> Result<(TempDir, PathBuf)> {
-        let temp_dir = TempDir::new().map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create temp directory: {e}"))
-        })?;
+        let temp_dir = TempDir::new()
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create temp directory: {e}")))?;
         let file_path = temp_dir.path().join("test_file.txt");
         File::create(&file_path)
             .await
@@ -196,13 +199,12 @@ mod tests {
     }
 
     async fn create_temp_dir() -> Result<(TempDir, PathBuf)> {
-        let temp_dir = TempDir::new().map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create temp directory: {e}"))
-        })?;
+        let temp_dir = TempDir::new()
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create temp directory: {e}")))?;
         let sub_dir = temp_dir.path().join("test_dir");
-        compio::fs::create_dir(&sub_dir).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create test directory: {e}"))
-        })?;
+        compio::fs::create_dir(&sub_dir)
+            .await
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create test directory: {e}")))?;
         Ok((temp_dir, sub_dir))
     }
 
