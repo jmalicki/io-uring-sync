@@ -155,7 +155,7 @@ async fn test_metadata_preservation_mixed_sizes() {
             description
         );
 
-        // Check that timestamps were preserved
+        // Check that timestamps were preserved (modified only)
         let copied_accessed = dst_metadata.accessed().unwrap();
         let copied_modified = dst_metadata.modified().unwrap();
 

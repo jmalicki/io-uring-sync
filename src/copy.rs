@@ -43,7 +43,6 @@ use crate::error::{Result, SyncError};
 use compio::fs::OpenOptions;
 use compio::io::{AsyncReadAt, AsyncWriteAt};
 use std::fs::metadata;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -102,6 +101,9 @@ pub async fn copy_file(src: &Path, dst: &Path) -> Result<()> {
 /// }
 /// ```
 async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
+    // Capture source timestamps BEFORE any reads to avoid atime/mtime drift
+    let (src_accessed, src_modified) = get_precise_timestamps(src).await?;
+
     // Open source file
     let src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
         SyncError::FileSystem(format!("Failed to open source file {}: {e}", src.display(),))
@@ -185,8 +187,9 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {e}")))?;
 
-    // Preserve file permissions and timestamps
-    preserve_metadata(src, dst).await?;
+    // Preserve file permissions and timestamps (timestamps from pre-copy capture)
+    preserve_permissions(src, dst).await?;
+    set_dst_timestamps(dst, src_accessed, src_modified).await?;
 
     tracing::debug!(
         "compio read_at/write_at: successfully copied {} bytes",
@@ -215,33 +218,29 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
 /// - Source file metadata cannot be read
 /// - Destination file permissions cannot be set
 /// - Timestamp preservation fails
+#[allow(dead_code)]
 async fn preserve_metadata(src: &Path, dst: &Path) -> Result<()> {
-    // Get source file metadata
+    preserve_permissions(src, dst).await?;
+    let (accessed, modified) = get_precise_timestamps(src).await?;
+    set_dst_timestamps(dst, accessed, modified).await?;
+    Ok(())
+}
+
+/// Preserve only file permissions from source to destination
+async fn preserve_permissions(src: &Path, dst: &Path) -> Result<()> {
     let src_metadata = metadata(src)
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {e}")))?;
 
-    // Preserve file permissions
     let permissions = src_metadata.permissions();
-    let permission_mode = permissions.mode();
     std::fs::set_permissions(dst, permissions).map_err(|e| {
         SyncError::FileSystem(format!("Failed to set destination file permissions: {e}"))
     })?;
-
-    // Use libc::stat to get precise timestamps with nanosecond precision
-    let (accessed, modified) = get_precise_timestamps(src).await?;
-
-    // Use utimensat for nanosecond precision timestamp preservation
-    preserve_timestamps_nanoseconds(dst, accessed, modified).await?;
-
-    tracing::debug!(
-        "Preserved metadata for {}: permissions={:o}, accessed={:?}, modified={:?}",
-        dst.display(),
-        permission_mode,
-        accessed,
-        modified
-    );
-
     Ok(())
+}
+
+/// Set destination timestamps to the provided accessed/modified values
+async fn set_dst_timestamps(dst: &Path, accessed: SystemTime, modified: SystemTime) -> Result<()> {
+    preserve_timestamps_nanoseconds(dst, accessed, modified).await
 }
 
 /// Get precise timestamps using `libc::stat` for nanosecond precision
