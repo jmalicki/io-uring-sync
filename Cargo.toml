@@ -101,4 +101,3 @@ build-all = ["build", "--all-targets", "--all-features"]
 doc-private = ["doc", "--document-private-items", "--no-deps", "--all-features"]
 doc-check = ["doc", "--document-private-items", "--no-deps", "--all-features", "--", "--check"]
 
-# Note: nix vulnerability RUSTSEC-2021-0119 is in getgrouplist which we don't use
