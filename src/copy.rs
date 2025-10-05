@@ -44,7 +44,6 @@ use compio::fs::OpenOptions;
 use compio::io::{AsyncReadAt, AsyncWriteAt};
 use std::fs::metadata;
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -64,165 +63,6 @@ pub async fn copy_file(src: &Path, dst: &Path) -> Result<()> {
     // Simplified: always use read/write method
     // This is the only reliable method that works everywhere
     copy_read_write(src, dst).await
-}
-
-/// Copy file using splice system call (zero-copy operations)
-///
-/// This function uses the splice system call for zero-copy file operations
-/// by using pipes as an intermediate buffer. This is particularly efficient
-/// for streaming operations and can provide better performance than read/write.
-///
-/// # Parameters
-///
-/// * `src` - Source file path
-/// * `dst` - Destination file path
-///
-/// # Returns
-///
-/// Returns `Ok(())` if the file was copied successfully, or `Err(SyncError)` if failed.
-///
-/// # Performance Notes
-///
-/// - Zero-copy operations using pipes
-/// - Optimal for streaming and large file operations
-/// - Can be faster than read/write for certain workloads
-/// - Uses splice system call for efficient data transfer
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// use io_uring_sync::copy::copy_splice;
-/// use std::path::Path;
-///
-/// #[compio::main]
-/// async fn main() -> io_uring_sync::Result<()> {
-///     let src_path = Path::new("source.txt");
-///     let dst_path = Path::new("destination.txt");
-///     copy_splice(src_path, dst_path).await?;
-///     Ok(())
-/// }
-/// ```
-#[allow(dead_code)]
-async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
-    // Open source file
-    let src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
-        SyncError::FileSystem(format!(
-            "Failed to open source file {}: {e}",
-            src.display(),
-        ))
-    })?;
-
-    // Open destination file
-    let dst_file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(dst)
-        .await
-        .map_err(|e| {
-            SyncError::FileSystem(format!(
-                "Failed to open destination file {}: {e}",
-                dst.display(),
-            ))
-        })?;
-
-    // Get file descriptors
-    let src_fd = src_file.as_raw_fd();
-    let dst_fd = dst_file.as_raw_fd();
-
-    // Get file size
-    let metadata = src_file
-        .metadata()
-        .await
-        .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {e}")))?;
-    let file_size = metadata.len();
-
-    // Create a pipe for splice operations
-    let mut pipe_fds = [0i32; 2];
-    let result = unsafe { libc::pipe2(pipe_fds.as_mut_ptr(), 0) };
-    if result < 0 {
-        return Err(SyncError::CopyFailed(
-            "Failed to create pipe for splice".to_string(),
-        ));
-    }
-
-    let pipe_read_fd = pipe_fds[0];
-    let pipe_write_fd = pipe_fds[1];
-
-    let mut remaining = file_size;
-    let splice_size = 1024 * 1024; // 1MB chunks
-
-    while remaining > 0 {
-        let chunk_size = std::cmp::min(remaining, splice_size as u64) as usize;
-
-        // Splice from source file to pipe
-        let splice_result = unsafe {
-            libc::splice(
-                src_fd,
-                std::ptr::null_mut::<i64>(), // NULL offset means use current position
-                pipe_write_fd,
-                std::ptr::null_mut::<i64>(),
-                chunk_size,
-                libc::SPLICE_F_MOVE | libc::SPLICE_F_MORE,
-            )
-        };
-
-        if splice_result < 0 {
-            unsafe {
-                libc::close(pipe_read_fd);
-                libc::close(pipe_write_fd);
-            }
-            let errno = std::io::Error::last_os_error();
-            return Err(SyncError::CopyFailed(format!(
-                "splice from source to pipe failed: {errno} (errno: {})",
-                errno.raw_os_error().unwrap_or(-1)
-            )));
-        }
-
-        // Splice from pipe to destination file
-        let splice_result2 = unsafe {
-            libc::splice(
-                pipe_read_fd,
-                std::ptr::null_mut::<i64>(),
-                dst_fd,
-                std::ptr::null_mut::<i64>(),
-                splice_result as usize,
-                libc::SPLICE_F_MOVE | libc::SPLICE_F_MORE,
-            )
-        };
-
-        if splice_result2 < 0 {
-            unsafe {
-                libc::close(pipe_read_fd);
-                libc::close(pipe_write_fd);
-            }
-            let errno = std::io::Error::last_os_error();
-            return Err(SyncError::CopyFailed(format!(
-                "splice from pipe to destination failed: {errno} (errno: {})",
-                errno.raw_os_error().unwrap_or(-1)
-            )));
-        }
-
-        let copied = splice_result as u64;
-        remaining -= copied;
-
-        tracing::debug!("splice: copied {} bytes, {} remaining", copied, remaining);
-    }
-
-    // Close pipe file descriptors
-    unsafe {
-        libc::close(pipe_read_fd);
-        libc::close(pipe_write_fd);
-    }
-
-    // Sync the destination file to ensure data is written to disk
-    dst_file
-        .sync_all()
-        .await
-        .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {e}")))?;
-
-    tracing::debug!("splice: successfully copied {} bytes", file_size);
-    Ok(())
 }
 
 /// Copy file using compio read/write operations (reliable fallback)
@@ -264,10 +104,7 @@ async fn copy_splice(src: &Path, dst: &Path) -> Result<()> {
 async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     // Open source file
     let src_file = OpenOptions::new().read(true).open(src).await.map_err(|e| {
-        SyncError::FileSystem(format!(
-            "Failed to open source file {}: {e}",
-            src.display(),
-        ))
+        SyncError::FileSystem(format!("Failed to open source file {}: {e}", src.display(),))
     })?;
 
     // Open destination file
@@ -386,8 +223,9 @@ async fn preserve_metadata(src: &Path, dst: &Path) -> Result<()> {
     // Preserve file permissions
     let permissions = src_metadata.permissions();
     let permission_mode = permissions.mode();
-    std::fs::set_permissions(dst, permissions)
-        .map_err(|e| SyncError::FileSystem(format!("Failed to set destination file permissions: {e}")))?;
+    std::fs::set_permissions(dst, permissions).map_err(|e| {
+        SyncError::FileSystem(format!("Failed to set destination file permissions: {e}"))
+    })?;
 
     // Use libc::stat to get precise timestamps with nanosecond precision
     let (accessed, modified) = get_precise_timestamps(src).await?;
@@ -476,8 +314,9 @@ async fn preserve_timestamps_nanoseconds(
     use std::os::unix::ffi::OsStrExt;
 
     // Convert path to CString for syscall
-    let path_cstr = CString::new(path.as_os_str().as_bytes())
-        .map_err(|e| SyncError::FileSystem(format!("Invalid path for timestamp preservation: {e}")))?;
+    let path_cstr = CString::new(path.as_os_str().as_bytes()).map_err(|e| {
+        SyncError::FileSystem(format!("Invalid path for timestamp preservation: {e}"))
+    })?;
 
     // Convert SystemTime to timespec with nanosecond precision
     let accessed_timespec = system_time_to_timespec(accessed);
