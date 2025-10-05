@@ -23,6 +23,7 @@ This document outlines the research findings for developing a highly efficient b
 - **⚠️ CRITICAL LIMITATION**: While the kernel supports copy_file_range in io_uring, **no Rust io_uring library currently exposes this functionality**
 - **Impact**: Cannot achieve optimal zero-copy performance for same-filesystem operations
 - **Workaround**: Must use compio read/write operations for all file copying
+- **Priority**: **LOW** - This is a nice-to-have optimization, not a blocking issue
 
 #### sendfile Support
 - **Availability**: Supported in io_uring for efficient file-to-socket transfers

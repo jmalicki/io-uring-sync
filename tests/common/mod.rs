@@ -1,0 +1,26 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
+pub struct TestTimeoutGuard {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl Drop for TestTimeoutGuard {
+    fn drop(&mut self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+}
+
+pub fn test_timeout_guard(duration: Duration) -> TestTimeoutGuard {
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled_clone = Arc::clone(&cancelled);
+    std::thread::spawn(move || {
+        std::thread::sleep(duration);
+        if !cancelled_clone.load(Ordering::SeqCst) {
+            eprintln!("Test timeout exceeded ({}s). Aborting.", duration.as_secs());
+            std::process::abort();
+        }
+    });
+    TestTimeoutGuard { cancelled }
+}

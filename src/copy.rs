@@ -395,14 +395,8 @@ async fn preserve_metadata(src: &Path, dst: &Path) -> Result<()> {
         SyncError::FileSystem(format!("Failed to set destination file permissions: {}", e))
     })?;
 
-    // Preserve timestamps with nanosecond precision
-    let accessed = src_metadata.accessed().map_err(|e| {
-        SyncError::FileSystem(format!("Failed to get source file accessed time: {}", e))
-    })?;
-
-    let modified = src_metadata.modified().map_err(|e| {
-        SyncError::FileSystem(format!("Failed to get source file modified time: {}", e))
-    })?;
+    // Use libc::stat to get precise timestamps with nanosecond precision
+    let (accessed, modified) = get_precise_timestamps(src).await?;
 
     // Use utimensat for nanosecond precision timestamp preservation
     preserve_timestamps_nanoseconds(dst, accessed, modified).await?;
@@ -416,6 +410,51 @@ async fn preserve_metadata(src: &Path, dst: &Path) -> Result<()> {
     );
 
     Ok(())
+}
+
+/// Get precise timestamps using libc::stat for nanosecond precision
+///
+/// This function uses the stat system call to get timestamps with full
+/// nanosecond precision, which is more accurate than std::fs::metadata().
+///
+/// # Arguments
+///
+/// * `path` - File path to get timestamps from
+///
+/// # Returns
+///
+/// Returns `Ok((accessed, modified))` if timestamps were read successfully, or `Err(SyncError)` if failed.
+async fn get_precise_timestamps(path: &Path) -> Result<(SystemTime, SystemTime)> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    // Convert path to CString for syscall
+    let path_cstr = CString::new(path.as_os_str().as_bytes())
+        .map_err(|e| SyncError::FileSystem(format!("Invalid path for timestamp reading: {}", e)))?;
+
+    // Use spawn_blocking for the syscall since compio doesn't have stat support
+    compio::runtime::spawn_blocking(move || {
+        let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+        let result = unsafe { libc::stat(path_cstr.as_ptr(), &mut stat_buf) };
+
+        if result == -1 {
+            let errno = std::io::Error::last_os_error();
+            Err(SyncError::FileSystem(format!(
+                "stat failed: {} (errno: {})",
+                errno,
+                errno.raw_os_error().unwrap_or(-1)
+            )))
+        } else {
+            // Convert timespec to SystemTime
+            let accessed = SystemTime::UNIX_EPOCH
+                + std::time::Duration::new(stat_buf.st_atime as u64, stat_buf.st_atime_nsec as u32);
+            let modified = SystemTime::UNIX_EPOCH
+                + std::time::Duration::new(stat_buf.st_mtime as u64, stat_buf.st_mtime_nsec as u32);
+            Ok((accessed, modified))
+        }
+    })
+    .await
+    .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {:?}", e)))?
 }
 
 /// Preserve timestamps with nanosecond precision using utimensat
