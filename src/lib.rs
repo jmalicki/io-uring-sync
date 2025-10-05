@@ -1,6 +1,6 @@
-//! io-uring-sync: High-performance file copying using io_uring
+//! io-uring-sync: High-performance file copying using `io_uring`
 //!
-//! This library provides efficient file copying capabilities using Linux's io_uring
+//! This library provides efficient file copying capabilities using Linux's `io_uring`
 //! interface for asynchronous I/O operations, similar to rsync but optimized for
 //! single-machine operations with parallelism and metadata preservation.
 //!
@@ -16,7 +16,7 @@
 //!   - Progress tracking shows both discovery and completion progress
 //!   - Filesystem boundary detection integrated into traversal
 //!
-//! - **io_uring Throughout**: All operations use io_uring for maximum performance
+//! - **`io_uring` Throughout**: All operations use `io_uring` for maximum performance
 //!   - `statx` for metadata discovery
 //!   - `copy_file_range` for file copying
 //!   - `linkat` for hardlink creation

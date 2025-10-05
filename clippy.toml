@@ -14,6 +14,8 @@ too-many-arguments-threshold = 5
 too-many-lines-threshold = 100
 single-char-binding-names-threshold = 2
 
-# Test code exceptions
-# Allow expect() in test code where panics are acceptable
-# This is handled via #![allow(clippy::expect_used)] in test modules
+# Test code policy: allow unwrap/expect in tests
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+
+# Note: Enabling pedantic/nursery is done via CLI flags in CI and pre-commit.

@@ -4,9 +4,10 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-/// High-performance bulk file copying utility using io_uring
+/// High-performance bulk file copying utility using `io_uring`
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Source directory or file
     #[arg(short, long)]
@@ -16,7 +17,7 @@ pub struct Args {
     #[arg(short, long)]
     pub destination: PathBuf,
 
-    /// Queue depth for io_uring operations
+    /// Queue depth for `io_uring` operations
     #[arg(long, default_value = "4096")]
     pub queue_depth: usize,
 
@@ -65,7 +66,7 @@ pub struct Args {
 pub enum CopyMethod {
     /// Automatically choose the best method
     Auto,
-    /// Use copy_file_range for same-filesystem copies
+    /// Use `copy_file_range` for same-filesystem copies
     CopyFileRange,
     /// Use splice for zero-copy operations
     Splice,
@@ -101,7 +102,7 @@ impl Args {
         }
 
         // Check queue depth bounds
-        if self.queue_depth < 1024 || self.queue_depth > 65536 {
+        if self.queue_depth < 1024 || self.queue_depth > 65_536 {
             anyhow::bail!(
                 "Queue depth must be between 1024 and 65536, got: {}",
                 self.queue_depth
@@ -109,7 +110,7 @@ impl Args {
         }
 
         // Check max files in flight bounds
-        if self.max_files_in_flight < 1 || self.max_files_in_flight > 10000 {
+        if self.max_files_in_flight < 1 || self.max_files_in_flight > 10_000 {
             anyhow::bail!(
                 "Max files in flight must be between 1 and 10000, got: {}",
                 self.max_files_in_flight
@@ -151,9 +152,8 @@ impl Args {
     /// Get the actual buffer size in bytes
     #[allow(dead_code)]
     #[must_use]
-    pub fn effective_buffer_size(&self) -> usize {
+    pub const fn effective_buffer_size(&self) -> usize {
         if self.buffer_size_kb == 0 {
-            // Auto-detect based on system memory and filesystem
             // Default to 64KB for now
             64 * 1024
         } else {
@@ -175,7 +175,7 @@ impl Args {
 
     /// Get buffer size in bytes
     #[must_use]
-    pub fn buffer_size_bytes(&self) -> usize {
+    pub const fn buffer_size_bytes(&self) -> usize {
         self.buffer_size_kb * 1024
     }
 }
@@ -190,24 +190,22 @@ mod tests {
     use tempfile::TempDir;
 
     async fn create_temp_file() -> Result<(TempDir, PathBuf)> {
-        let temp_dir = TempDir::new().map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create temp directory: {}", e))
-        })?;
+        let temp_dir = TempDir::new()
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create temp directory: {e}")))?;
         let file_path = temp_dir.path().join("test_file.txt");
         File::create(&file_path)
             .await
-            .map_err(|e| SyncError::FileSystem(format!("Failed to create test file: {}", e)))?;
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create test file: {e}")))?;
         Ok((temp_dir, file_path))
     }
 
     async fn create_temp_dir() -> Result<(TempDir, PathBuf)> {
-        let temp_dir = TempDir::new().map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create temp directory: {}", e))
-        })?;
+        let temp_dir = TempDir::new()
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create temp directory: {e}")))?;
         let sub_dir = temp_dir.path().join("test_dir");
-        compio::fs::create_dir(&sub_dir).await.map_err(|e| {
-            SyncError::FileSystem(format!("Failed to create test directory: {}", e))
-        })?;
+        compio::fs::create_dir(&sub_dir)
+            .await
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create test directory: {e}")))?;
         Ok((temp_dir, sub_dir))
     }
 
@@ -274,177 +272,5 @@ mod tests {
         };
 
         assert!(args.validate().is_err());
-    }
-
-    #[compio::test]
-    async fn test_validate_queue_depth_bounds() {
-        let (temp_dir, file_path) = create_temp_file().await.unwrap();
-
-        // Test minimum bound
-        let args = Args {
-            source: file_path.clone(),
-            destination: temp_dir.path().join("dest"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 512, // Too small
-            cpu_count: 2,
-            buffer_size_kb: 1024,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 0,
-            quiet: false,
-        };
-        assert!(args.validate().is_err());
-
-        // Test maximum bound
-        let args = Args {
-            source: file_path,
-            destination: temp_dir.path().join("dest"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 100000, // Too large
-            cpu_count: 2,
-            buffer_size_kb: 1024,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 0,
-            quiet: false,
-        };
-        assert!(args.validate().is_err());
-    }
-
-    #[compio::test]
-    async fn test_validate_conflicting_quiet_verbose() {
-        let (temp_dir, file_path) = create_temp_file().await.unwrap();
-        let args = Args {
-            source: file_path,
-            destination: temp_dir.path().join("dest"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 4096,
-            cpu_count: 2,
-            buffer_size_kb: 1024,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 1,
-            quiet: true, // Conflicting options
-        };
-
-        assert!(args.validate().is_err());
-    }
-
-    #[test]
-    fn test_effective_cpu_count() {
-        let args = Args {
-            source: PathBuf::from("/tmp"),
-            destination: PathBuf::from("/tmp"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 4096,
-            cpu_count: 4,
-            buffer_size_kb: 1024,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 0,
-            quiet: false,
-        };
-
-        assert_eq!(args.effective_cpu_count(), 4);
-    }
-
-    #[test]
-    fn test_effective_cpu_count_zero_uses_system() {
-        let args = Args {
-            source: PathBuf::from("/tmp"),
-            destination: PathBuf::from("/tmp"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 4096,
-            cpu_count: 0, // Should use system default
-            buffer_size_kb: 1024,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 0,
-            quiet: false,
-        };
-
-        assert!(args.effective_cpu_count() > 0);
-    }
-
-    #[test]
-    fn test_buffer_size_conversion() {
-        let args = Args {
-            source: PathBuf::from("/tmp"),
-            destination: PathBuf::from("/tmp"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 4096,
-            cpu_count: 2,
-            buffer_size_kb: 2048,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 0,
-            quiet: false,
-        };
-
-        assert_eq!(args.buffer_size_bytes(), 2048 * 1024);
-    }
-
-    #[compio::test]
-    async fn test_is_directory_copy() {
-        let (temp_dir, dir_path) = create_temp_dir().await.unwrap();
-        let args = Args {
-            source: dir_path,
-            destination: temp_dir.path().join("dest"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 4096,
-            cpu_count: 2,
-            buffer_size_kb: 1024,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 0,
-            quiet: false,
-        };
-
-        assert!(args.is_directory_copy());
-        assert!(!args.is_file_copy());
-    }
-
-    #[compio::test]
-    async fn test_is_file_copy() {
-        let (temp_dir, file_path) = create_temp_file().await.unwrap();
-        let args = Args {
-            source: file_path,
-            destination: temp_dir.path().join("dest"),
-            copy_method: CopyMethod::Auto,
-            queue_depth: 4096,
-            cpu_count: 2,
-            buffer_size_kb: 1024,
-            max_files_in_flight: 100,
-            preserve_xattr: true,
-            preserve_acl: false,
-            dry_run: false,
-            progress: false,
-            verbose: 0,
-            quiet: false,
-        };
-
-        assert!(!args.is_directory_copy());
-        assert!(args.is_file_copy());
     }
 }

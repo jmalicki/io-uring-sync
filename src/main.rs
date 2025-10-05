@@ -1,7 +1,7 @@
 //! io-uring-sync: High-performance bulk file copying utility
 //!
 //! This utility provides rsync-like functionality optimized for single-machine operations
-//! using io_uring for maximum performance and parallelism.
+//! using `io_uring` for maximum performance and parallelism.
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -23,7 +23,14 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     // Initialize logging based on verbosity and quiet mode
-    if !args.quiet {
+    if args.quiet {
+        // In quiet mode, only log errors
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(Level::ERROR)
+            .with_target(false)
+            .finish();
+        tracing::subscriber::set_global_default(subscriber)?;
+    } else {
         let subscriber = tracing_subscriber::fmt()
             .with_max_level(match args.verbose {
                 0 => Level::WARN,
@@ -35,15 +42,6 @@ async fn main() -> Result<()> {
             .with_thread_ids(false)
             .with_thread_names(false)
             .finish();
-
-        tracing::subscriber::set_global_default(subscriber)?;
-    } else {
-        // In quiet mode, only log errors
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(Level::ERROR)
-            .with_target(false)
-            .finish();
-
         tracing::subscriber::set_global_default(subscriber)?;
     }
 
@@ -74,7 +72,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Err(e) => {
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {e}");
             std::process::exit(1);
         }
     }

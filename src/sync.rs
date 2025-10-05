@@ -94,7 +94,7 @@ use tracing::{error, info};
 /// - User feedback and progress reporting
 /// - Benchmarking and comparison with other tools
 /// - Debugging and troubleshooting slow operations
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncStats {
     /// Number of files successfully copied during the operation
     pub files_copied: u64,
@@ -193,6 +193,7 @@ pub struct SyncStats {
 /// 4. Performs the actual copying operations
 /// 5. Tracks statistics and handles errors
 /// 6. Returns comprehensive operation results
+#[allow(clippy::future_not_send)]
 pub async fn sync_files(args: &Args) -> Result<SyncStats> {
     let start_time = Instant::now();
 
