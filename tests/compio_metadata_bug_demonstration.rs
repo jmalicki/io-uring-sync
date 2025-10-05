@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Comprehensive demonstration of compio::fs::metadata timestamp corruption bug
 //!
 //! This test suite provides irrefutable evidence that compio::fs::metadata

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Edge case tests for metadata preservation
 //!
 //! These tests cover extreme scenarios and edge cases that could reveal
