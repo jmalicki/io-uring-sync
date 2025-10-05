@@ -136,6 +136,28 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {e}")))?;
     let file_size = metadata.len();
 
+    // Preallocate destination file space to the final size to reduce fragmentation
+    // and improve write performance. Use ftruncate via spawn_blocking as a fallback
+    // until an io_uring fallocate path is wired.
+    {
+        use std::os::unix::io::AsRawFd;
+        let fd = dst_file.as_raw_fd();
+        #[allow(clippy::cast_possible_wrap)]
+        compio::runtime::spawn_blocking(move || {
+            let rc = unsafe { libc::ftruncate(fd, file_size as libc::off_t) };
+            if rc == 0 {
+                Ok(())
+            } else {
+                let err = std::io::Error::last_os_error();
+                Err(SyncError::FileSystem(format!(
+                    "Failed to preallocate destination file (ftruncate): {err}"
+                )))
+            }
+        })
+        .await
+        .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))??;
+    }
+
     // Use compio's async read_at/write_at operations
     let mut offset = 0u64;
     let mut total_copied = 0u64;
