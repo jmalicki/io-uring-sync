@@ -20,6 +20,10 @@ pub enum ExtendedError {
     #[error("fadvise failed: {0}")]
     Fadvise(String),
 
+    /// fallocate specific error
+    #[error("fallocate failed: {0}")]
+    Fallocate(String),
+
     /// Symlink operation error
     #[error("symlink operation failed: {0}")]
     Symlink(String),
@@ -90,6 +94,11 @@ pub fn copy_file_range_error(msg: &str) -> ExtendedError {
 /// Helper for creating fadvise specific errors
 pub fn fadvise_error(msg: &str) -> ExtendedError {
     ExtendedError::Fadvise(msg.to_string())
+}
+
+/// Helper for creating fallocate specific errors
+pub fn fallocate_error(msg: &str) -> ExtendedError {
+    ExtendedError::Fallocate(msg.to_string())
 }
 
 /// Helper for creating symlink specific errors

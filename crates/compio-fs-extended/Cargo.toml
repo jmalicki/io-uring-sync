@@ -14,6 +14,9 @@ categories = ["asynchronous", "filesystem"]
 compio = { version = "0.16", features = ["macros", "dispatcher"] }
 compio-fs = "0.9"
 
+# io_uring dependencies
+io-uring = "0.6"
+
 # System call dependencies
 libc = "0.2"
 

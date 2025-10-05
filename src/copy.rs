@@ -137,25 +137,13 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     let file_size = metadata.len();
 
     // Preallocate destination file space to the final size to reduce fragmentation
-    // and improve write performance. Use ftruncate via spawn_blocking as a fallback
-    // until an io_uring fallocate path is wired.
+    // and improve write performance using io_uring fallocate.
     {
-        use std::os::unix::io::AsRawFd;
-        let fd = dst_file.as_raw_fd();
-        #[allow(clippy::cast_possible_wrap)]
-        compio::runtime::spawn_blocking(move || {
-            let rc = unsafe { libc::ftruncate(fd, file_size as libc::off_t) };
-            if rc == 0 {
-                Ok(())
-            } else {
-                let err = std::io::Error::last_os_error();
-                Err(SyncError::FileSystem(format!(
-                    "Failed to preallocate destination file (ftruncate): {err}"
-                )))
-            }
-        })
-        .await
-        .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))??;
+        use compio_fs_extended::{ExtendedFile, Fallocate};
+        let extended_dst = ExtendedFile::from_ref(&dst_file);
+        extended_dst.fallocate(0, file_size, 0).await.map_err(|e| {
+            SyncError::FileSystem(format!("Failed to preallocate destination file: {e}"))
+        })?;
     }
 
     // Use compio's async read_at/write_at operations
@@ -735,6 +723,63 @@ mod tests {
         assert!(
             diff.as_micros() < 1000,
             "Reconstruction should be accurate within 1ms"
+        );
+    }
+
+    #[compio::test]
+    async fn test_fallocate_preallocation() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_path = temp_dir.path().join("source.txt");
+        let dst_path = temp_dir.path().join("destination.txt");
+
+        // Create a source file with known content
+        let content = "Test content for fallocate preallocation";
+        fs::write(&src_path, content).unwrap();
+
+        // Copy the file (this should trigger fallocate preallocation)
+        copy_file(&src_path, &dst_path).await.unwrap();
+
+        // Verify the file was copied correctly
+        let copied_content = fs::read_to_string(&dst_path).unwrap();
+        assert_eq!(copied_content, content, "File content should be preserved");
+
+        // Verify the file size matches the source
+        let src_metadata = fs::metadata(&src_path).unwrap();
+        let dst_metadata = fs::metadata(&dst_path).unwrap();
+        assert_eq!(
+            src_metadata.len(),
+            dst_metadata.len(),
+            "File sizes should match"
+        );
+    }
+
+    #[compio::test]
+    async fn test_fallocate_large_file_preallocation() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_path = temp_dir.path().join("large_source.txt");
+        let dst_path = temp_dir.path().join("large_destination.txt");
+
+        // Create a larger file (1MB) to test fallocate with substantial data
+        let large_content = "A".repeat(1024 * 1024); // 1MB of 'A' characters
+        fs::write(&src_path, &large_content).unwrap();
+
+        // Copy the file (this should trigger fallocate preallocation)
+        copy_file(&src_path, &dst_path).await.unwrap();
+
+        // Verify the file was copied correctly
+        let copied_content = fs::read_to_string(&dst_path).unwrap();
+        assert_eq!(
+            copied_content, large_content,
+            "Large file content should be preserved"
+        );
+
+        // Verify the file size matches the source
+        let src_metadata = fs::metadata(&src_path).unwrap();
+        let dst_metadata = fs::metadata(&dst_path).unwrap();
+        assert_eq!(
+            src_metadata.len(),
+            dst_metadata.len(),
+            "Large file sizes should match"
         );
     }
 }

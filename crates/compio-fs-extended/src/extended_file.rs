@@ -4,6 +4,7 @@ use crate::copy::CopyFileRange;
 use crate::directory::DirectoryOps;
 use crate::error::Result;
 use crate::fadvise::Fadvise;
+use crate::fallocate::Fallocate;
 use crate::hardlink::HardlinkOps;
 use crate::symlink::SymlinkOps;
 #[cfg(feature = "xattr")]
@@ -55,6 +56,32 @@ impl ExtendedFile {
         Self { inner: file }
     }
 
+    /// Create a new ExtendedFile wrapper from a reference to a compio::fs::File
+    ///
+    /// This method is useful when you need to use ExtendedFile operations without
+    /// taking ownership of the underlying File.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - A reference to the compio::fs::File to wrap
+    ///
+    /// # Returns
+    ///
+    /// A new ExtendedFile instance that borrows the file
+    ///
+    /// # Note
+    ///
+    /// This method creates a wrapper that can perform operations on the file
+    /// but doesn't own it. The underlying file must remain valid for the lifetime
+    /// of the ExtendedFile.
+    pub fn from_ref(file: &File) -> Self {
+        // We need to clone the file handle to avoid lifetime issues
+        // This is safe because File implements Clone
+        Self {
+            inner: file.clone(),
+        }
+    }
+
     /// Get a reference to the underlying compio::fs::File
     ///
     /// # Returns
@@ -103,6 +130,14 @@ impl Fadvise for ExtendedFile {
     async fn fadvise(&self, advice: i32, offset: u64, len: u64) -> Result<()> {
         // Delegate to the fadvise module implementation
         crate::fadvise::fadvise_impl(&self.inner, advice, offset, len).await
+    }
+}
+
+// Implement Fallocate trait
+impl Fallocate for ExtendedFile {
+    async fn fallocate(&self, offset: u64, len: u64, mode: u32) -> Result<()> {
+        // Delegate to the fallocate module implementation
+        crate::fallocate::fallocate(&self.inner, offset, len, mode).await
     }
 }
 
