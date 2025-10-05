@@ -1,5 +1,8 @@
 //! Integration tests for io-uring-sync
 
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use tempfile::TempDir;

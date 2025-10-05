@@ -69,6 +69,31 @@ This document outlines the research findings for developing a highly efficient b
   - Supports open, stat, read, write operations
 - **Advantages**: No thread pool required, pure async implementation
 
+#### compio
+- **Repository**: [github.com/compio-rs/compio](https://github.com/compio-rs/compio)
+- **Last Maintained**: Active development as of 2024 (version 0.16.0 current)
+- **Type**: Completion-based async runtime with io_uring support
+- **Features**:
+  - Thread-per-core architecture
+  - Completion-based I/O (io_uring, IOCP, polling)
+  - Async filesystem operations via `compio::fs`
+  - Managed buffer pools with `IoBuf`/`IoBufMut` traits
+  - Positional I/O operations (`AsyncReadAt`, `AsyncWriteAt`)
+- **Current Status**: 
+  - Version 0.16.0 available (October 2024)
+  - Documentation builds failing for compio-fs 0.9.0 (use source code)
+  - Active development with regular releases
+- **Architecture**: Modular design with separate crates:
+  - `compio-runtime`: Core runtime (0.9.1)
+  - `compio-fs`: Filesystem operations (0.9.0)
+  - `compio-io`: I/O traits and utilities (0.8.0)
+  - `compio-driver`: Low-level drivers (0.9.0)
+- **Advantages**: 
+  - True async I/O without thread pools
+  - Managed buffer system for zero-copy operations
+  - Extensible architecture for custom operations
+  - Performance-focused design
+
 ### High-Performance Runtimes
 
 #### Glommio
@@ -131,6 +156,14 @@ This document outlines the research findings for developing a highly efficient b
 - **Zero-Copy**: Leverage copy_file_range for same-filesystem operations
 - **Buffer Pooling**: Reuse buffers to reduce allocation overhead
 - **Size Tuning**: Optimize buffer sizes based on filesystem characteristics
+
+#### File Access Pattern Optimization
+- **posix_fadvise**: System call for providing access pattern hints to the kernel
+- **POSIX_FADV_SEQUENTIAL**: Indicates sequential access pattern for large files
+- **POSIX_FADV_DONTNEED**: Hints that data won't be needed again soon
+- **Benefits**: Better kernel caching decisions, reduced memory pressure
+- **Implementation**: Use `libc::posix_fadvise` or `nix::fcntl::posix_fadvise`
+- **Use Case**: Large file copies that are read once and don't need caching
 
 #### Operation Batching
 - **Submission Queues**: Batch multiple operations before submission
@@ -372,6 +405,80 @@ let cpu_queues: Vec<PerCPUQueue> = (0..num_cpus)
 - ✅ **Use**: `tokio::sync::mpsc` for async-friendly communication
 - ✅ **Pattern**: `sender.send().await` and `receiver.recv().await` are async-friendly
 - ⚠️ **Note**: Blocking channels can monopolize async threads and hurt performance
+
+### Async Semaphore Implementation Strategy
+
+#### Core Implementation Pattern (Based on Tokio)
+```rust
+// High-level semaphore structure
+pub struct Semaphore {
+    ll_sem: BatchSemaphore,  // Low-level implementation
+}
+
+// Low-level batch semaphore
+pub struct BatchSemaphore {
+    waiters: Mutex<Waitlist>,
+    permits: AtomicUsize,
+}
+
+struct Waitlist {
+    queue: LinkedList<Waiter>,
+    closed: bool,
+}
+
+// Waiter node for the queue
+struct Waiter {
+    state: AtomicUsize,        // Number of permits needed
+    waker: UnsafeCell<Option<Waker>>,  // Task waker
+    pointers: linked_list::Pointers<Waiter>,
+}
+
+// Future for acquiring permits
+pub struct Acquire<'a> {
+    node: Waiter,
+    semaphore: &'a BatchSemaphore,
+    num_permits: usize,
+    queued: bool,
+}
+```
+
+#### Async Semaphore Implementation Details
+- **Future Implementation**: The `Acquire` struct implements `Future<Output = Result<(), AcquireError>>`
+- **Poll Function**: Uses `poll_acquire` method that:
+  1. Tries to acquire permits atomically using `compare_exchange`
+  2. If insufficient permits, adds waiter to queue and sets waker
+  3. Returns `Poll::Pending` if queued, `Poll::Ready` if acquired
+- **Waker Management**: Each waiter stores a `Waker` that gets called when permits become available
+- **Fairness**: FIFO queue ensures fair permit distribution
+- **Atomic Operations**: Uses atomic counters for permit tracking without locks
+
+#### Key Implementation Patterns
+```rust
+impl Future for Acquire<'_> {
+    type Output = Result<(), AcquireError>;
+    
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let (node, semaphore, needed, queued) = self.project();
+        
+        match semaphore.poll_acquire(cx, needed, node, *queued) {
+            Poll::Pending => {
+                *queued = true;
+                Poll::Pending
+            }
+            Poll::Ready(r) => {
+                *queued = false;
+                Poll::Ready(r)
+            }
+        }
+    }
+}
+```
+
+#### Integration with Compio
+- **Subcrate Structure**: Create `compio-semaphore` crate
+- **Runtime Integration**: Use compio's task system and waker infrastructure
+- **Buffer Pool Coordination**: Semaphore can limit concurrent buffer allocations
+- **Queue Depth Management**: Semaphore controls io_uring submission queue depth
 
 ## 9. Critical Questions and Implementation Challenges
 
@@ -626,7 +733,112 @@ Options:
   --verbose                   # Verbose output
 ```
 
-## 10. Research Conclusions and Recommendations
+## 10. Compio Extension Strategies
+
+### Understanding compio::fs Architecture
+
+#### Current compio::fs Structure
+- **File Operations**: `compio::fs::File` with positional I/O (`AsyncReadAt`, `AsyncWriteAt`)
+- **OpenOptions**: Configurable file opening with various flags
+- **Metadata**: `compio::fs::Metadata` for file information
+- **Buffer Management**: Uses `IoBuf`/`IoBufMut` traits for managed buffers
+- **Runtime Integration**: Built on `compio-runtime` with completion-based I/O
+
+#### Extension Opportunities
+- **Missing Operations**: `copy_file_range`, `symlink`, `readdir`, `xattr` operations
+- **Advanced Features**: `fadvise`, `fallocate`, `sync_file_range`
+- **Custom Operations**: io_uring operations not exposed by compio
+
+### Extension Implementation Strategies
+
+#### Strategy 1: Wrapper Extension
+```rust
+// Extend compio::fs::File with additional methods
+impl File {
+    pub async fn copy_file_range(
+        &self,
+        dst: &File,
+        src_offset: u64,
+        dst_offset: u64,
+        len: u64,
+    ) -> Result<usize> {
+        // Direct syscall implementation using compio's runtime
+        unsafe {
+            let result = libc::copy_file_range(
+                self.as_raw_fd(),
+                &mut src_offset as *mut _,
+                dst.as_raw_fd(),
+                &mut dst_offset as *mut _,
+                len as usize,
+                0,
+            );
+            // Handle result and integrate with compio's error system
+        }
+    }
+    
+    pub async fn fadvise(&self, advice: i32, offset: u64, len: u64) -> Result<()> {
+        // Implement posix_fadvise using compio runtime
+    }
+}
+```
+
+#### Strategy 2: Subcrate Extension
+```rust
+// compio-fs-extended crate
+pub mod extended {
+    use compio::fs::File;
+    
+    pub struct ExtendedFile(File);
+    
+    impl ExtendedFile {
+        pub fn new(file: File) -> Self {
+            Self(file)
+        }
+        
+        pub async fn copy_file_range(&self, /* ... */) -> Result<usize> {
+            // Implementation using compio's submission system
+        }
+    }
+}
+```
+
+#### Strategy 3: Custom Operations via compio-driver
+```rust
+// Direct integration with compio-driver for custom io_uring operations
+use compio_driver::op::CustomOp;
+
+pub struct CopyFileRangeOp {
+    src_fd: i32,
+    dst_fd: i32,
+    src_offset: u64,
+    dst_offset: u64,
+    len: u64,
+}
+
+impl CustomOp for CopyFileRangeOp {
+    // Implement custom io_uring operation
+}
+```
+
+### Recommended Approach for io_uring_sync
+
+#### Phase 1: Wrapper Extensions
+- Extend existing `compio::fs::File` with copy_file_range
+- Add fadvise support for file access pattern optimization
+- Implement basic symlink operations
+
+#### Phase 2: Subcrate Development
+- Create `compio-fs-extended` subcrate
+- Add comprehensive xattr support
+- Implement directory traversal with getdents64
+- Add advanced file operations (fallocate, sync_file_range)
+
+#### Phase 3: Custom Runtime Integration
+- Direct integration with compio-driver for specialized operations
+- Custom io_uring operation types for optimal performance
+- Integration with compio's managed buffer system
+
+## 11. Research Conclusions and Recommendations
 
 ### Key Findings Summary
 
@@ -642,29 +854,38 @@ Based on comprehensive research into io_uring capabilities and Rust library supp
 - **rio**: ⚠️ Limited - requires significant manual workarounds for missing operations
 - **tokio-uring**: ⚠️ Very Limited - primarily file I/O focused
 - **Glommio**: ⚠️ Limited - good for basic file I/O only
-- **Recommended Approach**: Hybrid implementation using rio as base with custom extensions
+- **compio**: ✅ **Recommended** - Modern, active development, extensible architecture
+- **Recommended Approach**: Use compio as base with custom extensions
 
 #### Critical Implementation Challenges
-1. **Directory Traversal**: No Rust library supports getdents64, requiring hybrid approach
+1. **Directory Traversal**: Limited support in compio, requires custom implementation
 2. **copy_file_range**: No library support, requiring manual syscall implementation
-3. **Extended Attributes**: No library support, requiring direct liburing integration
+3. **Extended Attributes**: No library support, requiring direct integration
 4. **Queue Management**: Need careful design for per-CPU architecture and backpressure
+5. **Semaphore Coordination**: Need custom async semaphore for queue depth management
 
 ### Recommended Architecture
 
 Based on this analysis, the optimal approach is:
 
-1. **Base Library**: Use `rio` as the foundation for io_uring operations
-2. **Extended Operations**: Create `io-uring-extended` subcrate with:
-   - `copy_file_range` support
+1. **Base Library**: Use `compio` as the foundation for async I/O operations
+2. **Extended Operations**: Create `compio-fs-extended` subcrate with:
+   - `copy_file_range` support using direct syscalls
    - `getdents64` directory traversal
    - Complete xattr operations suite
-   - Additional missing operations
-3. **Async Coordination**: Use `tokio::sync::mpsc` for all inter-task communication
-4. **Per-CPU Architecture**: One io_uring instance per CPU core
+   - `fadvise` for file access pattern optimization
+3. **Async Coordination**: Use custom async semaphore for queue management
+4. **Per-CPU Architecture**: One compio runtime instance per CPU core
 5. **Modular Design**: Release extended operations as standalone crate
 
-This approach provides the best balance of performance, safety, and maintainability while filling the critical gaps in the current Rust io_uring ecosystem.
+#### Updated Technology Stack
+- **Runtime**: compio for completion-based async I/O
+- **Filesystem**: compio::fs with custom extensions
+- **Concurrency**: Custom async semaphore for queue depth control
+- **Performance**: fadvise for large file optimization
+- **Architecture**: Thread-per-core with compio runtime
+
+This approach provides the best balance of performance, safety, and maintainability while leveraging compio's modern architecture and extensibility.
 
 ### Next Steps
 
@@ -682,6 +903,7 @@ With research complete, the project is ready to proceed to implementation:
 - [Linux man pages - io_uring](https://man7.org/linux/man-pages/man7/io_uring.7.html)
 
 ### Rust Libraries
+- [compio - Completion-based async runtime](https://github.com/compio-rs/compio)
 - [rio - Pure Rust io_uring](https://github.com/spacejam/rio)
 - [tokio-uring - Tokio integration](https://github.com/tokio-rs/io-uring)
 - [Glommio - Thread-per-core framework](https://docs.rs/glommio)

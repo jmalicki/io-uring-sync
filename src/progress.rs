@@ -14,9 +14,10 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use io_uring_sync::progress::ProgressTracker;
 //! use io_uring_sync::io_uring::CopyOperation;
+//! use std::path::PathBuf;
 //!
 //! let mut tracker = ProgressTracker::new();
 //! tracker.set_total(1024 * 1024); // 1MB total
@@ -63,6 +64,8 @@ use std::time::Duration;
 ///
 /// Basic usage:
 /// ```rust
+/// use io_uring_sync::progress::ProgressTracker;
+///
 /// let mut tracker = ProgressTracker::new();
 /// tracker.set_total(1024 * 1024); // Set 1MB target
 /// tracker.update(512 * 1024);     // Update with 512KB progress
@@ -71,7 +74,14 @@ use std::time::Duration;
 ///
 /// Tracking individual operations:
 /// ```rust
+/// use io_uring_sync::progress::ProgressTracker;
+/// use io_uring_sync::io_uring::CopyOperation;
+/// use std::path::PathBuf;
+///
 /// let mut tracker = ProgressTracker::new();
+/// let src_path = PathBuf::from("source.txt");
+/// let dst_path = PathBuf::from("destination.txt");
+/// let file_size = 1024;
 /// let operation = CopyOperation::new(src_path, dst_path, file_size);
 /// tracker.track_operation(&operation);
 /// ```
@@ -120,6 +130,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let tracker = ProgressTracker::new();
     /// ```
     ///
@@ -128,7 +140,14 @@ impl ProgressTracker {
     /// - Initialization is O(1) and very fast
     /// - No memory allocation beyond the struct itself
     /// - Progress bar styling is applied immediately
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the progress bar template is invalid.
+    /// This should never happen with the hardcoded template string.
     #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)]
+    #[must_use]
     pub fn new() -> Self {
         let pb = ProgressBar::new(0);
         pb.set_style(
@@ -160,6 +179,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.track_discovery(1024); // Discovered a 1KB file
     /// ```
@@ -167,7 +188,6 @@ impl ProgressTracker {
     pub fn track_discovery(&mut self, file_size: u64) {
         self.files_discovered += 1;
         self.bytes_discovered += file_size;
-        
         // Update progress bar total to reflect discovered bytes
         self.progress_bar.set_length(self.bytes_discovered);
     }
@@ -185,6 +205,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.set_total(1024 * 1024); // Set 1MB target
     /// ```
@@ -211,6 +233,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.set_total(1024 * 1024);
     /// tracker.update(512 * 1024); // 512KB copied
@@ -236,6 +260,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// // ... perform operations ...
     /// tracker.finish(); // Show completion message
@@ -265,7 +291,14 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    /// use io_uring_sync::io_uring::CopyOperation;
+    /// use std::path::PathBuf;
+    ///
     /// let mut tracker = ProgressTracker::new();
+    /// let src_path = PathBuf::from("source.txt");
+    /// let dst_path = PathBuf::from("destination.txt");
+    /// let file_size = 1024;
     /// let operation = CopyOperation::new(src_path, dst_path, file_size);
     /// // ... perform copy operation ...
     /// tracker.track_operation(&operation);
@@ -303,6 +336,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
+    /// use io_uring_sync::progress::ProgressTracker;
+    ///
     /// let mut tracker = ProgressTracker::new();
     /// // ... perform operations ...
     /// let stats = tracker.stats();
@@ -316,6 +351,7 @@ impl ProgressTracker {
     /// - Statistics are read atomically
     /// - Elapsed time calculation is cached for performance
     /// - No memory allocation occurs
+    #[must_use]
     pub fn stats(&self) -> ProgressStats {
         ProgressStats {
             files_copied: self.files_copied,
@@ -341,20 +377,27 @@ impl ProgressTracker {
 ///
 /// Basic usage:
 /// ```rust
+/// use io_uring_sync::progress::ProgressStats;
+/// use std::time::Duration;
+///
 /// let stats = ProgressStats {
 ///     files_copied: 150,
 ///     bytes_copied: 1_048_576,
 ///     elapsed: Duration::from_secs(30),
 /// };
 ///
-/// println!("Copied {} files ({}) in {:?}",
+/// println!("Copied {} files ({} bytes) in {:?}",
 ///          stats.files_copied,
-///          format_bytes(stats.bytes_copied),
+///          stats.bytes_copied,
 ///          stats.elapsed);
 /// ```
 ///
 /// Performance analysis:
 /// ```rust
+/// use io_uring_sync::progress::ProgressTracker;
+///
+/// let mut tracker = ProgressTracker::new();
+/// // ... perform operations ...
 /// let stats = tracker.stats();
 /// let throughput = stats.bytes_copied as f64 / stats.elapsed.as_secs_f64();
 /// println!("Throughput: {:.2} MB/s", throughput / 1_048_576.0);

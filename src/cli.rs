@@ -75,6 +75,17 @@ pub enum CopyMethod {
 
 impl Args {
     /// Validate command-line arguments
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Source path does not exist
+    /// - Source path is not a file or directory
+    /// - Queue depth is outside valid bounds (1024-65536)
+    /// - Max files in flight is outside valid bounds (1-10000)
+    /// - Buffer size is too large (>1GB)
+    /// - No CPU cores are available
+    /// - Both --quiet and --verbose options are used
     pub fn validate(&self) -> Result<()> {
         // Check if source exists
         if !self.source.exists() {
@@ -128,6 +139,7 @@ impl Args {
     }
 
     /// Get the actual CPU count to use
+    #[must_use]
     pub fn effective_cpu_count(&self) -> usize {
         if self.cpu_count == 0 {
             num_cpus::get()
@@ -138,6 +150,7 @@ impl Args {
 
     /// Get the actual buffer size in bytes
     #[allow(dead_code)]
+    #[must_use]
     pub fn effective_buffer_size(&self) -> usize {
         if self.buffer_size_kb == 0 {
             // Auto-detect based on system memory and filesystem
@@ -149,16 +162,19 @@ impl Args {
     }
 
     /// Check if the source is a directory
+    #[must_use]
     pub fn is_directory_copy(&self) -> bool {
         self.source.is_dir()
     }
 
     /// Check if the source is a single file
+    #[must_use]
     pub fn is_file_copy(&self) -> bool {
         self.source.is_file()
     }
 
     /// Get buffer size in bytes
+    #[must_use]
     pub fn buffer_size_bytes(&self) -> usize {
         self.buffer_size_kb * 1024
     }
@@ -166,27 +182,38 @@ impl Args {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
-    use std::fs::File;
+    use crate::error::SyncError;
+    use compio::fs::File;
     use tempfile::TempDir;
 
-    fn create_temp_file() -> (TempDir, PathBuf) {
-        let temp_dir = TempDir::new().unwrap();
+    async fn create_temp_file() -> Result<(TempDir, PathBuf)> {
+        let temp_dir = TempDir::new().map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create temp directory: {}", e))
+        })?;
         let file_path = temp_dir.path().join("test_file.txt");
-        File::create(&file_path).unwrap();
-        (temp_dir, file_path)
+        File::create(&file_path)
+            .await
+            .map_err(|e| SyncError::FileSystem(format!("Failed to create test file: {}", e)))?;
+        Ok((temp_dir, file_path))
     }
 
-    fn create_temp_dir() -> (TempDir, PathBuf) {
-        let temp_dir = TempDir::new().unwrap();
+    async fn create_temp_dir() -> Result<(TempDir, PathBuf)> {
+        let temp_dir = TempDir::new().map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create temp directory: {}", e))
+        })?;
         let sub_dir = temp_dir.path().join("test_dir");
-        std::fs::create_dir(&sub_dir).unwrap();
-        (temp_dir, sub_dir)
+        compio::fs::create_dir(&sub_dir).await.map_err(|e| {
+            SyncError::FileSystem(format!("Failed to create test directory: {}", e))
+        })?;
+        Ok((temp_dir, sub_dir))
     }
 
-    #[test]
-    fn test_validate_with_existing_file() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_validate_with_existing_file() {
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),
@@ -206,9 +233,9 @@ mod tests {
         assert!(args.validate().is_ok());
     }
 
-    #[test]
-    fn test_validate_with_existing_directory() {
-        let (temp_dir, dir_path) = create_temp_dir();
+    #[compio::test]
+    async fn test_validate_with_existing_directory() {
+        let (temp_dir, dir_path) = create_temp_dir().await.unwrap();
         let args = Args {
             source: dir_path,
             destination: temp_dir.path().join("dest"),
@@ -249,9 +276,9 @@ mod tests {
         assert!(args.validate().is_err());
     }
 
-    #[test]
-    fn test_validate_queue_depth_bounds() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_validate_queue_depth_bounds() {
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
 
         // Test minimum bound
         let args = Args {
@@ -290,9 +317,9 @@ mod tests {
         assert!(args.validate().is_err());
     }
 
-    #[test]
-    fn test_validate_conflicting_quiet_verbose() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_validate_conflicting_quiet_verbose() {
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),
@@ -375,9 +402,9 @@ mod tests {
         assert_eq!(args.buffer_size_bytes(), 2048 * 1024);
     }
 
-    #[test]
-    fn test_is_directory_copy() {
-        let (temp_dir, dir_path) = create_temp_dir();
+    #[compio::test]
+    async fn test_is_directory_copy() {
+        let (temp_dir, dir_path) = create_temp_dir().await.unwrap();
         let args = Args {
             source: dir_path,
             destination: temp_dir.path().join("dest"),
@@ -398,9 +425,9 @@ mod tests {
         assert!(!args.is_file_copy());
     }
 
-    #[test]
-    fn test_is_file_copy() {
-        let (temp_dir, file_path) = create_temp_file();
+    #[compio::test]
+    async fn test_is_file_copy() {
+        let (temp_dir, file_path) = create_temp_file().await.unwrap();
         let args = Args {
             source: file_path,
             destination: temp_dir.path().join("dest"),

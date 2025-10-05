@@ -8,8 +8,6 @@ repository = "https://github.com/jmalicki/io_uring_sync"
 documentation = "https://docs.rs/io-uring-extended"
 
 [dependencies]
-rio = "0.9"
-iou = "0.3.3"
 libc = "0.2"
 thiserror = "1.0"
 

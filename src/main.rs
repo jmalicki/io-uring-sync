@@ -17,7 +17,7 @@ mod sync;
 
 use cli::Args;
 
-#[tokio::main]
+#[compio::main]
 async fn main() -> Result<()> {
     // Parse command line arguments
     let args = Args::parse();

@@ -1,11 +1,19 @@
 //! Test data generation utilities
 
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tempfile::TempDir;
 
 /// Create test directory structure with various file types
+///
+/// # Panics
+///
+/// This function will panic if the temporary directory cannot be created.
+#[must_use]
 pub fn create_test_directory() -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     let test_dir = temp_dir.path();
@@ -33,6 +41,11 @@ fn create_test_file(path: std::path::PathBuf, size: usize) {
 }
 
 /// Create test files with extended attributes
+///
+/// # Panics
+///
+/// This function will panic if extended attributes cannot be set.
+#[must_use]
 pub fn create_test_directory_with_xattrs() -> TempDir {
     let temp_dir = create_test_directory();
     let test_dir = temp_dir.path();
@@ -57,6 +70,13 @@ pub fn create_test_directory_with_xattrs() -> TempDir {
 }
 
 /// Verify that two directories have identical content
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Directory entries cannot be read
+/// - File content comparison fails
+/// - Directory structures don't match
 pub fn verify_directory_identical(src: &Path, dst: &Path) -> Result<(), String> {
     let src_entries = collect_directory_entries(src)?;
     let dst_entries = collect_directory_entries(dst)?;

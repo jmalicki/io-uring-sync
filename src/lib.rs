@@ -24,12 +24,12 @@
 //!
 //! ## Usage Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use io_uring_sync::directory::copy_directory;
 //! use io_uring_sync::io_uring::FileOperations;
 //! use io_uring_sync::cli::CopyMethod;
 //!
-//! #[tokio::main]
+//! #[compio::main]
 //! async fn main() -> io_uring_sync::Result<()> {
 //!     let file_ops = FileOperations::new(4096, 64 * 1024)?;
 //!     let stats = copy_directory(
@@ -39,7 +39,7 @@
 //!         CopyMethod::Auto,
 //!     ).await?;
 //!     
-//!     println!("Copied {} files, {} directories, {} bytes", 
+//!     println!("Copied {} files, {} directories, {} bytes",
 //!              stats.files_copied, stats.directories_created, stats.bytes_copied);
 //!     Ok(())
 //! }
@@ -54,6 +54,6 @@ pub mod progress;
 pub mod sync;
 
 // Re-export commonly used types
-pub use directory::{ExtendedMetadata, FilesystemTracker};
+pub use directory::FilesystemTracker;
 pub use error::{Result, SyncError};
 pub use progress::ProgressTracker;

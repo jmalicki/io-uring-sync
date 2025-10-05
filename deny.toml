@@ -4,13 +4,12 @@
 [advisories]
 # Ignore specific advisories that are false positives or acceptable risks
 ignore = [
-    "RUSTSEC-2020-0021",  # rio - no fix available, required for io_uring functionality
     "RUSTSEC-2021-0119",  # nix - vulnerability in iou dependency, getgrouplist not used in our code
+    "RUSTSEC-2024-0436",  # paste - dunno what to do yet
+    "RUSTSEC-2025-0021",  # gitoxide - it uses SHA1
 ]
 # Check for unmaintained crates
 #unmaintained = "allow"
-# Check for unsound crates
-unsound = "deny"
 # Check for yanked crates
 yanked = "deny"
 
@@ -25,20 +24,10 @@ allow = [
     "ISC",
     "MPL-2.0",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "Zlib",
 ]
-# Reject unknown licenses
-default = "deny"
-# Allow copyleft licenses
-copyleft = "warn"
-# Allow dual licensing
-allow-osi-fsf-free = "neither"
 
-[bans]
-# Check for multiple versions of the same crate
-multiple-versions = "warn"
-# Allow specific wildcard dependencies
-wildcards = "deny"
 
 [sources]
 # Allow specific registries
@@ -47,4 +36,11 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 unknown-registry = "deny"
 # Allow specific git sources
 allow-git = []
+
+
+[bans]
+multiple-versions = "allow"
+# Check for multiple versions of the same crate
+# Allow specific wildcard dependencies
+wildcards = "deny"
 

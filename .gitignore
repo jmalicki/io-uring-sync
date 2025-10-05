@@ -3,6 +3,10 @@
 **/*.rs.bk
 Cargo.lock
 
+# Cargo generated files (but keep audit.toml)
+.cargo/*
+!.cargo/audit.toml
+
 # IDE
 .vscode/
 .idea/

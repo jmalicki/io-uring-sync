@@ -45,15 +45,23 @@ This document outlines the detailed implementation plan for io-uring-sync, inclu
 
 Based on comprehensive research and analysis, the optimal approach is:
 
-1. **Base Library**: Use `rio` as the foundation for io_uring operations
-2. **Extended Operations**: Create `io-uring-extended` subcrate with:
-   - `copy_file_range` support
+1. **Base Library**: Use `compio` as the foundation for completion-based async I/O operations
+2. **Extended Operations**: Create `compio-fs-extended` subcrate with:
+   - `copy_file_range` support using direct syscalls
    - `getdents64` directory traversal
    - Complete xattr operations suite
-   - Additional missing operations
-3. **Async Coordination**: Use `tokio::sync::mpsc` for all inter-task communication
-4. **Per-CPU Architecture**: One io_uring instance per CPU core
-5. **Modular Design**: Release extended operations as standalone crate
+   - `fadvise` for file access pattern optimization
+   - `symlink` and `hardlink` operations
+3. **Async Coordination**: Use custom async semaphore for queue depth management
+4. **Per-CPU Architecture**: One compio runtime instance per CPU core
+5. **Performance Optimization**: `posix_fadvise` for large file operations
+6. **Modular Design**: Release extended operations as standalone crate
+
+#### Key Technology Updates
+- **Runtime**: Migrated from rio to compio for better async integration
+- **Semaphore**: Custom implementation based on tokio patterns for compio compatibility
+- **File Optimization**: Added fadvise support as preferred alternative to O_DIRECT
+- **Architecture**: Thread-per-core with compio's completion-based I/O
 
 ### Key Design Decisions
 
@@ -71,25 +79,47 @@ Based on comprehensive research and analysis, the optimal approach is:
 - ✅ Automatic backpressure through async channel semantics
 - ❌ Avoid `crossbeam::channel` blocking operations in async contexts
 
-#### Direct liburing Bindings Feasibility
+#### Custom Async Semaphore Implementation
 **Answer**: ✅ **Highly Feasible** and recommended approach.
 
 **Why It Works**:
-- liburing is mature and well-designed for Rust integration
-- Existing examples (`rio`, `tokio-uring`) prove the concept
-- liburing's API is amenable to safe Rust abstractions
+- Based on proven tokio semaphore implementation patterns
+- Can be adapted for compio runtime and task system
+- Provides queue depth control for io_uring operations
+- Essential for preventing memory exhaustion and backpressure
 
 **Implementation Strategy**:
-- Create `io-uring-extended` subcrate that extends `rio`
-- Follow rio's design patterns for safety and ergonomics
-- Release as standalone crate for community use
-- Incremental development - add operations as needed
+- Create `compio-semaphore` subcrate following tokio patterns
+- Use atomic counters and waiter queues for permit management
+- Integrate with compio's waker system for async coordination
+- Support both owned and borrowed permit patterns
 
 **Benefits**:
-- **Modularity**: Independent crate that can be reused
-- **Compatibility**: Works alongside existing libraries
-- **Community Value**: Fills gaps in Rust io_uring ecosystem
-- **Performance**: Direct access to all io_uring capabilities
+- **Queue Management**: Controls io_uring submission queue depth
+- **Memory Safety**: Prevents buffer pool exhaustion
+- **Performance**: Enables optimal concurrency without resource exhaustion
+- **Compatibility**: Works seamlessly with compio's async model
+
+#### Compio Extension Strategy
+**Answer**: ✅ **Well-Supported** through multiple extension approaches.
+
+**Why It Works**:
+- compio has modular architecture designed for extensions
+- Managed buffer system provides zero-copy operations
+- Completion-based I/O enables true async operations
+- Active development with regular releases (v0.16.0 current)
+
+**Implementation Strategy**:
+- **Phase 1**: Wrapper extensions to existing `compio::fs::File`
+- **Phase 2**: Subcrate development (`compio-fs-extended`)
+- **Phase 3**: Custom operations via `compio-driver`
+- Incremental development with backward compatibility
+
+**Benefits**:
+- **Performance**: True async I/O without thread pools
+- **Extensibility**: Multiple extension strategies available
+- **Modern**: Active development with latest async patterns
+- **Integration**: Seamless integration with existing compio ecosystem
 
 #### io_uring xattr Support
 **Answer**: ✅ **Fully Supported** through direct liburing bindings.
@@ -133,17 +163,67 @@ After completing each phase, the following steps are **mandatory** before procee
 
 This ensures incremental review and allows for easy rollback if needed.
 
+## Current Status and Immediate Next Steps
+
+### ✅ **COMPLETED WORK (Phase 1)**
+- **Project Setup**: Complete CI/CD pipeline, CLI interface, error handling
+- **compio Migration**: Successfully migrated from rio to compio v0.16.0
+- **Basic I/O**: File read/write operations using compio::fs with managed buffers
+- **Metadata Preservation**: File ownership, permissions, timestamps using compio
+- **Testing**: All tests passing with compio runtime (14 doctests, 13 unit tests, 5 integration tests)
+- **Documentation**: Comprehensive documentation with working examples
+- **Code Quality**: All formatting, linting, and security checks passing
+
+### 🔄 **CURRENT WORK IN PROGRESS (Phase 2)**
+- **Directory Traversal**: Enhanced symlink and hardlink handling with compio
+- **Filesystem Operations**: Basic filesystem boundary detection implemented
+- **Hardlink Detection**: Inode tracking and hardlink preservation working
+
+### 📋 **IMMEDIATE NEXT STEPS (Priority Order)**
+
+#### Step 1: Complete compio-fs-extended Subcrate (Week 4)
+**Why This Is Critical**: We need missing operations (copy_file_range, fadvise) that compio doesn't provide yet.
+**Detailed Implementation Plan**:
+1. Create `crates/compio-fs-extended/Cargo.toml` with compio dependencies
+2. Implement `ExtendedFile` wrapper around `compio::fs::File`
+3. Add `copy_file_range` method using direct `libc::copy_file_range` syscalls
+4. Add `fadvise` method using `libc::posix_fadvise` with `POSIX_FADV_SEQUENTIAL`
+5. Add basic symlink operations using `libc::symlinkat` and `libc::readlinkat`
+6. Create comprehensive tests for all extended operations
+7. Integrate with existing `io_uring_sync` codebase
+
+#### Step 2: Implement Custom Async Semaphore (Week 5-6)
+**Why This Is Critical**: We need queue depth management to prevent memory exhaustion and enable optimal concurrency.
+**Detailed Implementation Plan**:
+1. Create `crates/compio-semaphore/Cargo.toml` with compio dependencies
+2. Study tokio semaphore implementation patterns (already researched)
+3. Implement `Semaphore` struct with atomic counters and waiter queues
+4. Implement `Acquire` Future with `poll` method using compio's waker system
+5. Add support for both owned and borrowed permit patterns
+6. Create integration tests with compio runtime
+7. Add queue depth management to existing file operations
+
+#### Step 3: Enhanced Directory Operations (Week 6-7)
+**Why This Is Critical**: Complete the directory traversal with proper symlink and hardlink handling.
+**Detailed Implementation Plan**:
+1. Integrate `compio-fs-extended` symlink operations into directory traversal
+2. Enhance hardlink detection with better performance (skip single-link files)
+3. Implement filesystem boundary detection using `statx` operations
+4. Add comprehensive tests for complex directory structures
+5. Optimize memory usage for large directory trees
+
 ## Implementation Phases
 
-### Phase 1: Foundation and Basic Copying (Weeks 1-3)
+### Phase 1: Foundation and Basic Copying (Weeks 1-3) ✅ **COMPLETED**
 
-#### 1.1 Project Setup and Infrastructure (Week 1)
+#### 1.1 Project Setup and Infrastructure (Week 1) ✅ **COMPLETED**
 **Deliverables:**
 - Complete project structure with CI/CD pipeline
 - Basic CLI interface with argument parsing
 - Error handling framework
 - Unit test framework setup
 - Documentation structure
+- **NEW**: Migration to compio runtime (v0.16.0)
 
 **Acceptance Criteria:**
 - [x] All CI checks pass (formatting, linting, tests)
@@ -152,11 +232,14 @@ This ensures incremental review and allows for easy rollback if needed.
 - [x] Project builds and runs without errors
 - [x] Code coverage reporting set up
 - [x] Pre-commit hooks configured
+- [x] **NEW**: compio dependency integrated and working
+- [x] **NEW**: All tests pass with compio runtime
 
 **Testing Requirements:**
 - Unit tests for CLI argument parsing
 - Integration tests for help/version commands
 - CI pipeline tests on multiple Rust versions
+- **NEW**: compio runtime integration tests
 
 **Phase Completion Workflow:**
 - [x] Run `cargo fmt` to format all code
@@ -168,42 +251,47 @@ This ensures incremental review and allows for easy rollback if needed.
 - [x] Create PR targeting `main` branch
 - [x] Create new branch `phase-1` for next phase
 
-#### 1.2 Basic io_uring Integration (Week 2)
+#### 1.2 Basic compio Integration (Week 2) ✅ **COMPLETED**
 **Deliverables:**
-- rio integration for basic io_uring operations
-- Simple file read/write operations
+- compio integration for basic async I/O operations
+- Simple file read/write operations using compio::fs
 - Basic error handling and recovery
 - Progress tracking framework
+- **NEW**: Managed buffer system integration
 
 **Acceptance Criteria:**
-- [x] Can open files using io_uring
-- [x] Can read and write files asynchronously
+- [x] Can open files using compio::fs
+- [x] Can read and write files asynchronously with compio
 - [x] Basic error handling works
 - [x] Progress reporting functional
 - [x] Memory usage is reasonable
+- [x] **NEW**: Managed buffer operations working
+- [x] **NEW**: Positional I/O (AsyncReadAt/AsyncWriteAt) implemented
 
 **Testing Requirements:**
 - Unit tests for file operations
 - Integration tests for basic file copying
 - Performance benchmarks for read/write operations
 - Memory leak detection
+- **NEW**: compio buffer management tests
 
 **Phase Completion Workflow:**
 - [x] Run `cargo fmt` to format all code
-- [x] Ensure all io_uring functions have unit tests
+- [x] Ensure all compio functions have unit tests
 - [x] Implement system tests (basic file copy operations)
 - [x] Run `cargo test` - all tests must pass
 - [x] Run `cargo clippy` - resolve all warnings
-- [x] Commit with message: `feat(phase-1): implement basic io_uring integration`
+- [x] Commit with message: `feat(phase-1): implement basic compio integration`
 - [x] Create PR targeting `main` branch
 - [x] Continue on `phase-1` branch for next deliverable
 
-#### 1.3 Metadata Preservation (Week 3)
+#### 1.3 Metadata Preservation (Week 3) ✅ **COMPLETED**
 **Deliverables:**
-- File ownership preservation (chown operations)
-- Permission preservation (chmod operations)
+- File ownership preservation using compio::fs
+- Permission preservation using compio::fs::Metadata
 - Timestamp preservation
 - Directory creation with proper permissions
+- **NEW**: Simplified metadata handling without ExtendedMetadata wrapper
 
 **Acceptance Criteria:**
 - [x] File ownership is preserved after copy
@@ -211,11 +299,14 @@ This ensures incremental review and allows for easy rollback if needed.
 - [x] Modification timestamps are preserved
 - [x] Directory permissions are correct
 - [x] Handles permission errors gracefully
+- [x] **NEW**: Uses compio::fs::Metadata directly
+- [x] **NEW**: All metadata operations use compio async patterns
 
 **Testing Requirements:**
 - Unit tests for metadata operations
 - Integration tests with various permission scenarios
 - Verification tests comparing source and destination metadata
+- **NEW**: compio metadata operation tests
 
 **Phase Completion Workflow:**
 - [x] Run `cargo fmt` to format all code
@@ -229,119 +320,139 @@ This ensures incremental review and allows for easy rollback if needed.
 
 ### Phase 2: Optimization and Parallelism (Weeks 4-6)
 
-#### 2.1 copy_file_range Implementation (Week 4)
+#### 2.1 compio-fs-extended Subcrate Development (Week 4) 🔄 **IN PROGRESS**
 **Deliverables:**
-- Manual copy_file_range implementation using liburing
+- Create `compio-fs-extended` subcrate structure
+- Manual copy_file_range implementation using direct syscalls
 - Automatic detection of same-filesystem operations
-- Fallback to read/write for cross-filesystem
-- Performance optimization for large files
+- Fallback to compio read/write for cross-filesystem
+- **NEW**: fadvise support for large file optimization
+- **NEW**: Basic symlink operations using compio patterns
 
 **Acceptance Criteria:**
-- [x] copy_file_range works for same-filesystem copies
-- [x] Automatic fallback to read/write for different filesystems
-- [x] Performance improvement over read/write for same-filesystem
-- [x] Handles partial copy failures correctly
-- [x] Zero-copy operations work as expected
+- [ ] `compio-fs-extended` subcrate created and integrated
+- [ ] copy_file_range works for same-filesystem copies using direct syscalls
+- [ ] Automatic fallback to compio read/write for different filesystems
+- [ ] Performance improvement over read/write for same-filesystem
+- [ ] Handles partial copy failures correctly
+- [ ] **NEW**: fadvise optimizations for large file operations
+- [ ] **NEW**: Basic symlink creation and reading operations
 
 **Testing Requirements:**
 - Unit tests for copy_file_range operations
 - Performance benchmarks comparing methods
 - Cross-filesystem fallback tests
 - Large file copy tests (files > RAM size)
+- **NEW**: fadvise optimization verification tests
+- **NEW**: Symlink operation tests
 
 **Phase Completion Workflow:**
-- [x] Run `cargo fmt` to format all code
-- [x] Ensure all copy_file_range functions have unit tests
-- [x] Implement system tests (copy_file_range vs read/write comparison)
-- [x] Run `cargo test` - all tests must pass
-- [x] Run `cargo clippy` - resolve all warnings
-- [x] Commit with message: `feat(phase-2): implement copy_file_range support`
-- [x] Create PR targeting `phase-1` branch
-- [x] Continue on `phase-2` branch for next deliverable
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all copy_file_range functions have unit tests
+- [ ] Implement system tests (copy_file_range vs read/write comparison)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-2): implement compio-fs-extended subcrate`
+- [ ] Create PR targeting `phase-1` branch
+- [ ] Continue on `phase-2` branch for next deliverable
 
-#### 2.2 Directory Traversal (Week 5)
+#### 2.2 Enhanced Directory Traversal (Week 5) 🔄 **IN PROGRESS**
 **Deliverables:**
-- Hybrid directory traversal (std::fs + io_uring)
-- Parallel directory scanning
+- Hybrid directory traversal (std::fs + compio::fs)
+- Parallel directory scanning with compio async patterns
 - File discovery and queuing system
 - Directory structure preservation
+- **NEW**: compio::fs::read_dir integration where available
+- **NEW**: Improved symlink handling with compio patterns
+- **NEW**: Hardlink detection and preservation
 
 **Acceptance Criteria:**
 - [x] Can traverse large directory trees efficiently
 - [x] Maintains directory structure in destination
-- [ ] Handles symbolic links correctly (basic handling implemented, io_uring operations pending)
+- [ ] **NEW**: Enhanced symlink handling using compio operations
 - [x] Processes directories in parallel
 - [x] Memory usage scales with directory size
+- [ ] **NEW**: Hardlink detection and preservation working
+- [ ] **NEW**: Filesystem boundary detection implemented
 
 **Testing Requirements:**
 - Unit tests for directory traversal
 - Integration tests with complex directory structures
 - Performance tests with large directory trees
 - Memory usage tests for deep nesting
+- **NEW**: Symlink handling verification tests
+- **NEW**: Hardlink detection and preservation tests
+- **NEW**: Filesystem boundary detection tests
 
 **Phase Completion Workflow:**
-- [x] Run `cargo fmt` to format all code
-- [x] Ensure all directory traversal functions have unit tests
-- [x] Implement system tests (complex directory structure copying)
-- [x] Run `cargo test` - all tests must pass
-- [x] Run `cargo clippy` - resolve all warnings
-- [x] Commit with message: `feat(phase-2): implement directory traversal`
-- [x] Create PR targeting `phase-1` branch
-- [x] Continue on `phase-2` branch for next deliverable
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all directory traversal functions have unit tests
+- [ ] Implement system tests (complex directory structure copying)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-2): enhance directory traversal with compio`
+- [ ] Create PR targeting `phase-1` branch
+- [ ] Continue on `phase-2` branch for next deliverable
 
-#### 2.3 Symlink and Filesystem Operations (Week 6)
+#### 2.3 Custom Async Semaphore Implementation (Week 6) 📋 **PLANNED**
 **Deliverables:**
-- Complete io_uring symlink operations (IORING_OP_SYMLINKAT, IORING_OP_READLINK)
-- Filesystem boundary detection using statx (st_dev comparison)
-- Hardlink detection and creation using io_uring (IORING_OP_STATX, IORING_OP_LINKAT)
-- Cross-filesystem traversal prevention
+- Create `compio-semaphore` subcrate based on tokio patterns
+- Async semaphore implementation with compio runtime integration
+- Queue depth management for io_uring operations
+- Buffer pool coordination and backpressure handling
+- **NEW**: Integration with compio's waker system
 
 **Acceptance Criteria:**
-- [x] io_uring symlink creation and reading operations work correctly
-- [x] Filesystem boundary detection prevents cross-filesystem traversal
-- [x] Hardlink detection identifies existing hardlinks by (st_dev, st_ino) pairs
-- [x] Hardlink creation preserves hardlink relationships
-- [x] Symlink handling preserves symlink targets and metadata
+- [ ] `compio-semaphore` subcrate created and working
+- [ ] Async semaphore implementation follows tokio patterns
+- [ ] Queue depth management prevents memory exhaustion
+- [ ] Buffer pool coordination works with compio managed buffers
+- [ ] **NEW**: Seamless integration with compio runtime
+- [ ] **NEW**: Support for both owned and borrowed permit patterns
 
 **Testing Requirements:**
-- Unit tests for symlink operations
-- Integration tests for filesystem boundary detection
-- Hardlink detection and creation tests
-- Cross-filesystem traversal prevention tests
+- Unit tests for semaphore operations
+- Integration tests for queue depth management
+- Performance tests for backpressure handling
+- Memory usage tests for semaphore coordination
+- **NEW**: compio runtime integration tests
 
 **Phase Completion Workflow:**
-- [x] Run `cargo fmt` to format all code
-- [x] Ensure all symlink and filesystem functions have unit tests
-- [x] Implement system tests (symlink and hardlink operations verification)
-- [x] Run `cargo test` - all tests must pass
-- [x] Run `cargo clippy` - resolve all warnings
-- [x] Commit with message: `feat(phase-2-3): implement symlink and filesystem operations`
-- [x] Create PR targeting `phase-1` branch (final Phase 2 PR)
-- [x] Create new branch `phase-3` for Phase 3 work
+- [ ] Run `cargo fmt` to format all code
+- [ ] Ensure all semaphore functions have unit tests
+- [ ] Implement system tests (queue depth management verification)
+- [ ] Run `cargo test` - all tests must pass
+- [ ] Run `cargo clippy` - resolve all warnings
+- [ ] Commit with message: `feat(phase-2): implement custom async semaphore`
+- [ ] Create PR targeting `phase-1` branch (final Phase 2 PR)
+- [ ] Create new branch `phase-3` for Phase 3 work
 
 ### Phase 3: Advanced Features and Performance (Weeks 7-9)
 
-#### 3.1 Extended Attributes and Advanced Metadata (Week 7)
+#### 3.1 Extended Attributes via compio-fs-extended (Week 7) 📋 **PLANNED**
 **Deliverables:**
-- Complete io_uring xattr implementation using IORING_OP_GETXATTR, IORING_OP_SETXATTR, IORING_OP_LISTXATTR
+- Complete xattr implementation in `compio-fs-extended` using direct syscalls
 - POSIX ACL preservation and copying
 - SELinux context preservation using security.selinux xattr
 - Custom user-defined extended attributes support
 - Fallback mechanisms for filesystems without xattr support
+- **NEW**: Integration with compio's async patterns and error handling
 
 **Acceptance Criteria:**
-- [ ] All extended attributes are preserved using io_uring operations
+- [ ] All extended attributes are preserved using compio async operations
 - [ ] POSIX ACLs are copied correctly with proper permission preservation
 - [ ] SELinux contexts are preserved on SELinux-enabled systems
 - [ ] User-defined attributes work across different filesystem types
 - [ ] Graceful fallback when xattr operations are not supported
-- [ ] Performance is optimal with io_uring vs synchronous xattr calls
+- [ ] **NEW**: Performance is optimal with compio async vs synchronous xattr calls
+- [ ] **NEW**: Integration with compio-fs-extended subcrate architecture
 
 **Testing Requirements:**
 - Unit tests for xattr operations
 - Integration tests with various xattr types
 - ACL preservation verification tests
 - SELinux context tests (on SELinux systems)
+- **NEW**: compio async xattr operation tests
 
 **Phase Completion Workflow:**
 - [ ] Run `cargo fmt` to format all code
@@ -349,66 +460,73 @@ This ensures incremental review and allows for easy rollback if needed.
 - [ ] Implement system tests (xattr preservation verification)
 - [ ] Run `cargo test` - all tests must pass
 - [ ] Run `cargo clippy` - resolve all warnings
-- [ ] Commit with message: `feat(phase-3): implement extended attributes support`
+- [ ] Commit with message: `feat(phase-3): implement extended attributes via compio`
 - [ ] Create PR targeting `phase-2` branch
 - [ ] Continue on `phase-3` branch for next deliverable
 
-#### 3.2 Per-CPU Queue Architecture and Parallelism (Week 8)
+#### 3.2 Per-CPU compio Runtime Architecture (Week 8) 📋 **PLANNED**
 **Deliverables:**
-- Per-CPU io_uring instances with thread pinning
+- Per-CPU compio runtime instances with thread pinning
 - CPU affinity management and work distribution
-- Configurable queue depths and load balancing
+- Configurable queue depths using custom semaphore
 - Performance scaling with CPU core count
-- Memory-efficient per-CPU buffer management
+- Memory-efficient per-CPU buffer management with compio
+- **NEW**: Integration with compio-semaphore for queue depth control
 
 **Acceptance Criteria:**
-- [ ] Each CPU core has its own dedicated io_uring instance
+- [ ] Each CPU core has its own dedicated compio runtime instance
 - [ ] Threads are pinned to specific CPU cores for optimal performance
 - [ ] Work is distributed evenly across all available CPUs
-- [ ] Queue depths are configurable and bounded to prevent memory exhaustion
+- [ ] Queue depths are configurable using compio-semaphore
 - [ ] Linear performance scaling with CPU count up to 32 cores
-- [ ] Memory usage remains reasonable with per-CPU architecture
+- [ ] **NEW**: Memory usage remains reasonable with per-CPU compio architecture
+- [ ] **NEW**: compio managed buffers work efficiently across CPU cores
 
 **Testing Requirements:**
-- Unit tests for per-CPU queue management
+- Unit tests for per-CPU compio runtime management
 - Performance tests with different CPU counts (1, 2, 4, 8, 16, 32 cores)
 - Load balancing verification tests
-- Memory usage tests for per-CPU architecture
+- Memory usage tests for per-CPU compio architecture
 - Scalability benchmarks comparing single vs multi-CPU performance
+- **NEW**: compio runtime isolation tests across CPU cores
 
 **Phase Completion Workflow:**
 - [ ] Run `cargo fmt` to format all code
-- [ ] Ensure all per-CPU queue functions have unit tests
+- [ ] Ensure all per-CPU compio functions have unit tests
 - [ ] Implement system tests (multi-CPU performance verification)
 - [ ] Run `cargo test` - all tests must pass
 - [ ] Run `cargo clippy` - resolve all warnings
-- [ ] Commit with message: `feat(phase-3): implement per-CPU queue architecture`
+- [ ] Commit with message: `feat(phase-3): implement per-CPU compio architecture`
 - [ ] Create PR targeting `phase-2` branch
 - [ ] Continue on `phase-3` branch for next deliverable
 
-#### 3.3 Direct I/O and Performance Optimization (Week 9)
+#### 3.3 Advanced Performance Optimization with fadvise (Week 9) 📋 **PLANNED**
 **Deliverables:**
-- O_DIRECT support with aligned buffer management
+- **NEW**: posix_fadvise support for large file optimization (preferred over O_DIRECT)
 - File preallocation using fallocate for optimal performance
-- Buffer pooling and memory reuse strategies
+- Buffer pooling and memory reuse strategies with compio managed buffers
 - Memory-mapped file support for very large files
 - Advanced batching strategies to reduce system call overhead
 - Performance profiling and optimization tools
+- **NEW**: Integration with compio-fs-extended for advanced file operations
 
 **Acceptance Criteria:**
-- [ ] O_DIRECT operations work correctly with aligned buffers
+- [ ] **NEW**: posix_fadvise optimizations improve performance for large files
 - [ ] File preallocation improves copy performance for large files
 - [ ] Buffer pooling reduces memory allocations and improves throughput
 - [ ] Memory-mapped files provide optimal performance for very large files
 - [ ] Batching strategies reduce system call overhead
 - [ ] Performance meets or exceeds targets: >500 MB/s for same-filesystem copies
-- [ ] Memory usage remains under 100MB base + 1MB per 1000 files
+- [ ] **NEW**: Memory usage remains under 100MB base + 1MB per 1000 files with compio
+- [ ] **NEW**: fadvise provides better performance than O_DIRECT for large file copies
 
 **Testing Requirements:**
 - Performance benchmarks for all optimizations
 - Memory usage tests for buffer pooling
 - Large file performance tests
 - System resource utilization tests
+- **NEW**: fadvise vs O_DIRECT performance comparison tests
+- **NEW**: compio managed buffer optimization tests
 
 ### Phase 4: Production Readiness and Release (Weeks 10-12)
 
@@ -487,29 +605,38 @@ This ensures incremental review and allows for easy rollback if needed.
 ## Success Metrics
 
 ### Performance Targets
-- **Throughput**: >500 MB/s for same-filesystem copies on SSD
-- **Latency**: <1ms per operation for small files
-- **Scalability**: Linear scaling with CPU cores up to 32 cores
-- **Memory**: <100MB base memory usage + 1MB per 1000 files
+- **Throughput**: >500 MB/s for same-filesystem copies on SSD (using copy_file_range + fadvise)
+- **Latency**: <1ms per operation for small files (using compio managed buffers)
+- **Scalability**: Linear scaling with CPU cores up to 32 cores (using per-CPU compio runtimes)
+- **Memory**: <100MB base memory usage + 1MB per 1000 files (using compio managed buffer pools)
+- **NEW**: Queue Depth Management: Configurable semaphore limits prevent memory exhaustion
+- **NEW**: File Access Optimization: fadvise hints improve large file copy performance
 
 ### Quality Targets
 - **Test Coverage**: >90% code coverage
 - **Error Handling**: Graceful handling of all error conditions
 - **Documentation**: 100% public API documentation
-- **Compatibility**: Support for Linux kernel 5.6+ and Rust 1.70+
+- **Compatibility**: Support for Linux kernel 5.6+ and Rust 1.90+
+- **NEW**: compio Integration: All operations use compio async patterns
+- **NEW**: Subcrate Architecture: Modular design with compio-fs-extended and compio-semaphore
 
 ### Reliability Targets
 - **Data Integrity**: 100% file integrity verification
-- **Metadata Preservation**: Complete metadata preservation
+- **Metadata Preservation**: Complete metadata preservation using compio::fs
 - **Error Recovery**: Recovery from all transient failures
 - **Stability**: No memory leaks or crashes under normal operation
+- **NEW**: Queue Management: Semaphore prevents resource exhaustion
+- **NEW**: Buffer Safety: compio managed buffers prevent memory leaks
 
 ## Risk Mitigation
 
 ### Technical Risks
-- **io_uring Library Gaps**: Mitigated by direct liburing implementation
+- **compio Library Gaps**: Mitigated by compio-fs-extended subcrate with direct syscalls
+- **Async Semaphore Implementation**: Mitigated by following proven tokio patterns
 - **Cross-platform Compatibility**: Mitigated by comprehensive testing matrix
 - **Performance Regression**: Mitigated by automated performance testing
+- **NEW**: compio Runtime Stability: Mitigated by using stable compio v0.16.0
+- **NEW**: Buffer Management**: Mitigated by compio's managed buffer system
 
 ### Project Risks
 - **Scope Creep**: Mitigated by strict phase boundaries and acceptance criteria
@@ -527,5 +654,9 @@ This ensures incremental review and allows for easy rollback if needed.
 - [Rust Error Handling](https://doc.rust-lang.org/book/ch09-00-error-handling.html)
 - [Async Rust Best Practices](https://rust-lang.github.io/async-book/)
 - [Criterion.rs Documentation](https://docs.rs/criterion/)
+- **NEW**: [compio Repository](https://github.com/compio-rs/compio)
+- **NEW**: [compio Documentation](https://docs.rs/compio)
+- **NEW**: [posix_fadvise Documentation](https://man7.org/linux/man-pages/man2/posix_fadvise.2.html)
+- **NEW**: [Tokio Semaphore Implementation](https://github.com/tokio-rs/tokio/blob/master/tokio/src/sync/semaphore.rs)
 
 This implementation plan provides a clear roadmap for delivering a production-ready io_uring-sync utility with comprehensive testing, documentation, and performance optimization.
