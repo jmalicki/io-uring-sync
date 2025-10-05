@@ -5,8 +5,8 @@
 
 use io_uring_sync::copy::copy_file;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, SystemTime};
 use tempfile::TempDir;
 
@@ -19,11 +19,11 @@ async fn test_permission_preservation_special_bits() {
 
     // Create source file
     fs::write(&src_path, "Test content for special permission bits").unwrap();
-    
+
     // Test special permission bits (these may not work on all systems)
     let special_permissions = vec![
         0o4755, // setuid bit
-        0o2755, // setgid bit  
+        0o2755, // setgid bit
         0o1755, // sticky bit
         0o6755, // setuid + setgid
     ];
@@ -43,13 +43,17 @@ async fn test_permission_preservation_special_bits() {
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
         let dst_permissions = dst_metadata.permissions().mode();
-        
-        println!("Special bits test - Expected: {:o}, Actual: {:o}", 
-                expected_permissions, dst_permissions);
-        
+
+        println!(
+            "Special bits test - Expected: {:o}, Actual: {:o}",
+            expected_permissions, dst_permissions
+        );
+
         // Special bits may not be preserved on all systems, so we check if they match
-        assert_eq!(expected_permissions, dst_permissions, 
-                  "Special permission bits should be preserved when supported");
+        assert_eq!(
+            expected_permissions, dst_permissions,
+            "Special permission bits should be preserved when supported"
+        );
     }
 }
 
@@ -62,27 +66,20 @@ async fn test_timestamp_preservation_old_timestamps() {
 
     // Create source file
     fs::write(&src_path, "Test content with old timestamp").unwrap();
-    
+
     // Set a very old timestamp (year 2000)
     let _old_time = SystemTime::UNIX_EPOCH + Duration::from_secs(946684800); // Jan 1, 2000
     let old_timespec = libc::timespec {
         tv_sec: 946684800,
         tv_nsec: 0,
     };
-    
+
     // Use utimes to set the old timestamp
     let path_cstr = std::ffi::CString::new(src_path.as_os_str().as_bytes()).unwrap();
     let times = [old_timespec, old_timespec];
-    
-    let result = unsafe {
-        libc::utimensat(
-            libc::AT_FDCWD,
-            path_cstr.as_ptr(),
-            times.as_ptr(),
-            0,
-        )
-    };
-    
+
+    let result = unsafe { libc::utimensat(libc::AT_FDCWD, path_cstr.as_ptr(), times.as_ptr(), 0) };
+
     if result == 0 {
         // Copy the file
         copy_file(&src_path, &dst_path).await.unwrap();
@@ -91,20 +88,38 @@ async fn test_timestamp_preservation_old_timestamps() {
         let dst_metadata = fs::metadata(&dst_path).unwrap();
         let copied_accessed = dst_metadata.accessed().unwrap();
         let copied_modified = dst_metadata.modified().unwrap();
-        
+
         // Check that timestamps are close to the old time
         let expected_duration = Duration::from_secs(946684800);
-        let accessed_duration = copied_accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-        let modified_duration = copied_modified.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-        
-        println!("Old timestamp test - Expected: {}s, Accessed: {}s, Modified: {}s",
-                expected_duration.as_secs(), accessed_duration.as_secs(), modified_duration.as_secs());
-        
+        let accessed_duration = copied_accessed
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
+        let modified_duration = copied_modified
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
+
+        println!(
+            "Old timestamp test - Expected: {}s, Accessed: {}s, Modified: {}s",
+            expected_duration.as_secs(),
+            accessed_duration.as_secs(),
+            modified_duration.as_secs()
+        );
+
         // Allow some tolerance for timestamp precision
-        assert!(accessed_duration.as_secs().abs_diff(expected_duration.as_secs()) < 2,
-               "Old accessed timestamp should be preserved");
-        assert!(modified_duration.as_secs().abs_diff(expected_duration.as_secs()) < 2,
-               "Old modified timestamp should be preserved");
+        assert!(
+            accessed_duration
+                .as_secs()
+                .abs_diff(expected_duration.as_secs())
+                < 2,
+            "Old accessed timestamp should be preserved"
+        );
+        assert!(
+            modified_duration
+                .as_secs()
+                .abs_diff(expected_duration.as_secs())
+                < 2,
+            "Old modified timestamp should be preserved"
+        );
     }
 }
 
@@ -117,27 +132,20 @@ async fn test_timestamp_preservation_future_timestamps() {
 
     // Create source file
     fs::write(&src_path, "Test content with future timestamp").unwrap();
-    
+
     // Set a future timestamp (year 2030)
     let _future_time = SystemTime::UNIX_EPOCH + Duration::from_secs(1893456000); // Jan 1, 2030
     let future_timespec = libc::timespec {
         tv_sec: 1893456000,
         tv_nsec: 0,
     };
-    
+
     // Use utimes to set the future timestamp
     let path_cstr = std::ffi::CString::new(src_path.as_os_str().as_bytes()).unwrap();
     let times = [future_timespec, future_timespec];
-    
-    let result = unsafe {
-        libc::utimensat(
-            libc::AT_FDCWD,
-            path_cstr.as_ptr(),
-            times.as_ptr(),
-            0,
-        )
-    };
-    
+
+    let result = unsafe { libc::utimensat(libc::AT_FDCWD, path_cstr.as_ptr(), times.as_ptr(), 0) };
+
     if result == 0 {
         // Copy the file
         copy_file(&src_path, &dst_path).await.unwrap();
@@ -146,20 +154,38 @@ async fn test_timestamp_preservation_future_timestamps() {
         let dst_metadata = fs::metadata(&dst_path).unwrap();
         let copied_accessed = dst_metadata.accessed().unwrap();
         let copied_modified = dst_metadata.modified().unwrap();
-        
+
         // Check that timestamps are close to the future time
         let expected_duration = Duration::from_secs(1893456000);
-        let accessed_duration = copied_accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-        let modified_duration = copied_modified.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-        
-        println!("Future timestamp test - Expected: {}s, Accessed: {}s, Modified: {}s",
-                expected_duration.as_secs(), accessed_duration.as_secs(), modified_duration.as_secs());
-        
+        let accessed_duration = copied_accessed
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
+        let modified_duration = copied_modified
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
+
+        println!(
+            "Future timestamp test - Expected: {}s, Accessed: {}s, Modified: {}s",
+            expected_duration.as_secs(),
+            accessed_duration.as_secs(),
+            modified_duration.as_secs()
+        );
+
         // Allow some tolerance for timestamp precision
-        assert!(accessed_duration.as_secs().abs_diff(expected_duration.as_secs()) < 2,
-               "Future accessed timestamp should be preserved");
-        assert!(modified_duration.as_secs().abs_diff(expected_duration.as_secs()) < 2,
-               "Future modified timestamp should be preserved");
+        assert!(
+            accessed_duration
+                .as_secs()
+                .abs_diff(expected_duration.as_secs())
+                < 2,
+            "Future accessed timestamp should be preserved"
+        );
+        assert!(
+            modified_duration
+                .as_secs()
+                .abs_diff(expected_duration.as_secs())
+                < 2,
+            "Future modified timestamp should be preserved"
+        );
     }
 }
 
@@ -172,7 +198,7 @@ async fn test_permission_preservation_restrictive_permissions() {
 
     // Create source file
     fs::write(&src_path, "Test content with restrictive permissions").unwrap();
-    
+
     // Test very restrictive permissions
     let restrictive_permissions = vec![
         0o000, // no permissions at all
@@ -202,12 +228,17 @@ async fn test_permission_preservation_restrictive_permissions() {
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
         let dst_permissions = dst_metadata.permissions().mode();
-        
-        println!("Restrictive permissions test - Mode: {:o}, Expected: {:o}, Actual: {:o}", 
-                permission_mode, expected_permissions, dst_permissions);
-        
-        assert_eq!(expected_permissions, dst_permissions, 
-                  "Restrictive permission mode {:o} should be preserved", permission_mode);
+
+        println!(
+            "Restrictive permissions test - Mode: {:o}, Expected: {:o}, Actual: {:o}",
+            permission_mode, expected_permissions, dst_permissions
+        );
+
+        assert_eq!(
+            expected_permissions, dst_permissions,
+            "Restrictive permission mode {:o} should be preserved",
+            permission_mode
+        );
     }
 }
 
@@ -220,7 +251,7 @@ async fn test_timestamp_preservation_nanosecond_edge_cases() {
 
     // Create source file
     fs::write(&src_path, "Test content for nanosecond edge cases").unwrap();
-    
+
     // Test various nanosecond precision scenarios
     let nanosecond_tests = vec![
         (0, "zero nanoseconds"),
@@ -233,28 +264,25 @@ async fn test_timestamp_preservation_nanosecond_edge_cases() {
     for (nanoseconds, description) in &nanosecond_tests {
         // Set timestamp with specific nanosecond precision
         let now = SystemTime::now();
-        let duration = now.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
+        let duration = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
         let base_seconds = duration.as_secs();
-        
-        let _precise_time = SystemTime::UNIX_EPOCH + Duration::new(base_seconds, *nanoseconds as u32);
+
+        let _precise_time =
+            SystemTime::UNIX_EPOCH + Duration::new(base_seconds, *nanoseconds as u32);
         let precise_timespec = libc::timespec {
             tv_sec: base_seconds as i64,
             tv_nsec: *nanoseconds as i64,
         };
-        
+
         // Use utimes to set the precise timestamp
         let path_cstr = std::ffi::CString::new(src_path.as_os_str().as_bytes()).unwrap();
         let times = [precise_timespec, precise_timespec];
-        
-        let result = unsafe {
-            libc::utimensat(
-                libc::AT_FDCWD,
-                path_cstr.as_ptr(),
-                times.as_ptr(),
-                0,
-            )
-        };
-        
+
+        let result =
+            unsafe { libc::utimensat(libc::AT_FDCWD, path_cstr.as_ptr(), times.as_ptr(), 0) };
+
         if result == 0 {
             // Copy the file
             copy_file(&src_path, &dst_path).await.unwrap();
@@ -263,23 +291,37 @@ async fn test_timestamp_preservation_nanosecond_edge_cases() {
             let dst_metadata = fs::metadata(&dst_path).unwrap();
             let copied_accessed = dst_metadata.accessed().unwrap();
             let copied_modified = dst_metadata.modified().unwrap();
-            
-            let accessed_duration = copied_accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-            let modified_duration = copied_modified.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-            
-            println!("{} - Expected: {}ns, Accessed: {}ns, Modified: {}ns",
-                    description, nanoseconds, 
-                    accessed_duration.subsec_nanos(), modified_duration.subsec_nanos());
-            
+
+            let accessed_duration = copied_accessed
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default();
+            let modified_duration = copied_modified
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default();
+
+            println!(
+                "{} - Expected: {}ns, Accessed: {}ns, Modified: {}ns",
+                description,
+                nanoseconds,
+                accessed_duration.subsec_nanos(),
+                modified_duration.subsec_nanos()
+            );
+
             // Check that nanosecond precision is preserved (within reasonable tolerance)
             let accessed_nanos = accessed_duration.subsec_nanos();
             let modified_nanos = modified_duration.subsec_nanos();
-            
+
             // Allow some tolerance for system precision
-            assert!(accessed_nanos.abs_diff(*nanoseconds as u32) < 1000,
-                   "Accessed nanosecond precision should be preserved for {}", description);
-            assert!(modified_nanos.abs_diff(*nanoseconds as u32) < 1000,
-                   "Modified nanosecond precision should be preserved for {}", description);
+            assert!(
+                accessed_nanos.abs_diff(*nanoseconds as u32) < 1000,
+                "Accessed nanosecond precision should be preserved for {}",
+                description
+            );
+            assert!(
+                modified_nanos.abs_diff(*nanoseconds as u32) < 1000,
+                "Modified nanosecond precision should be preserved for {}",
+                description
+            );
         }
     }
 }
@@ -293,7 +335,7 @@ async fn test_permission_preservation_umask_interaction() {
 
     // Create source file
     fs::write(&src_path, "Test content for umask interaction").unwrap();
-    
+
     // Test various permission modes that might interact with umask
     let umask_test_permissions = vec![
         0o777, // full permissions
@@ -319,12 +361,17 @@ async fn test_permission_preservation_umask_interaction() {
         // Check that permissions were preserved exactly as they were set
         let dst_metadata = fs::metadata(&dst_path).unwrap();
         let dst_permissions = dst_metadata.permissions().mode();
-        
-        println!("Umask interaction test - Requested: {:o}, Expected: {:o}, Actual: {:o}", 
-                permission_mode, expected_permissions, dst_permissions);
-        
-        assert_eq!(expected_permissions, dst_permissions, 
-                  "Permission mode {:o} should be preserved exactly as set", permission_mode);
+
+        println!(
+            "Umask interaction test - Requested: {:o}, Expected: {:o}, Actual: {:o}",
+            permission_mode, expected_permissions, dst_permissions
+        );
+
+        assert_eq!(
+            expected_permissions, dst_permissions,
+            "Permission mode {:o} should be preserved exactly as set",
+            permission_mode
+        );
     }
 }
 
@@ -332,7 +379,7 @@ async fn test_permission_preservation_umask_interaction() {
 #[compio::test]
 async fn test_concurrent_metadata_preservation() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Create multiple source files with different permissions and timestamps
     let test_files = vec![
         ("file1.txt", 0o644, "Content 1"),
@@ -346,10 +393,10 @@ async fn test_concurrent_metadata_preservation() {
     for (filename, permissions, content) in test_files {
         let src_path = temp_dir.path().join(filename);
         let dst_path = temp_dir.path().join(format!("{}_copy", filename));
-        
+
         // Create source file
         fs::write(&src_path, content).unwrap();
-        
+
         // Set specific permissions
         let perms = std::fs::Permissions::from_mode(permissions);
         fs::set_permissions(&src_path, perms).unwrap();
@@ -361,28 +408,38 @@ async fn test_concurrent_metadata_preservation() {
         // Spawn concurrent copy task
         let handle = compio::runtime::spawn(async move {
             copy_file(&src_path, &dst_path).await.unwrap();
-            
+
             // Verify permissions were preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
             let dst_permissions = dst_metadata.permissions().mode();
-            
-            assert_eq!(expected_permissions, dst_permissions, 
-                      "Concurrent copy should preserve permissions for {}", filename);
-            
+
+            assert_eq!(
+                expected_permissions, dst_permissions,
+                "Concurrent copy should preserve permissions for {}",
+                filename
+            );
+
             (filename.to_string(), expected_permissions, dst_permissions)
         });
-        
+
         handles.push(handle);
     }
 
     // Wait for all concurrent operations to complete
     let results = futures::future::join_all(handles).await;
-    
+
     // Verify all operations succeeded
     for result in results {
         let (filename, expected, actual) = result.unwrap();
-        println!("Concurrent test - {}: Expected {:o}, Actual {:o}", filename, expected, actual);
-        assert_eq!(expected, actual, "Concurrent metadata preservation should work for {}", filename);
+        println!(
+            "Concurrent test - {}: Expected {:o}, Actual {:o}",
+            filename, expected, actual
+        );
+        assert_eq!(
+            expected, actual,
+            "Concurrent metadata preservation should work for {}",
+            filename
+        );
     }
 }
 
@@ -396,7 +453,7 @@ async fn test_metadata_preservation_large_file_stress() {
     // Create a large file (10MB) to stress test metadata preservation
     let large_content = "A".repeat(10 * 1024 * 1024); // 10MB
     fs::write(&src_path, &large_content).unwrap();
-    
+
     // Set specific permissions
     let permissions = std::fs::Permissions::from_mode(0o755);
     fs::set_permissions(&src_path, permissions).unwrap();
@@ -412,23 +469,42 @@ async fn test_metadata_preservation_large_file_stress() {
 
     // Verify file content
     let copied_content = fs::read_to_string(&dst_path).unwrap();
-    assert_eq!(copied_content, large_content, "Large file content should be preserved");
+    assert_eq!(
+        copied_content, large_content,
+        "Large file content should be preserved"
+    );
 
     // Check that permissions were preserved
     let dst_metadata = fs::metadata(&dst_path).unwrap();
     let dst_permissions = dst_metadata.permissions().mode();
-    assert_eq!(expected_permissions, dst_permissions, "Permissions should be preserved for large files");
+    assert_eq!(
+        expected_permissions, dst_permissions,
+        "Permissions should be preserved for large files"
+    );
 
     // Check that timestamps were preserved
     let copied_accessed = dst_metadata.accessed().unwrap();
     let copied_modified = dst_metadata.modified().unwrap();
-    
-    let accessed_diff = copied_accessed.duration_since(original_accessed).unwrap_or_default();
-    let modified_diff = copied_modified.duration_since(original_modified).unwrap_or_default();
-    
-    println!("Large file stress test - Accessed diff: {}ms, Modified diff: {}ms", 
-            accessed_diff.as_millis(), modified_diff.as_millis());
-    
-    assert!(accessed_diff.as_millis() < 1000, "Accessed time should be preserved for large files");
-    assert!(modified_diff.as_millis() < 1000, "Modified time should be preserved for large files");
+
+    let accessed_diff = copied_accessed
+        .duration_since(original_accessed)
+        .unwrap_or_default();
+    let modified_diff = copied_modified
+        .duration_since(original_modified)
+        .unwrap_or_default();
+
+    println!(
+        "Large file stress test - Accessed diff: {}ms, Modified diff: {}ms",
+        accessed_diff.as_millis(),
+        modified_diff.as_millis()
+    );
+
+    assert!(
+        accessed_diff.as_millis() < 1000,
+        "Accessed time should be preserved for large files"
+    );
+    assert!(
+        modified_diff.as_millis() < 1000,
+        "Modified time should be preserved for large files"
+    );
 }
