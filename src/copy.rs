@@ -271,7 +271,7 @@ async fn set_dst_timestamps(dst: &Path, accessed: SystemTime, modified: SystemTi
     preserve_timestamps_nanoseconds(dst, accessed, modified).await
 }
 
-/// Get precise timestamps using `libc::stat` for nanosecond precision
+/// Get precise timestamps using `statx` when available (fallback to `stat`) for nanosecond precision
 ///
 /// This function uses the stat system call to get timestamps with full
 /// nanosecond precision, which is more accurate than `std::fs::metadata()`.
@@ -291,32 +291,76 @@ async fn get_precise_timestamps(path: &Path) -> Result<(SystemTime, SystemTime)>
     let path_cstr = CString::new(path.as_os_str().as_bytes())
         .map_err(|e| SyncError::FileSystem(format!("Invalid path for timestamp reading: {e}")))?;
 
-    // Use spawn_blocking for the syscall since compio doesn't have stat support
-    compio::runtime::spawn_blocking(move || {
-        let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
-        let result = unsafe { libc::stat(path_cstr.as_ptr(), &raw mut stat_buf) };
-
-        if result == -1 {
-            let errno = std::io::Error::last_os_error();
-            Err(SyncError::FileSystem(format!(
-                "stat failed: {errno} (errno: {})",
-                errno.raw_os_error().unwrap_or(-1)
-            )))
-        } else {
-            // Convert timespec to SystemTime
-            let accessed_nanos: u32 = u32::try_from(stat_buf.st_atime_nsec).unwrap_or(0);
-            let modified_nanos: u32 = u32::try_from(stat_buf.st_mtime_nsec).unwrap_or(0);
-            #[allow(clippy::cast_sign_loss)]
-            let accessed = SystemTime::UNIX_EPOCH
-                + std::time::Duration::new(stat_buf.st_atime as u64, accessed_nanos);
-            #[allow(clippy::cast_sign_loss)]
-            let modified = SystemTime::UNIX_EPOCH
-                + std::time::Duration::new(stat_buf.st_mtime as u64, modified_nanos);
-            Ok((accessed, modified))
+    // Prefer statx when available
+    let statx_result: Result<(SystemTime, SystemTime)> = compio::runtime::spawn_blocking({
+        let path_cstr = path_cstr.clone();
+        move || {
+            let path_ptr = path_cstr.as_ptr();
+            // statx flags: AT_FDCWD, path, AT_SYMLINK_NOFOLLOW (0), STATX_BASIC_STATS
+            let mut buf: libc::statx = unsafe { std::mem::zeroed() };
+            let rc = unsafe {
+                libc::statx(
+                    libc::AT_FDCWD,
+                    path_ptr,
+                    0,
+                    0x0000_07ffu32 as libc::c_uint,
+                    &raw mut buf,
+                )
+            };
+            if rc == 0 {
+                // Use stx_atime and stx_mtime with nanoseconds
+                let atime_secs = u64::try_from(buf.stx_atime.tv_sec).unwrap_or(0);
+                let atime_nanos = buf.stx_atime.tv_nsec;
+                let mtime_secs = u64::try_from(buf.stx_mtime.tv_sec).unwrap_or(0);
+                let mtime_nanos = buf.stx_mtime.tv_nsec;
+                let atime =
+                    SystemTime::UNIX_EPOCH + std::time::Duration::new(atime_secs, atime_nanos);
+                let mtime =
+                    SystemTime::UNIX_EPOCH + std::time::Duration::new(mtime_secs, mtime_nanos);
+                Ok((atime, mtime))
+            } else {
+                let errno = std::io::Error::last_os_error();
+                Err(SyncError::FileSystem(format!(
+                    "statx failed: {errno} (errno: {})",
+                    errno.raw_os_error().unwrap_or(-1)
+                )))
+            }
         }
     })
     .await
-    .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?
+    .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?;
+
+    match statx_result {
+        Ok(r) => Ok(r),
+        Err(_) => {
+            // Fallback to stat
+            compio::runtime::spawn_blocking(move || {
+                let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+                let result = unsafe { libc::stat(path_cstr.as_ptr(), &raw mut stat_buf) };
+
+                if result == -1 {
+                    let errno = std::io::Error::last_os_error();
+                    Err(SyncError::FileSystem(format!(
+                        "stat failed: {errno} (errno: {})",
+                        errno.raw_os_error().unwrap_or(-1)
+                    )))
+                } else {
+                    // Convert timespec to SystemTime
+                    let accessed_nanos: u32 = u32::try_from(stat_buf.st_atime_nsec).unwrap_or(0);
+                    let modified_nanos: u32 = u32::try_from(stat_buf.st_mtime_nsec).unwrap_or(0);
+                    #[allow(clippy::cast_sign_loss)]
+                    let accessed = SystemTime::UNIX_EPOCH
+                        + std::time::Duration::new(stat_buf.st_atime as u64, accessed_nanos);
+                    #[allow(clippy::cast_sign_loss)]
+                    let modified = SystemTime::UNIX_EPOCH
+                        + std::time::Duration::new(stat_buf.st_mtime as u64, modified_nanos);
+                    Ok((accessed, modified))
+                }
+            })
+            .await
+            .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?
+        }
+    }
 }
 
 /// Preserve timestamps with nanosecond precision using utimensat
