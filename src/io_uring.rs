@@ -86,6 +86,7 @@ impl FileOperations {
     /// This function will return an error if:
     /// - Buffer size is invalid (must be > 0)
     /// - Memory allocation fails
+    #[allow(clippy::unnecessary_wraps)]
     pub const fn new(_queue_depth: usize, buffer_size: usize) -> Result<Self> {
         // For Phase 1.2, we'll use async I/O as a foundation
         // TODO: Implement actual io_uring integration in future phases
@@ -115,6 +116,7 @@ impl FileOperations {
     /// - File copying operation fails (I/O errors, permission issues)
     /// - Metadata preservation fails
     #[allow(dead_code, clippy::future_not_send)]
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub async fn copy_file_read_write(&mut self, src: &Path, dst: &Path) -> Result<()> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {
@@ -393,6 +395,7 @@ impl FileOperations {
     /// - File copying operation fails (I/O errors, permission issues)
     /// - Metadata preservation fails
     #[allow(clippy::future_not_send)]
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub async fn copy_file_with_metadata(&mut self, src: &Path, dst: &Path) -> Result<u64> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {

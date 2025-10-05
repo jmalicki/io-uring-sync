@@ -4,7 +4,6 @@
 [config]
 # Default task to run when no task is specified
 default_to_workspace = false
-skip_core_tasks = ["empty"]
 
 [tasks.help]
 description = "Show available tasks and their descriptions"
@@ -50,7 +49,7 @@ args = [
     "--all-features",
     "--",
     "-D", "warnings",
-    "-D", "clippy::missing_docs_in_crate_items",
+    "-D", "clippy::missing_docs_in_private_items",
     "-D", "clippy::missing_errors_doc",
     "-D", "clippy::missing_panics_doc",
     "-D", "clippy::must_use_candidate",
@@ -162,7 +161,13 @@ args = ["clippy", "--release", "--all-targets", "--all-features", "--", "-D", "w
 [tasks.coverage]
 description = "Generate test coverage report (requires cargo-tarpaulin)"
 command = "cargo"
-args = ["tarpaulin", "--all-features", "--out", "Html", "--output-dir", "coverage"]
+args = [
+    "tarpaulin",
+    "--all-features",
+    "--ignore-ignored",    # skip tests marked with #[ignore]
+    "--out", "Html",
+    "--output-dir", "coverage",
+]
 
 # Workspace tasks
 [tasks.workspace-test]

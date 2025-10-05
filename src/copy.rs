@@ -46,6 +46,10 @@ use std::fs::metadata;
 use std::path::Path;
 use std::time::SystemTime;
 
+/// Default I/O buffer size (in bytes) used for chunked read/write operations.
+///
+/// Chosen to balance syscall overhead and memory usage. Adjust if profiling
+/// indicates different optimal sizes for specific workloads.
 const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer
 
 /// Copy a single file using the specified method

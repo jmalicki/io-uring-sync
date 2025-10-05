@@ -153,7 +153,10 @@ async fn test_permission_preservation_execute_only() {
                 continue;
             }
             Err(e) => {
-                panic!("Unexpected error copying file: {}", e);
+                assert!(
+                    e.to_string().is_empty(),
+                    "Unexpected error copying file: {e}"
+                );
             }
         }
 
@@ -288,7 +291,10 @@ async fn test_permission_preservation_all_bits() {
                 continue;
             }
             Err(e) => {
-                panic!("Unexpected error copying file: {}", e);
+                assert!(
+                    e.to_string().is_empty(),
+                    "Unexpected error copying file: {e}"
+                );
             }
         }
 

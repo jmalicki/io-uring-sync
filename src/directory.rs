@@ -814,6 +814,24 @@ async fn process_directory_entry_with_compio(
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::future_not_send)]
 #[allow(clippy::used_underscore_binding)]
+/// Process a regular file during directory traversal.
+///
+/// This handles hardlink detection via `FilesystemTracker`, creating a
+/// hardlink when possible or copying file contents otherwise. On successful
+/// copy/link creation, it updates shared statistics and tracker state.
+///
+/// # Parameters
+/// - `src_path`: Source file path to process
+/// - `dst_path`: Destination file path
+/// - `metadata`: Extended source metadata used for decisions (size, inode, links)
+/// - `_file_ops`: File operations handle (reserved for future metadata work)
+/// - `_copy_method`: Copy method placeholder (currently unified to read/write)
+/// - `stats`: Shared stats accumulator updated on success/error
+/// - `hardlink_tracker`: Shared tracker for inode-based hardlink handling
+///
+/// # Errors
+/// Returns an error if hardlink handling fails in an unrecoverable way or if
+/// filesystem operations cannot be performed.
 async fn process_file(
     src_path: PathBuf,
     dst_path: PathBuf,
