@@ -1,0 +1,46 @@
+[package]
+name = "compio-fs-extended"
+version = "0.1.0"
+edition = "2021"
+description = "Extended filesystem operations for compio with copy_file_range, fadvise, symlinks, and xattr support"
+license = "MIT"
+repository = "https://github.com/jmalicki/io_uring_sync"
+documentation = "https://docs.rs/compio-fs-extended"
+keywords = ["async", "io_uring", "filesystem", "compio", "copy_file_range", "xattr"]
+categories = ["asynchronous", "filesystem"]
+
+[dependencies]
+# Core compio dependencies
+compio = { version = "0.16", features = ["macros", "dispatcher"] }
+compio-fs = "0.9"
+
+# System call dependencies
+libc = "0.2"
+
+# Error handling
+thiserror = "1.0"
+
+# Async utilities
+futures = "0.3"
+
+# Logging (optional)
+log = "0.4"
+
+[dev-dependencies]
+# Testing dependencies
+tempfile = "3.0"
+tokio = { version = "1.0", features = ["full"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[features]
+default = []
+# Enable xattr support (requires io_uring opcodes)
+xattr = []
+# Enable performance metrics
+metrics = []
+# Enable logging integration
+logging = []
+
+# [[bench]]
+# name = "copy_file_range_bench"
+# harness = false

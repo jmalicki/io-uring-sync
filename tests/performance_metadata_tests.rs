@@ -349,11 +349,7 @@ async fn test_metadata_preservation_alternating_permissions() {
             1 => 0o755, // executable
             2 => 0o600, // owner only
             3 => 0o777, // all permissions
-            _ => {
-                // This branch should never be taken; enforce with a failing assertion
-                assert!((0..=3).contains(&(i % 4)), "invalid branch for i={i}");
-                0o644
-            }
+            _ => unreachable!(),
         };
 
         let permissions = std::fs::Permissions::from_mode(permission_mode);
@@ -442,10 +438,7 @@ async fn test_metadata_preservation_specific_permissions() {
                 continue;
             }
             Err(e) => {
-                assert!(
-                    e.to_string().is_empty(),
-                    "Unexpected error copying file: {e}"
-                );
+                panic!("Unexpected error copying file: {}", e);
             }
         }
 
