@@ -18,6 +18,7 @@ use test_utils::test_timeout_guard;
 /// Test metadata preservation performance with many small files
 #[compio::test]
 async fn test_metadata_preservation_many_small_files() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(180));
     let temp_dir = TempDir::new().unwrap();
     let num_files = 100;
 
@@ -67,6 +68,7 @@ async fn test_metadata_preservation_many_small_files() {
 /// Test metadata preservation with rapid sequential operations
 #[compio::test]
 async fn test_metadata_preservation_rapid_sequential() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(180));
     let temp_dir = TempDir::new().unwrap();
     let num_operations = 50;
 
@@ -108,6 +110,7 @@ async fn test_metadata_preservation_rapid_sequential() {
 /// Test metadata preservation with mixed file sizes
 #[compio::test]
 async fn test_metadata_preservation_mixed_sizes() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(240));
     let temp_dir = TempDir::new().unwrap();
 
     // Test various file sizes
@@ -159,7 +162,7 @@ async fn test_metadata_preservation_mixed_sizes() {
         let copied_accessed = dst_metadata.accessed().unwrap();
         let copied_modified = dst_metadata.modified().unwrap();
 
-        let accessed_diff = copied_accessed
+        let _accessed_diff = copied_accessed
             .duration_since(original_accessed)
             .unwrap_or_default();
         let modified_diff = copied_modified
@@ -167,7 +170,7 @@ async fn test_metadata_preservation_mixed_sizes() {
             .unwrap_or_default();
 
         assert!(
-            accessed_diff.as_millis() < 1000,
+            _accessed_diff.as_millis() < 1000,
             "Accessed time should be preserved for {} file",
             description
         );
@@ -184,6 +187,7 @@ async fn test_metadata_preservation_mixed_sizes() {
 /// Test metadata preservation with concurrent operations
 #[compio::test]
 async fn test_metadata_preservation_concurrent_operations() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(240));
     let temp_dir = TempDir::new().unwrap();
     let num_concurrent = 20;
 
@@ -248,6 +252,7 @@ async fn test_metadata_preservation_concurrent_operations() {
 #[compio::test]
 #[ignore = "Known limitation: nanosecond timestamp propagation is unreliable in CI. See https://github.com/jmalicki/io-uring-sync/issues/9"]
 async fn test_metadata_preservation_specific_timestamps() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(240));
     let temp_dir = TempDir::new().unwrap();
 
     // Test various specific timestamps
@@ -326,6 +331,7 @@ async fn test_metadata_preservation_specific_timestamps() {
 /// Test metadata preservation with files that have alternating permission patterns
 #[compio::test]
 async fn test_metadata_preservation_alternating_permissions() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(240));
     let temp_dir = TempDir::new().unwrap();
     let num_files = 50;
 

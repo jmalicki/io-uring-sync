@@ -18,6 +18,7 @@ use test_utils::test_timeout_guard;
 /// Test permission preservation with files that have no read permission
 #[compio::test]
 async fn test_permission_preservation_no_read_permission() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(180));
     let temp_dir = TempDir::new().unwrap();
     let src_path = temp_dir.path().join("no_read.txt");
     let dst_path = temp_dir.path().join("no_read_copy.txt");
@@ -49,6 +50,7 @@ async fn test_permission_preservation_no_read_permission() {
 /// Test timestamp preservation with files that have very recent timestamps
 #[compio::test]
 async fn test_timestamp_preservation_very_recent() {
+    let _timeout = test_timeout_guard(StdDuration::from_secs(180));
     let temp_dir = TempDir::new().unwrap();
     let src_path = temp_dir.path().join("recent.txt");
     let dst_path = temp_dir.path().join("recent_copy.txt");
@@ -86,12 +88,11 @@ async fn test_timestamp_preservation_very_recent() {
         let copied_modified = dst_metadata.modified().unwrap();
 
         // Check that timestamps are very close to the original
-        let accessed_diff = copied_accessed.duration_since(now).unwrap_or_default();
+        let _accessed_diff = copied_accessed.duration_since(now).unwrap_or_default();
         let modified_diff = copied_modified.duration_since(now).unwrap_or_default();
 
         println!(
-            "Recent timestamp test - Accessed diff: {}ms, Modified diff: {}ms",
-            accessed_diff.as_millis(),
+            "Recent timestamp test - Modified diff: {}ms",
             modified_diff.as_millis()
         );
 

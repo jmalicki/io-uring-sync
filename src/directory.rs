@@ -1,7 +1,7 @@
 //! Directory traversal and copying functionality
 //!
 //! This module provides async directory traversal and copying capabilities
-//! using io_uring operations where possible, with fallbacks to standard
+//! using `io_uring` operations where possible, with fallbacks to standard
 //! filesystem operations for unsupported operations.
 
 use crate::cli::CopyMethod;
@@ -43,7 +43,7 @@ pub struct SharedStats {
 }
 
 impl SharedStats {
-    /// Create a new SharedStats wrapper
+    /// Create a new `SharedStats` wrapper
     ///
     /// # Arguments
     ///
@@ -190,7 +190,7 @@ impl SharedStats {
         Ok(())
     }
 
-    /// Extract the inner DirectoryStats from the shared wrapper
+    /// Extract the inner `DirectoryStats` from the shared wrapper
     ///
     /// # Errors
     ///
@@ -241,7 +241,7 @@ pub struct SharedHardlinkTracker {
 }
 
 impl SharedHardlinkTracker {
-    /// Create a new SharedHardlinkTracker wrapper
+    /// Create a new `SharedHardlinkTracker` wrapper
     ///
     /// # Arguments
     ///
@@ -281,7 +281,7 @@ impl SharedHardlinkTracker {
                 SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
             })?
             .get_original_path_for_inode(inode)
-            .map(|p| p.to_path_buf()))
+            .map(std::path::Path::to_path_buf))
     }
 
     /// Mark an inode as copied
@@ -289,13 +289,13 @@ impl SharedHardlinkTracker {
     /// # Errors
     ///
     /// This function will return an error if the internal mutex is poisoned.
-    pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) -> Result<()> {
+    pub fn mark_inode_copied(&self, inode: u64, path: &Path) -> Result<()> {
         self.inner
             .lock()
             .map_err(|_| {
                 SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
             })?
-            .mark_inode_copied(inode, &path);
+            .mark_inode_copied(inode, path);
         Ok(())
     }
 
@@ -307,7 +307,7 @@ impl SharedHardlinkTracker {
     /// This function will return an error if the internal mutex is poisoned.
     pub fn register_file(
         &self,
-        path: PathBuf,
+        path: &Path,
         device_id: u64,
         inode: u64,
         link_count: u64,
@@ -317,7 +317,7 @@ impl SharedHardlinkTracker {
             .map_err(|_| {
                 SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
             })?
-            .register_file(&path, device_id, inode, link_count);
+            .register_file(path, device_id, inode, link_count);
         Ok(())
     }
 
@@ -353,7 +353,7 @@ impl SharedHardlinkTracker {
             .get_stats())
     }
 
-    /// Extract the inner FilesystemTracker from the shared wrapper
+    /// Extract the inner `FilesystemTracker` from the shared wrapper
     ///
     /// # Errors
     ///
@@ -370,7 +370,7 @@ impl SharedHardlinkTracker {
     }
 }
 
-/// Extended metadata using std::fs metadata support
+/// Extended metadata using `std::fs` metadata support
 #[derive(Debug)]
 pub struct ExtendedMetadata {
     /// The underlying filesystem metadata
@@ -386,6 +386,7 @@ impl ExtendedMetadata {
     /// - The path does not exist
     /// - Permission is denied to read the path
     /// - The path is not accessible
+    #[allow(clippy::unused_async)]
     pub async fn new(path: &Path) -> Result<Self> {
         let metadata = std::fs::symlink_metadata(path).map_err(|e| {
             SyncError::FileSystem(format!(
@@ -465,7 +466,7 @@ pub struct DirectoryStats {
 /// Copy a directory recursively with metadata preservation and hardlink detection
 ///
 /// This function performs recursive directory copying with the following features:
-/// - Async directory traversal using io_uring statx operations
+/// - Async directory traversal using `io_uring` statx operations
 /// - Hardlink detection and preservation during traversal
 /// - Filesystem boundary detection
 /// - Metadata preservation (permissions, ownership, timestamps)
@@ -490,6 +491,8 @@ pub struct DirectoryStats {
 /// - Destination directory cannot be created
 /// - File copying operations fail
 /// - Directory traversal fails
+#[allow(clippy::future_not_send)]
+#[allow(clippy::used_underscore_binding)]
 pub async fn copy_directory(
     src: &Path,
     dst: &Path,
@@ -575,8 +578,8 @@ pub async fn copy_directory(
 ///
 /// * `initial_src` - Source directory path to traverse
 /// * `initial_dst` - Destination directory path for copying
-/// * `file_ops` - File operations handler with io_uring support
-/// * `copy_method` - Copy method (e.g., io_uring, fallback)
+/// * `file_ops` - File operations handler with `io_uring` support
+/// * `copy_method` - Copy method (e.g., `io_uring`, fallback)
 /// * `stats` - Statistics tracking (files, bytes, errors, etc.)
 /// * `hardlink_tracker` - Hardlink detection and tracking
 ///
@@ -592,6 +595,8 @@ pub async fn copy_directory(
 /// - File system operations fail
 /// - Hardlink operations fail
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::future_not_send)]
+#[allow(clippy::used_underscore_binding)]
 async fn traverse_and_copy_directory_iterative(
     initial_src: PathBuf,
     initial_dst: PathBuf,
@@ -654,8 +659,8 @@ async fn traverse_and_copy_directory_iterative(
 /// * `dispatcher` - Static dispatcher for scheduling async operations
 /// * `src_path` - Source path of the directory entry
 /// * `dst_path` - Destination path for the entry
-/// * `file_ops` - File operations handler with io_uring support
-/// * `copy_method` - Copy method (e.g., io_uring, fallback)
+/// * `file_ops` - File operations handler with `io_uring` support
+/// * `copy_method` - Copy method (e.g., `io_uring`, fallback)
 /// * `stats` - Shared statistics tracking (wrapped in Arc<Mutex<>>)
 /// * `hardlink_tracker` - Shared hardlink detection (wrapped in Arc<Mutex<>>)
 ///
@@ -672,6 +677,8 @@ async fn traverse_and_copy_directory_iterative(
 /// - Symlink copying fails
 /// - Hardlink operations fail
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::future_not_send)]
+#[allow(clippy::used_underscore_binding)]
 async fn process_directory_entry_with_compio(
     dispatcher: &'static Dispatcher,
     src_path: PathBuf,
@@ -726,7 +733,7 @@ async fn process_directory_entry_with_compio(
         let copy_method = _copy_method.clone();
         for entry_result in entries {
             let entry = entry_result.map_err(|e| {
-                SyncError::FileSystem(format!("Failed to read directory entry: {}", e))
+                SyncError::FileSystem(format!("Failed to read directory entry: {e}"))
             })?;
             let child_src_path = entry.path();
             let file_name = child_src_path.file_name().ok_or_else(|| {
@@ -737,8 +744,8 @@ async fn process_directory_entry_with_compio(
             // Dispatch all entries to the same function regardless of type
             // This creates a unified processing pipeline where each entry
             // determines its own processing path (file/dir/symlink)
-            let child_src_path = child_src_path.to_path_buf();
-            let child_dst_path = child_dst_path.to_path_buf();
+            let child_src_path = child_src_path.clone();
+            let child_dst_path = child_dst_path.clone();
             let copy_method = copy_method.clone();
             let stats = stats.clone();
             let hardlink_tracker = hardlink_tracker.clone();
@@ -755,7 +762,7 @@ async fn process_directory_entry_with_compio(
                     )
                 })
                 .map_err(|e| {
-                    SyncError::FileSystem(format!("Failed to dispatch entry processing: {:?}", e))
+                    SyncError::FileSystem(format!("Failed to dispatch entry processing: {e:?}"))
                 })?;
             futures.push(receiver);
         }
@@ -770,8 +777,7 @@ async fn process_directory_entry_with_compio(
         let _ = futures::future::try_join_all(futures.into_iter().map(|receiver| async move {
             let _ = receiver.await.map_err(|e| {
                 SyncError::FileSystem(format!(
-                    "Failed to receive result from dispatched operation: {:?}",
-                    e
+                    "Failed to receive result from dispatched operation: {e:?}"
                 ))
             })?;
             Ok::<(), SyncError>(())
@@ -806,6 +812,8 @@ async fn process_directory_entry_with_compio(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::future_not_send)]
+#[allow(clippy::used_underscore_binding)]
 async fn process_file(
     src_path: PathBuf,
     dst_path: PathBuf,
@@ -842,7 +850,7 @@ async fn process_file(
             Ok(()) => {
                 stats.increment_files_copied()?;
                 stats.increment_bytes_copied(metadata.len())?;
-                hardlink_tracker.mark_inode_copied(inode_number, dst_path.clone())?;
+                hardlink_tracker.mark_inode_copied(inode_number, dst_path.as_path())?;
                 debug!("Copied file: {}", dst_path.display());
             }
             Err(e) => {
@@ -991,6 +999,7 @@ async fn process_symlink(src_path: PathBuf, dst_path: PathBuf, stats: SharedStat
 }
 
 /// Copy a symlink preserving its target
+#[allow(clippy::unused_async)]
 async fn copy_symlink(src: &Path, dst: &Path) -> Result<()> {
     let target = std::fs::read_link(src).map_err(|e| {
         SyncError::FileSystem(format!(
@@ -1037,6 +1046,7 @@ async fn copy_symlink(src: &Path, dst: &Path) -> Result<()> {
 
 /// Preserve file metadata (permissions, ownership, timestamps)
 #[allow(dead_code)]
+#[allow(clippy::future_not_send)]
 async fn preserve_file_metadata(src: &Path, dst: &Path, file_ops: &FileOperations) -> Result<()> {
     // Get source metadata
     let _metadata = file_ops.get_file_metadata(src).await.map_err(|e| {
@@ -1151,20 +1161,21 @@ impl FilesystemTracker {
     ///
     /// Returns true if the path is on the same filesystem, false otherwise.
     /// This prevents cross-filesystem operations that could cause issues.
+    #[must_use]
     pub fn is_same_filesystem(&self, dev: u64) -> bool {
-        match self.source_filesystem {
-            Some(source_dev) => source_dev == dev,
-            None => {
+        self.source_filesystem.map_or_else(
+            || {
                 warn!("No source filesystem set, allowing cross-filesystem operation");
                 true
-            }
-        }
+            },
+            |source_dev| source_dev == dev,
+        )
     }
 
     /// Register a file for hardlink tracking
     ///
     /// This should be called for each file encountered during traversal.
-    /// Files with link_count == 1 are skipped since they're not hardlinks.
+    /// Files with `link_count` == 1 are skipped since they're not hardlinks.
     /// Returns true if this is a new hardlink, false if it's a duplicate or skipped.
     pub fn register_file(&mut self, path: &Path, dev: u64, ino: u64, link_count: u64) -> bool {
         // Skip files with link count of 1 - they're not hardlinks
@@ -1173,39 +1184,36 @@ impl FilesystemTracker {
         }
         let inode_info = InodeInfo { dev, ino };
 
-        match self.hardlinks.get_mut(&inode_info) {
-            Some(hardlink_info) => {
-                // This is an existing hardlink
-                hardlink_info.link_count += 1;
-                debug!(
-                    "Found hardlink #{} for inode ({}, {}): {}",
-                    hardlink_info.link_count,
-                    dev,
-                    ino,
-                    path.display()
-                );
-                false
-            }
-            None => {
-                // This is a new file
-                self.hardlinks.insert(
-                    inode_info,
-                    HardlinkInfo {
-                        original_path: path.to_path_buf(),
-                        inode_number: ino,
-                        link_count: 1,
-                        is_copied: false,
-                        dst_path: None,
-                    },
-                );
-                debug!(
-                    "Registered new file inode ({}, {}): {}",
-                    dev,
-                    ino,
-                    path.display()
-                );
-                true
-            }
+        if let Some(hardlink_info) = self.hardlinks.get_mut(&inode_info) {
+            // This is an existing hardlink
+            hardlink_info.link_count += 1;
+            debug!(
+                "Found hardlink #{} for inode ({}, {}): {}",
+                hardlink_info.link_count,
+                dev,
+                ino,
+                path.display()
+            );
+            false
+        } else {
+            // This is a new file
+            self.hardlinks.insert(
+                inode_info,
+                HardlinkInfo {
+                    original_path: path.to_path_buf(),
+                    inode_number: ino,
+                    link_count: 1,
+                    is_copied: false,
+                    dst_path: None,
+                },
+            );
+            debug!(
+                "Registered new file inode ({}, {}): {}",
+                dev,
+                ino,
+                path.display()
+            );
+            true
         }
     }
 

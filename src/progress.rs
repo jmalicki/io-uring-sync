@@ -409,7 +409,7 @@ impl ProgressTracker {
 /// - Duration calculations are optimized for minimal overhead
 /// - Statistics can be safely shared across threads
 /// - Memory footprint is constant and minimal
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub struct ProgressStats {
     /// Number of files successfully processed during the operation

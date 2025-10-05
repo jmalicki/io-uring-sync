@@ -1,7 +1,7 @@
-//! io_uring integration module
+//! `io_uring` integration module
 //!
-//! This module provides high-performance file operations using io_uring for asynchronous I/O.
-//! Currently implements async I/O as a foundation, with plans for full io_uring integration
+//! This module provides high-performance file operations using `io_uring` for asynchronous I/O.
+//! Currently implements async I/O as a foundation, with plans for full `io_uring` integration
 //! in future development phases.
 //!
 //! # Features
@@ -36,7 +36,7 @@ use tracing::debug;
 /// Basic file operations using async I/O
 ///
 /// This structure provides a high-level interface for performing file operations
-/// asynchronously. It serves as the foundation for io_uring integration and
+/// asynchronously. It serves as the foundation for `io_uring` integration and
 /// provides efficient buffer management.
 ///
 /// # Fields
@@ -60,7 +60,7 @@ impl FileOperations {
     ///
     /// # Parameters
     ///
-    /// * `queue_depth` - Maximum number of concurrent operations (currently unused, reserved for io_uring)
+    /// * `queue_depth` - Maximum number of concurrent operations (currently unused, reserved for `io_uring`)
     /// * `buffer_size` - Size of I/O buffers in bytes
     ///
     /// # Returns
@@ -86,7 +86,7 @@ impl FileOperations {
     /// This function will return an error if:
     /// - Buffer size is invalid (must be > 0)
     /// - Memory allocation fails
-    pub fn new(_queue_depth: usize, buffer_size: usize) -> Result<Self> {
+    pub const fn new(_queue_depth: usize, buffer_size: usize) -> Result<Self> {
         // For Phase 1.2, we'll use async I/O as a foundation
         // TODO: Implement actual io_uring integration in future phases
         Ok(Self { buffer_size })
@@ -114,7 +114,7 @@ impl FileOperations {
     /// - Destination file cannot be created or opened for writing
     /// - File copying operation fails (I/O errors, permission issues)
     /// - Metadata preservation fails
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::future_not_send)]
     pub async fn copy_file_read_write(&mut self, src: &Path, dst: &Path) -> Result<()> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {
@@ -167,6 +167,7 @@ impl FileOperations {
     ///
     /// Returns `Ok(u64)` with the number of bytes copied, or
     /// `Err(SyncError)` if the operation failed.
+    #[allow(clippy::future_not_send, clippy::needless_pass_by_ref_mut)]
     async fn copy_file_descriptors(
         &self,
         src_file: &mut compio::fs::File,
@@ -184,8 +185,7 @@ impl FileOperations {
                 Ok(n) => n,
                 Err(e) => {
                     return Err(SyncError::FileSystem(format!(
-                        "Failed to read from source file: {}",
-                        e
+                        "Failed to read from source file: {e}"
                     )))
                 }
             };
@@ -206,8 +206,7 @@ impl FileOperations {
                 }
                 Err(e) => {
                     return Err(SyncError::FileSystem(format!(
-                        "Failed to write to destination file: {}",
-                        e
+                        "Failed to write to destination file: {e}"
                     )))
                 }
             }
@@ -231,7 +230,7 @@ impl FileOperations {
     /// - The path does not exist
     /// - Permission is denied to read the path
     /// - The path is not accessible
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::future_not_send)]
     pub async fn get_file_size(&self, path: &Path) -> Result<u64> {
         let metadata = compio::fs::metadata(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
@@ -245,7 +244,7 @@ impl FileOperations {
     }
 
     /// Check if file exists
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::future_not_send)]
     pub async fn file_exists(&self, path: &Path) -> bool {
         compio::fs::metadata(path).await.is_ok()
     }
@@ -258,6 +257,7 @@ impl FileOperations {
     /// - Parent directory does not exist and cannot be created
     /// - Permission is denied to create the directory
     /// - The path already exists and is not a directory
+    #[allow(clippy::future_not_send)]
     pub async fn create_dir(&self, path: &Path) -> Result<()> {
         compio::fs::create_dir_all(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
@@ -312,6 +312,7 @@ impl FileOperations {
     /// - The path does not exist
     /// - Permission is denied to read the path
     /// - The path is not accessible
+    #[allow(clippy::future_not_send, clippy::items_after_statements)]
     pub async fn get_file_metadata(&self, path: &Path) -> Result<FileMetadata> {
         let metadata = compio::fs::metadata(path).await.map_err(|e| {
             SyncError::FileSystem(format!(
@@ -328,10 +329,10 @@ impl FileOperations {
         let gid = metadata.gid();
         let modified = metadata
             .modified()
-            .map_err(|e| SyncError::FileSystem(format!("Failed to get modified time: {}", e)))?;
+            .map_err(|e| SyncError::FileSystem(format!("Failed to get modified time: {e}")))?;
         let accessed = metadata
             .accessed()
-            .map_err(|e| SyncError::FileSystem(format!("Failed to get accessed time: {}", e)))?;
+            .map_err(|e| SyncError::FileSystem(format!("Failed to get accessed time: {e}")))?;
 
         Ok(FileMetadata {
             size: metadata.len(),
@@ -391,6 +392,7 @@ impl FileOperations {
     /// - Destination file cannot be created or opened for writing
     /// - File copying operation fails (I/O errors, permission issues)
     /// - Metadata preservation fails
+    #[allow(clippy::future_not_send)]
     pub async fn copy_file_with_metadata(&mut self, src: &Path, dst: &Path) -> Result<u64> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {
@@ -424,7 +426,7 @@ impl FileOperations {
         let src_metadata = src_file
             .metadata()
             .await
-            .map_err(|e| SyncError::FileSystem(format!("Failed to get source metadata: {}", e)))?;
+            .map_err(|e| SyncError::FileSystem(format!("Failed to get source metadata: {e}")))?;
 
         // Copy file content using the descriptor-based operation
         let offset = self
@@ -448,6 +450,7 @@ impl FileOperations {
     ///
     /// This function preserves file metadata (permissions, ownership, timestamps)
     /// using the open file descriptors, avoiding repeated path lookups.
+    #[allow(clippy::unused_async)]
     async fn preserve_metadata_from_fd(
         &self,
         _src_file: &compio::fs::File,
@@ -498,7 +501,7 @@ impl FileOperations {
 /// - Timestamps use system-level precision
 /// - Permission bits preserve special attributes
 /// - Ownership information is stored as numeric IDs
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileMetadata {
     /// File size in bytes
     pub size: u64,
@@ -534,7 +537,7 @@ pub struct CopyOperation {
     pub status: CopyStatus,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 /// Status of a file copy operation
 pub enum CopyStatus {
@@ -558,7 +561,7 @@ impl CopyOperation {
     /// * `dst` - Destination file path  
     /// * `size` - Total file size in bytes
     #[must_use]
-    pub fn new(src: std::path::PathBuf, dst: std::path::PathBuf, size: u64) -> Self {
+    pub const fn new(src: std::path::PathBuf, dst: std::path::PathBuf, size: u64) -> Self {
         Self {
             src_path: src,
             dst_path: dst,
@@ -598,6 +601,7 @@ impl CopyOperation {
     /// Progress percentage as a float between 0.0 and 100.0
     #[must_use]
     pub fn progress_percentage(&self) -> f64 {
+        #[allow(clippy::cast_precision_loss)]
         if self.file_size == 0 {
             100.0
         } else {

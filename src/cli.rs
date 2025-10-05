@@ -7,6 +7,7 @@ use std::path::PathBuf;
 /// High-performance bulk file copying utility using `io_uring`
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Source directory or file
     #[arg(short, long)]
