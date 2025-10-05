@@ -47,8 +47,8 @@ jobs:
     - name: Check for outdated dependencies
       run: cargo outdated --depth 1 --color always --exit-code 1 --ignore cargo-deny
 
-  test:
-    name: Test
+  code-quality:
+    name: Code Quality
     runs-on: ubuntu-latest
     
     steps:
@@ -85,6 +85,27 @@ jobs:
           -D clippy::todo \
           -D clippy::unimplemented \
           -D clippy::unreachable
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+      with:
+        toolchain: 1.90.0
+        components: rustfmt, clippy
+    
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "io-uring-sync"
+        cache-all-crates: "true"
+        cache-workspace-crates: "true"
+        cache-bin: "true"
     
     - name: Run tests
       run: cargo test --all-features

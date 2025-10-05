@@ -522,24 +522,41 @@ pub struct FileMetadata {
 /// File copy operation with progress tracking
 #[allow(dead_code)]
 pub struct CopyOperation {
+    /// Source file path
     pub src_path: std::path::PathBuf,
+    /// Destination file path
     pub dst_path: std::path::PathBuf,
+    /// Total file size in bytes
     pub file_size: u64,
+    /// Number of bytes copied so far
     pub bytes_copied: u64,
+    /// Current copy status
     pub status: CopyStatus,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
+/// Status of a file copy operation
 pub enum CopyStatus {
+    /// Copy operation is pending
     Pending,
+    /// Copy operation is currently in progress
     InProgress,
+    /// Copy operation completed successfully
     Completed,
+    /// Copy operation failed with error message
     Failed(String),
 }
 
 #[allow(dead_code)]
 impl CopyOperation {
+    /// Create a new copy operation
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - Source file path
+    /// * `dst` - Destination file path  
+    /// * `size` - Total file size in bytes
     #[must_use]
     pub fn new(src: std::path::PathBuf, dst: std::path::PathBuf, size: u64) -> Self {
         Self {
@@ -551,6 +568,11 @@ impl CopyOperation {
         }
     }
 
+    /// Update the progress of the copy operation
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Number of bytes copied since last update
     pub fn update_progress(&mut self, bytes: u64) {
         self.bytes_copied += bytes;
         if self.bytes_copied >= self.file_size {
@@ -560,10 +582,20 @@ impl CopyOperation {
         }
     }
 
+    /// Mark the copy operation as failed
+    ///
+    /// # Arguments
+    ///
+    /// * `error` - Error message describing the failure
     pub fn mark_failed(&mut self, error: String) {
         self.status = CopyStatus::Failed(error);
     }
 
+    /// Get the progress percentage of the copy operation
+    ///
+    /// # Returns
+    ///
+    /// Progress percentage as a float between 0.0 and 100.0
     #[must_use]
     pub fn progress_percentage(&self) -> f64 {
         if self.file_size == 0 {

@@ -43,7 +43,11 @@ pub struct SharedStats {
 }
 
 impl SharedStats {
-    
+    /// Create a new SharedStats wrapper
+    ///
+    /// # Arguments
+    ///
+    /// * `stats` - The initial directory statistics to wrap
     #[must_use]
     pub fn new(stats: DirectoryStats) -> Self {
         Self {
@@ -58,7 +62,11 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn files_copied(&self) -> Result<u64> {
-        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied)
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .files_copied)
     }
 
     #[allow(dead_code)]
@@ -68,7 +76,11 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn directories_created(&self) -> Result<u64> {
-        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created)
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .directories_created)
     }
 
     #[allow(dead_code)]
@@ -78,7 +90,11 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn bytes_copied(&self) -> Result<u64> {
-        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied)
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .bytes_copied)
     }
 
     #[allow(dead_code)]
@@ -88,7 +104,11 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn symlinks_processed(&self) -> Result<u64> {
-        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed)
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .symlinks_processed)
     }
 
     #[allow(dead_code)]
@@ -98,7 +118,11 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn errors(&self) -> Result<u64> {
-        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors)
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .errors)
     }
 
     /// Increment the number of files copied
@@ -107,7 +131,10 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_files_copied(&self) -> Result<()> {
-        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.files_copied += 1;
+        self.inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .files_copied += 1;
         Ok(())
     }
 
@@ -117,7 +144,10 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_directories_created(&self) -> Result<()> {
-        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.directories_created += 1;
+        self.inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .directories_created += 1;
         Ok(())
     }
 
@@ -127,7 +157,10 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_bytes_copied(&self, bytes: u64) -> Result<()> {
-        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.bytes_copied += bytes;
+        self.inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .bytes_copied += bytes;
         Ok(())
     }
 
@@ -137,7 +170,10 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_symlinks_processed(&self) -> Result<()> {
-        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.symlinks_processed += 1;
+        self.inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .symlinks_processed += 1;
         Ok(())
     }
 
@@ -147,7 +183,10 @@ impl SharedStats {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn increment_errors(&self) -> Result<()> {
-        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?.errors += 1;
+        self.inner
+            .lock()
+            .map_err(|_| SyncError::FileSystem("Failed to acquire stats lock".to_string()))?
+            .errors += 1;
         Ok(())
     }
 
@@ -159,8 +198,12 @@ impl SharedStats {
     /// - Multiple references to the Arc exist (cannot unwrap)
     /// - The internal mutex is poisoned
     pub fn into_inner(self) -> Result<DirectoryStats> {
-        let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
-        inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
+        let inner = Arc::try_unwrap(self.inner).map_err(|_| {
+            SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string())
+        })?;
+        inner.into_inner().map_err(|_| {
+            SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string())
+        })
     }
 }
 
@@ -198,6 +241,11 @@ pub struct SharedHardlinkTracker {
 }
 
 impl SharedHardlinkTracker {
+    /// Create a new SharedHardlinkTracker wrapper
+    ///
+    /// # Arguments
+    ///
+    /// * `tracker` - The initial filesystem tracker to wrap
     #[must_use]
     pub fn new(tracker: FilesystemTracker) -> Self {
         Self {
@@ -211,7 +259,13 @@ impl SharedHardlinkTracker {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn is_inode_copied(&self, inode: u64) -> Result<bool> {
-        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.is_inode_copied(inode))
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| {
+                SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
+            })?
+            .is_inode_copied(inode))
     }
 
     /// Get the original path for an inode that has been copied
@@ -220,9 +274,12 @@ impl SharedHardlinkTracker {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn get_original_path_for_inode(&self, inode: u64) -> Result<Option<PathBuf>> {
-        Ok(self.inner
+        Ok(self
+            .inner
             .lock()
-            .map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?
+            .map_err(|_| {
+                SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
+            })?
             .get_original_path_for_inode(inode)
             .map(|p| p.to_path_buf()))
     }
@@ -233,7 +290,12 @@ impl SharedHardlinkTracker {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn mark_inode_copied(&self, inode: u64, path: PathBuf) -> Result<()> {
-        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.mark_inode_copied(inode, &path);
+        self.inner
+            .lock()
+            .map_err(|_| {
+                SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
+            })?
+            .mark_inode_copied(inode, &path);
         Ok(())
     }
 
@@ -243,10 +305,18 @@ impl SharedHardlinkTracker {
     /// # Errors
     ///
     /// This function will return an error if the internal mutex is poisoned.
-    pub fn register_file(&self, path: PathBuf, device_id: u64, inode: u64, link_count: u64) -> Result<()> {
+    pub fn register_file(
+        &self,
+        path: PathBuf,
+        device_id: u64,
+        inode: u64,
+        link_count: u64,
+    ) -> Result<()> {
         self.inner
             .lock()
-            .map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?
+            .map_err(|_| {
+                SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
+            })?
             .register_file(&path, device_id, inode, link_count);
         Ok(())
     }
@@ -258,7 +328,12 @@ impl SharedHardlinkTracker {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn set_source_filesystem(&self, device_id: u64) -> Result<()> {
-        self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.set_source_filesystem(device_id);
+        self.inner
+            .lock()
+            .map_err(|_| {
+                SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
+            })?
+            .set_source_filesystem(device_id);
         Ok(())
     }
 
@@ -269,7 +344,13 @@ impl SharedHardlinkTracker {
     ///
     /// This function will return an error if the internal mutex is poisoned.
     pub fn get_stats(&self) -> Result<FilesystemStats> {
-        Ok(self.inner.lock().map_err(|_| SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string()))?.get_stats())
+        Ok(self
+            .inner
+            .lock()
+            .map_err(|_| {
+                SyncError::FileSystem("Failed to acquire hardlink tracker lock".to_string())
+            })?
+            .get_stats())
     }
 
     /// Extract the inner FilesystemTracker from the shared wrapper
@@ -280,14 +361,19 @@ impl SharedHardlinkTracker {
     /// - Multiple references to the Arc exist (cannot unwrap)
     /// - The internal mutex is poisoned
     pub fn into_inner(self) -> Result<FilesystemTracker> {
-        let inner = Arc::try_unwrap(self.inner).map_err(|_| SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string()))?;
-        inner.into_inner().map_err(|_| SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string()))
+        let inner = Arc::try_unwrap(self.inner).map_err(|_| {
+            SyncError::FileSystem("Failed to unwrap Arc - multiple references exist".to_string())
+        })?;
+        inner.into_inner().map_err(|_| {
+            SyncError::FileSystem("Failed to unwrap Mutex - mutex is poisoned".to_string())
+        })
     }
 }
 
 /// Extended metadata using std::fs metadata support
 #[derive(Debug)]
 pub struct ExtendedMetadata {
+    /// The underlying filesystem metadata
     pub metadata: std::fs::Metadata,
 }
 
