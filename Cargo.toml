@@ -19,7 +19,7 @@ name = "io-uring-sync"
 path = "src/main.rs"
 
 [workspace]
-members = ["crates/compio-fs-extended"]
+members = ["crates/compio-fs-extended", "lints/ban-apis"]
 
 [dependencies]
 # Core async runtime
