@@ -229,6 +229,7 @@ use std::path::Path;
 /// # Ok(())
 /// # }
 /// ```
+#[allow(async_fn_in_trait)]
 pub trait OwnershipOps {
     /// Change file ownership using file descriptor
     ///
