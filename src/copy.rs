@@ -138,7 +138,8 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
 
     // Preallocate destination file space to the final size to reduce fragmentation
     // and improve write performance using io_uring fallocate.
-    {
+    // Skip preallocation for empty files as fallocate fails with EINVAL for zero length.
+    if file_size > 0 {
         use compio_fs_extended::{ExtendedFile, Fallocate};
         let extended_dst = ExtendedFile::from_ref(&dst_file);
         extended_dst.fallocate(0, file_size, 0).await.map_err(|e| {
