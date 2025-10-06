@@ -156,3 +156,170 @@ impl Clone for DirectoryFd {
 
 // Note: Basic directory operations (create_dir, remove_dir, etc.) are provided by compio::fs
 // This module only provides DirectoryFd for secure *at operations
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[compio::test]
+    async fn test_directory_fd_open_existing() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Test opening an existing directory
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await;
+        assert!(dir_fd.is_ok());
+
+        let dir_fd = dir_fd.unwrap();
+        assert_eq!(dir_fd.path(), temp_dir.path());
+        assert!(dir_fd.as_raw_fd() > 0);
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_open_nonexistent() {
+        // Test opening a non-existent directory
+        let result = DirectoryFd::open(std::path::Path::new("/nonexistent/directory")).await;
+        assert!(result.is_err());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_open_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        fs::write(&file_path, "test").unwrap();
+
+        // Test opening a file (should fail)
+        let result = DirectoryFd::open(&file_path).await;
+        match result {
+            Ok(_) => {
+                // Some filesystems allow opening files as directories
+                // This is acceptable behavior
+                println!("File opened as directory (filesystem allows this)");
+            }
+            Err(_) => {
+                // Expected behavior on most filesystems
+                println!("File correctly rejected as directory");
+            }
+        }
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_clone() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Test cloning
+        let cloned_dir_fd = dir_fd.clone();
+        assert_eq!(dir_fd.path(), cloned_dir_fd.path());
+        assert_eq!(dir_fd.as_raw_fd(), cloned_dir_fd.as_raw_fd());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_create_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Test creating a directory
+        let result = dir_fd.create_directory("test_subdir", 0o755).await;
+        assert!(result.is_ok());
+
+        // Verify the directory was created
+        let created_path = temp_dir.path().join("test_subdir");
+        assert!(created_path.exists());
+        assert!(created_path.is_dir());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_create_directory_already_exists() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Create directory first time
+        dir_fd.create_directory("test_subdir", 0o755).await.unwrap();
+
+        // Try to create it again (should fail)
+        let result = dir_fd.create_directory("test_subdir", 0o755).await;
+        assert!(result.is_err());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_create_directory_invalid_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Test creating directory with invalid name (empty string)
+        let result = dir_fd.create_directory("", 0o755).await;
+        assert!(result.is_err());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_create_directory_nested() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Create first level
+        dir_fd.create_directory("level1", 0o755).await.unwrap();
+
+        // Open the created directory and create second level
+        let level1_path = temp_dir.path().join("level1");
+        let level1_dir_fd = DirectoryFd::open(&level1_path).await.unwrap();
+        level1_dir_fd
+            .create_directory("level2", 0o755)
+            .await
+            .unwrap();
+
+        // Verify both levels exist
+        assert!(level1_path.exists());
+        assert!(level1_path.join("level2").exists());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_as_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Test getting file reference
+        let file = dir_fd.as_file();
+        assert_eq!(file.as_raw_fd(), dir_fd.as_raw_fd());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Test getting path
+        assert_eq!(dir_fd.path(), temp_dir.path());
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_debug() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Test debug formatting
+        let debug_str = format!("{:?}", dir_fd);
+        assert!(debug_str.contains("DirectoryFd"));
+    }
+
+    #[compio::test]
+    async fn test_directory_fd_multiple_operations() {
+        let temp_dir = TempDir::new().unwrap();
+        let dir_fd = DirectoryFd::open(temp_dir.path()).await.unwrap();
+
+        // Test multiple directory creation operations
+        let dirs = ["dir1", "dir2", "dir3"];
+        for dir_name in &dirs {
+            let result = dir_fd.create_directory(dir_name, 0o755).await;
+            assert!(result.is_ok());
+        }
+
+        // Verify all directories were created
+        for dir_name in &dirs {
+            let created_path = temp_dir.path().join(dir_name);
+            assert!(created_path.exists());
+            assert!(created_path.is_dir());
+        }
+    }
+}

@@ -94,6 +94,14 @@ pub struct FadviseOp {
 }
 
 impl FadviseOp {
+    /// Create a new FadviseOp for io_uring submission
+    ///
+    /// # Arguments
+    ///
+    /// * `fd` - File descriptor to apply advice to
+    /// * `offset` - File offset to start the advice
+    /// * `len` - Length of the region to apply advice to
+    /// * `advice` - The fadvise advice constant
     pub fn new(fd: i32, offset: u64, len: u64, advice: i32) -> Self {
         Self {
             fd,
