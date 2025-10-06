@@ -1362,7 +1362,9 @@ pub async fn preserve_directory_xattr(src_path: &Path, dst_path: &Path) -> Resul
         SyncError::FileSystem(format!("Failed to open source directory for xattr: {e}"))
     })?;
     let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
-        SyncError::FileSystem(format!("Failed to open destination directory for xattr: {e}"))
+        SyncError::FileSystem(format!(
+            "Failed to open destination directory for xattr: {e}"
+        ))
     })?;
 
     // Convert to ExtendedFile to access xattr operations

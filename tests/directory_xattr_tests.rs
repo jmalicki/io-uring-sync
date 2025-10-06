@@ -33,7 +33,9 @@ async fn test_directory_xattr_preservation() {
     fs::create_dir(&dst_path).await.unwrap();
 
     // Test xattr preservation
-    preserve_directory_xattr(&src_path, &dst_path).await.unwrap();
+    preserve_directory_xattr(&src_path, &dst_path)
+        .await
+        .unwrap();
 
     // Verify xattrs were preserved
     let dst_dir = fs::File::open(&dst_path).await.unwrap();
@@ -59,7 +61,9 @@ async fn test_directory_xattr_preservation_no_xattrs() {
     fs::create_dir(&dst_path).await.unwrap();
 
     // Test xattr preservation (should not fail)
-    preserve_directory_xattr(&src_path, &dst_path).await.unwrap();
+    preserve_directory_xattr(&src_path, &dst_path)
+        .await
+        .unwrap();
 
     // Verify no xattrs were set
     let dst_dir = fs::File::open(&dst_path).await.unwrap();
@@ -97,7 +101,9 @@ async fn test_directory_xattr_preservation_multiple() {
     fs::create_dir(&dst_path).await.unwrap();
 
     // Test xattr preservation
-    preserve_directory_xattr(&src_path, &dst_path).await.unwrap();
+    preserve_directory_xattr(&src_path, &dst_path)
+        .await
+        .unwrap();
 
     // Verify all xattrs were preserved
     let dst_dir = fs::File::open(&dst_path).await.unwrap();
@@ -132,7 +138,9 @@ async fn test_directory_xattr_preservation_binary_data() {
     fs::create_dir(&dst_path).await.unwrap();
 
     // Test xattr preservation
-    preserve_directory_xattr(&src_path, &dst_path).await.unwrap();
+    preserve_directory_xattr(&src_path, &dst_path)
+        .await
+        .unwrap();
 
     // Verify binary xattr was preserved
     let dst_dir = fs::File::open(&dst_path).await.unwrap();

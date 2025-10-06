@@ -184,9 +184,9 @@ async fn test_nested_directory_metadata_preservation() {
 
     // Create destination directory structure
     fs::create_dir_all(&dst_root).unwrap();
-    fs::create_dir_all(&dst_root.join("subdir1")).unwrap();
-    fs::create_dir_all(&dst_root.join("subdir2")).unwrap();
-    fs::create_dir_all(&dst_root.join("subdir1").join("subdir3")).unwrap();
+    fs::create_dir_all(dst_root.join("subdir1")).unwrap();
+    fs::create_dir_all(dst_root.join("subdir2")).unwrap();
+    fs::create_dir_all(dst_root.join("subdir1").join("subdir3")).unwrap();
 
     // Test metadata preservation for each directory
     let dst_subdir1 = dst_root.join("subdir1");
