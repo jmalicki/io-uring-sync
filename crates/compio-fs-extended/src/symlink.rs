@@ -1,6 +1,6 @@
 //! Symlink operations for creating and reading symbolic links
 
-use crate::error::{symlink_error, Result};
+use crate::error::{symlink_error, ExtendedError, Result};
 use compio::driver::OpCode;
 use compio::fs::File;
 use compio::runtime::submit;
@@ -216,13 +216,10 @@ pub async fn create_symlink_at_dirfd(
     // Submit io_uring symlink operation using compio's runtime with DirectoryFd
     let result = submit(SymlinkOp::new_with_dirfd(dir_fd, target, link_name)?).await;
 
-    // Convert the result to our error type
+    // Minimal mapping: preserve underlying error string without extra context
     match result.0 {
         Ok(_) => Ok(()),
-        Err(e) => Err(symlink_error(&format!(
-            "io_uring symlink operation failed: {}",
-            e
-        ))),
+        Err(e) => Err(symlink_error(&e.to_string())),
     }
 }
 
@@ -271,12 +268,13 @@ pub async fn read_symlink_at_dirfd(
 
     let os_string = compio::runtime::spawn(async move {
         fcntl::readlinkat(Some(dir_fd_raw), std::path::Path::new(&link_name))
-            .map_err(|e| symlink_error(&format!("readlinkat failed for '{}': {}", link_name, e)))
     })
     .await
-    .map_err(|e| symlink_error(&format!("spawn failed: {:?}", e)))?;
+    .map_err(ExtendedError::SpawnJoin)?;
 
-    Ok(std::path::PathBuf::from(os_string?))
+    Ok(std::path::PathBuf::from(
+        os_string.map_err(|e| symlink_error(&e.to_string()))?,
+    ))
 }
 
 // Note: Basic symlink operations like is_symlink, is_broken_symlink are provided by std::fs

@@ -131,7 +131,7 @@ impl CopyFileRange for ExtendedFile {
 
 // Implement Fadvise trait
 impl Fadvise for ExtendedFile {
-    async fn fadvise(&self, advice: FadviseAdvice, offset: u64, len: u64) -> Result<()> {
+    async fn fadvise(&self, advice: FadviseAdvice, offset: i64, len: i64) -> Result<()> {
         // Delegate to the fadvise module implementation
         crate::fadvise::fadvise(&self.inner, advice, offset, len).await
     }
@@ -148,13 +148,17 @@ impl Fallocate for ExtendedFile {
 // Implement SymlinkOps trait
 impl SymlinkOps for ExtendedFile {
     async fn read_symlink(&self) -> Result<std::path::PathBuf> {
-        // Delegate to the symlink module implementation
-        crate::symlink::read_symlink_impl(&self.inner).await
+        // Symlink operations require path tracking - not implemented yet
+        Err(crate::error::symlink_error(
+            "read_symlink not yet implemented - requires path tracking",
+        ))
     }
 
-    async fn create_symlink(&self, target: &std::path::Path) -> Result<()> {
-        // Delegate to the symlink module implementation
-        crate::symlink::create_symlink_impl(&self.inner, target).await
+    async fn create_symlink(&self, _target: &std::path::Path) -> Result<()> {
+        // Symlink operations require path tracking - not implemented yet
+        Err(crate::error::symlink_error(
+            "create_symlink not yet implemented - requires path tracking",
+        ))
     }
 }
 

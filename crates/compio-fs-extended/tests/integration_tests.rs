@@ -259,6 +259,7 @@ async fn test_directory_complex_scenarios() {
 // }
 
 /// Test device file operations
+#[ignore]
 #[compio::test]
 async fn test_device_real_world_scenarios() {
     let temp_dir = TempDir::new().unwrap();

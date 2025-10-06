@@ -134,13 +134,10 @@ pub async fn fallocate(file: &File, offset: u64, len: u64, mode: u32) -> Result<
     // Submit io_uring fallocate operation using compio's runtime
     let result = submit(FallocateOp::new(file, offset, len, mode)).await;
 
-    // Convert the result to our error type
+    // Minimal mapping: preserve underlying error string without extra context
     match result.0 {
         Ok(_) => Ok(()),
-        Err(e) => Err(fallocate_error(&format!(
-            "io_uring fallocate operation failed: {}",
-            e
-        ))),
+        Err(e) => Err(fallocate_error(&e.to_string())),
     }
 }
 
