@@ -43,6 +43,7 @@ pub mod fadvise;
 pub mod fallocate;
 pub mod hardlink;
 pub mod metadata;
+pub mod ownership;
 pub mod symlink;
 pub mod xattr;
 
@@ -56,6 +57,7 @@ pub use copy::CopyFileRange;
 pub use fadvise::Fadvise;
 pub use fallocate::Fallocate;
 pub use hardlink::HardlinkOps;
+pub use ownership::OwnershipOps;
 pub use symlink::SymlinkOps;
 pub use xattr::XattrOps;
 
