@@ -244,7 +244,7 @@ Contributions are welcome! Please see [DEVELOPER.md](docs/DEVELOPER.md) for guid
 
 ## License
 
-This project is licensed under the MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT).
+This project is licensed under the MIT license (see [LICENSE](LICENSE) or http://opensource.org/licenses/MIT).
 
 ## Acknowledgments
 
