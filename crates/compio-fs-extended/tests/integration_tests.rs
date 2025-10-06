@@ -226,41 +226,40 @@ async fn test_xattr_real_world_scenarios() {
 //     metadata::futimesat(&file_path, past, now).await.unwrap();
 // }
 
-// TODO: Re-enable when device module is properly implemented
-// /// Test device file operations
-// #[compio::test]
-// async fn test_device_real_world_scenarios() {
-//     let temp_dir = TempDir::new().unwrap();
-//     let base_path = temp_dir.path();
+/// Test device file operations
+#[compio::test]
+async fn test_device_real_world_scenarios() {
+    let temp_dir = TempDir::new().unwrap();
+    let base_path = temp_dir.path();
 
-//     // Test named pipe creation
-//     let pipe_path = base_path.join("test_pipe");
-//     device::create_named_pipe_at_path(&pipe_path, 0o644)
-//         .await
-//         .unwrap();
-//     assert!(pipe_path.exists());
+    // Test named pipe creation
+    let pipe_path = base_path.join("test_pipe");
+    device::create_named_pipe_at_path(&pipe_path, 0o644)
+        .await
+        .unwrap();
+    assert!(pipe_path.exists());
 
-//     // Test character device creation
-//     let char_dev_path = base_path.join("test_char_dev");
-//     device::create_char_device_at_path(&char_dev_path, 0o644, 1, 3)
-//         .await
-//         .unwrap();
-//     assert!(char_dev_path.exists());
+    // Test character device creation
+    let char_dev_path = base_path.join("test_char_dev");
+    device::create_char_device_at_path(&char_dev_path, 0o644, 1, 3)
+        .await
+        .unwrap();
+    assert!(char_dev_path.exists());
 
-//     // Test block device creation
-//     let block_dev_path = base_path.join("test_block_dev");
-//     device::create_block_device_at_path(&block_dev_path, 0o644, 8, 1)
-//         .await
-//         .unwrap();
-//     assert!(block_dev_path.exists());
+    // Test block device creation
+    let block_dev_path = base_path.join("test_block_dev");
+    device::create_block_device_at_path(&block_dev_path, 0o644, 8, 1)
+        .await
+        .unwrap();
+    assert!(block_dev_path.exists());
 
-//     // Test socket creation
-//     let socket_path = base_path.join("test_socket");
-//     device::create_socket_at_path(&socket_path, 0o644)
-//         .await
-//         .unwrap();
-//     assert!(socket_path.exists());
-// }
+    // Test socket creation
+    let socket_path = base_path.join("test_socket");
+    device::create_socket_at_path(&socket_path, 0o644)
+        .await
+        .unwrap();
+    assert!(socket_path.exists());
+}
 
 /// Test parallel operations to verify io_uring efficiency
 #[compio::test]

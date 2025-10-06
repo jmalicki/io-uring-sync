@@ -19,6 +19,7 @@ io-uring = "0.7"
 
 # System call dependencies
 libc = "0.2"
+nix = { version = "0.28", features = ["fs"] }
 
 # Error handling
 thiserror = "1.0"
