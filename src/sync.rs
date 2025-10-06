@@ -57,6 +57,7 @@
 use crate::cli::Args;
 use crate::directory::copy_directory;
 use crate::error::Result;
+use crate::integration::IoUringOps;
 use crate::io_uring::FileOperations;
 use std::time::{Duration, Instant};
 use tracing::{error, info};
@@ -211,7 +212,7 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
 
     // Initialize file operations with configured parameters
     // Queue depth and buffer size are validated by the CLI module
-    let mut file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
+    let file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
 
     // Handle single file copy
     if args.is_file_copy() {
@@ -222,13 +223,9 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
             file_ops.create_dir(parent).await?;
         }
 
-        // Note: file size is now obtained within copy_file_with_metadata
-
-        // Copy the file with metadata preservation
-        match file_ops
-            .copy_file_with_metadata(&args.source, &args.destination)
-            .await
-        {
+        // Use IoUringOps for io_uring-first file copying
+        let io_ops = IoUringOps::new(args.buffer_size_bytes());
+        match io_ops.copy_file(&args.source, &args.destination).await {
             Ok(bytes_copied) => {
                 stats.files_copied = 1;
                 stats.bytes_copied = bytes_copied;

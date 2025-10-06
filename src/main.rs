@@ -11,6 +11,7 @@ mod cli;
 mod copy;
 mod directory;
 mod error;
+mod integration;
 mod io_uring;
 mod progress;
 mod sync;

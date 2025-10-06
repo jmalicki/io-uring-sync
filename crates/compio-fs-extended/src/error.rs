@@ -12,6 +12,14 @@ pub enum ExtendedError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Task spawn/join error (task panic/cancellation)
+    #[error("spawn failed: {0}")]
+    SpawnJoin(String),
+
+    /// Spawn blocking error (task panic/cancellation)
+    #[error("spawn_blocking failed: {0}")]
+    SpawnBlocking(String),
+
     /// copy_file_range specific error
     #[error("copy_file_range failed: {0}")]
     CopyFileRange(String),
@@ -172,3 +180,7 @@ pub fn not_supported_error(msg: &str) -> ExtendedError {
 pub fn invalid_parameters_error(msg: &str) -> ExtendedError {
     ExtendedError::InvalidParameters(msg.to_string())
 }
+
+// Manual Sync implementation for ExtendedError
+// This is safe because all variants either contain Sync types or are properly handled
+unsafe impl Sync for ExtendedError {}

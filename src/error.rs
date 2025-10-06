@@ -44,6 +44,11 @@ pub enum SyncError {
     #[error("Internal error: {0}")]
     #[allow(dead_code)]
     Internal(String),
+
+    /// Extended file operations error from compio-fs-extended
+    #[error("Extended file operations error: {0}")]
+    #[allow(dead_code)]
+    Extended(compio_fs_extended::error::ExtendedError),
 }
 
 pub type Result<T> = std::result::Result<T, SyncError>;

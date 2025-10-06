@@ -1,8 +1,9 @@
 //! File metadata operations using file descriptors
 //!
-//! This module provides file descriptor-based metadata operations for efficient
-//! file attribute management without repeated path lookups. These operations
-//! use spawn_blocking since the corresponding io_uring opcodes are not available.
+//! This module provides metadata operations using std::fs and filetime, with
+//! file-descriptor and DirectoryFd variants built by resolving `/proc/self/fd`.
+//! Calls run in a blocking closure scheduled via the compio runtime, since
+//! native io_uring opcodes for chmod/chown/timestamps are not available.
 //!
 //! # Operations
 //!
@@ -38,10 +39,21 @@
 //! ```
 
 use crate::error::{ExtendedError, Result};
-use libc;
-use std::ffi::CString;
-use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use filetime::{set_file_times, FileTime};
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+/// Get the /proc/self/fd path for a file descriptor
+fn proc_fd_path(fd: i32) -> PathBuf {
+    PathBuf::from(format!("/proc/self/fd/{}", fd))
+}
+
+/// Join a directory file descriptor path with a relative pathname
+fn join_dirfd_path(dir_fd: i32, pathname: &str) -> Result<PathBuf> {
+    let dir_path = std::fs::read_link(proc_fd_path(dir_fd))?;
+    Ok(dir_path.join(pathname))
+}
 
 /// Change file permissions using file descriptor
 ///
@@ -62,30 +74,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// - Invalid mode value
 /// - The operation fails due to I/O errors
 pub async fn fchmodat(path: &Path, mode: u32) -> Result<()> {
-    let path_cstr = CString::new(path.to_string_lossy().as_bytes())
-        .map_err(|e| metadata_error(&format!("Invalid path: {}", e)))?;
+    let path = path.to_path_buf();
+    let handle = compio::runtime::spawn(async move {
+        let mut perms = std::fs::metadata(&path)?.permissions();
+        perms.set_mode(mode);
+        std::fs::set_permissions(&path, perms)
+    });
 
-    let path_cstr = path_cstr.clone();
-
-    let result = compio::runtime::spawn_blocking(move || {
-        unsafe {
-            libc::fchmodat(
-                libc::AT_FDCWD,
-                path_cstr.as_ptr(),
-                mode as libc::mode_t,
-                0, // No flags
-            )
-        }
-    })
-    .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("fchmodat failed: {}", errno)));
+    match handle.await {
+        Ok(inner) => inner.map_err(ExtendedError::from),
+        Err(join_err) => Err(ExtendedError::SpawnJoin(format!(
+            "spawn failed: {:?}",
+            join_err
+        ))),
     }
-
-    Ok(())
 }
 
 /// Change file timestamps using file descriptor
@@ -108,50 +110,20 @@ pub async fn fchmodat(path: &Path, mode: u32) -> Result<()> {
 /// - Invalid timestamp values
 /// - The operation fails due to I/O errors
 pub async fn futimesat(path: &Path, accessed: SystemTime, modified: SystemTime) -> Result<()> {
-    let path_cstr = CString::new(path.to_string_lossy().as_bytes())
-        .map_err(|e| metadata_error(&format!("Invalid path: {}", e)))?;
+    let path = path.to_path_buf();
+    let handle = compio::runtime::spawn(async move {
+        let atime = FileTime::from(accessed);
+        let mtime = FileTime::from(modified);
+        set_file_times(&path, atime, mtime)
+    });
 
-    // Convert SystemTime to libc::timespec
-    let accessed_duration = accessed
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| metadata_error(&format!("Invalid access time: {}", e)))?;
-    let modified_duration = modified
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| metadata_error(&format!("Invalid modification time: {}", e)))?;
-
-    let accessed_ts = libc::timespec {
-        tv_sec: accessed_duration.as_secs() as libc::time_t,
-        tv_nsec: accessed_duration.subsec_nanos() as libc::c_long,
-    };
-
-    let modified_ts = libc::timespec {
-        tv_sec: modified_duration.as_secs() as libc::time_t,
-        tv_nsec: modified_duration.subsec_nanos() as libc::c_long,
-    };
-
-    let times = [accessed_ts, modified_ts];
-
-    let path_cstr = path_cstr.clone();
-
-    let result = compio::runtime::spawn_blocking(move || {
-        unsafe {
-            libc::utimensat(
-                libc::AT_FDCWD,
-                path_cstr.as_ptr(),
-                times.as_ptr(),
-                0, // No flags
-            )
-        }
-    })
-    .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("utimensat failed: {}", errno)));
+    match handle.await {
+        Ok(inner) => inner.map_err(ExtendedError::from),
+        Err(join_err) => Err(ExtendedError::SpawnJoin(format!(
+            "spawn failed: {:?}",
+            join_err
+        ))),
     }
-
-    Ok(())
 }
 
 /// Change file ownership using file descriptor
@@ -173,34 +145,10 @@ pub async fn futimesat(path: &Path, accessed: SystemTime, modified: SystemTime) 
 /// - Permission is denied
 /// - Invalid user/group IDs
 /// - The operation fails due to I/O errors
-pub async fn fchownat(path: &Path, uid: u32, gid: u32) -> Result<()> {
-    let path_cstr = CString::new(path.to_string_lossy().as_bytes())
-        .map_err(|e| metadata_error(&format!("Invalid path: {}", e)))?;
-
-    let path_cstr = path_cstr.clone();
-    let uid = uid as libc::uid_t;
-    let gid = gid as libc::gid_t;
-
-    let result = compio::runtime::spawn_blocking(move || {
-        unsafe {
-            libc::fchownat(
-                libc::AT_FDCWD,
-                path_cstr.as_ptr(),
-                uid,
-                gid,
-                0, // No flags
-            )
-        }
-    })
-    .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("fchownat failed: {}", errno)));
-    }
-
-    Ok(())
+pub async fn fchownat(_path: &Path, _uid: u32, _gid: u32) -> Result<()> {
+    Err(metadata_error(
+        "chown is not supported via std::fs; enable a libc-based path if required",
+    ))
 }
 
 /// Change file permissions using file descriptor (more efficient)
@@ -222,17 +170,20 @@ pub async fn fchownat(path: &Path, uid: u32, gid: u32) -> Result<()> {
 /// - Invalid mode value
 /// - The operation fails due to I/O errors
 pub async fn fchmod(fd: i32, mode: u32) -> Result<()> {
-    let result =
-        compio::runtime::spawn_blocking(move || unsafe { libc::fchmod(fd, mode as libc::mode_t) })
-            .await
-            .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
+    let handle = compio::runtime::spawn(async move {
+        let path = proc_fd_path(fd);
+        let mut perms = std::fs::metadata(&path)?.permissions();
+        perms.set_mode(mode);
+        std::fs::set_permissions(&path, perms)
+    });
 
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("fchmod failed: {}", errno)));
+    match handle.await {
+        Ok(inner) => inner.map_err(ExtendedError::from),
+        Err(join_err) => Err(ExtendedError::SpawnJoin(format!(
+            "spawn failed: {:?}",
+            join_err
+        ))),
     }
-
-    Ok(())
 }
 
 /// Change file timestamps using file descriptor (more efficient)
@@ -255,37 +206,20 @@ pub async fn fchmod(fd: i32, mode: u32) -> Result<()> {
 /// - Invalid timestamp values
 /// - The operation fails due to I/O errors
 pub async fn futimes(fd: i32, accessed: SystemTime, modified: SystemTime) -> Result<()> {
-    // Convert SystemTime to libc::timespec
-    let accessed_duration = accessed
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| metadata_error(&format!("Invalid access time: {}", e)))?;
-    let modified_duration = modified
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| metadata_error(&format!("Invalid modification time: {}", e)))?;
+    let handle = compio::runtime::spawn(async move {
+        let path = proc_fd_path(fd);
+        let atime = FileTime::from(accessed);
+        let mtime = FileTime::from(modified);
+        set_file_times(&path, atime, mtime)
+    });
 
-    let accessed_ts = libc::timespec {
-        tv_sec: accessed_duration.as_secs() as libc::time_t,
-        tv_nsec: accessed_duration.subsec_nanos() as libc::c_long,
-    };
-
-    let modified_ts = libc::timespec {
-        tv_sec: modified_duration.as_secs() as libc::time_t,
-        tv_nsec: modified_duration.subsec_nanos() as libc::c_long,
-    };
-
-    let times = [accessed_ts, modified_ts];
-
-    let result =
-        compio::runtime::spawn_blocking(move || unsafe { libc::futimens(fd, times.as_ptr()) })
-            .await
-            .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("futimens failed: {}", errno)));
+    match handle.await {
+        Ok(inner) => inner.map_err(ExtendedError::from),
+        Err(join_err) => Err(ExtendedError::SpawnJoin(format!(
+            "spawn failed: {:?}",
+            join_err
+        ))),
     }
-
-    Ok(())
 }
 
 /// Change file ownership using file descriptor (more efficient)
@@ -307,20 +241,10 @@ pub async fn futimes(fd: i32, accessed: SystemTime, modified: SystemTime) -> Res
 /// - Permission is denied
 /// - Invalid user/group IDs
 /// - The operation fails due to I/O errors
-pub async fn fchown(fd: i32, uid: u32, gid: u32) -> Result<()> {
-    let uid = uid as libc::uid_t;
-    let gid = gid as libc::gid_t;
-
-    let result = compio::runtime::spawn_blocking(move || unsafe { libc::fchown(fd, uid, gid) })
-        .await
-        .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("fchown failed: {}", errno)));
-    }
-
-    Ok(())
+pub async fn fchown(_fd: i32, _uid: u32, _gid: u32) -> Result<()> {
+    Err(metadata_error(
+        "chown is not supported via std::fs; enable a libc-based path if required",
+    ))
 }
 
 /// Change file permissions using DirectoryFd (most efficient)
@@ -343,30 +267,20 @@ pub async fn fchown(fd: i32, uid: u32, gid: u32) -> Result<()> {
 /// - Invalid mode value
 /// - The operation fails due to I/O errors
 pub async fn fchmodat_with_dirfd(dir_fd: i32, pathname: &str, mode: u32) -> Result<()> {
-    let pathname_cstr =
-        CString::new(pathname).map_err(|e| metadata_error(&format!("Invalid pathname: {}", e)))?;
+    let full = join_dirfd_path(dir_fd, pathname)?;
+    let handle = compio::runtime::spawn(async move {
+        let mut perms = std::fs::metadata(&full)?.permissions();
+        perms.set_mode(mode);
+        std::fs::set_permissions(&full, perms)
+    });
 
-    let pathname_cstr = pathname_cstr.clone();
-
-    let result = compio::runtime::spawn_blocking(move || {
-        unsafe {
-            libc::fchmodat(
-                dir_fd,
-                pathname_cstr.as_ptr(),
-                mode as libc::mode_t,
-                0, // No flags
-            )
-        }
-    })
-    .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("fchmodat failed: {}", errno)));
+    match handle.await {
+        Ok(inner) => inner.map_err(ExtendedError::from),
+        Err(join_err) => Err(ExtendedError::SpawnJoin(format!(
+            "spawn failed: {:?}",
+            join_err
+        ))),
     }
-
-    Ok(())
 }
 
 /// Change file timestamps using DirectoryFd (most efficient)
@@ -395,50 +309,22 @@ pub async fn futimesat_with_dirfd(
     accessed: SystemTime,
     modified: SystemTime,
 ) -> Result<()> {
-    let pathname_cstr =
-        CString::new(pathname).map_err(|e| metadata_error(&format!("Invalid pathname: {}", e)))?;
+    let full = join_dirfd_path(dir_fd, pathname)?;
+    let handle = compio::runtime::spawn(async move {
+        let atime = FileTime::from(accessed);
+        let mtime = FileTime::from(modified);
+        set_file_times(&full, atime, mtime)
+    });
 
-    // Convert SystemTime to libc::timespec
-    let accessed_duration = accessed
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| metadata_error(&format!("Invalid access time: {}", e)))?;
-    let modified_duration = modified
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| metadata_error(&format!("Invalid modification time: {}", e)))?;
-
-    let accessed_ts = libc::timespec {
-        tv_sec: accessed_duration.as_secs() as libc::time_t,
-        tv_nsec: accessed_duration.subsec_nanos() as libc::c_long,
-    };
-
-    let modified_ts = libc::timespec {
-        tv_sec: modified_duration.as_secs() as libc::time_t,
-        tv_nsec: modified_duration.subsec_nanos() as libc::c_long,
-    };
-
-    let times = [accessed_ts, modified_ts];
-
-    let pathname_cstr = pathname_cstr.clone();
-
-    let result = compio::runtime::spawn_blocking(move || {
-        unsafe {
-            libc::utimensat(
-                dir_fd,
-                pathname_cstr.as_ptr(),
-                times.as_ptr(),
-                0, // No flags
-            )
-        }
-    })
-    .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("utimensat failed: {}", errno)));
+    match handle.await {
+        // preserve original std::io::Error from set_file_times
+        Ok(inner) => inner.map_err(ExtendedError::from),
+        // only non-inner failures (task panics/cancellations) become SpawnJoin
+        Err(join_err) => Err(ExtendedError::SpawnJoin(format!(
+            "spawn failed: {:?}",
+            join_err
+        ))),
     }
-
-    Ok(())
 }
 
 /// Change file ownership using DirectoryFd (most efficient)
@@ -461,34 +347,15 @@ pub async fn futimesat_with_dirfd(
 /// - Permission is denied
 /// - Invalid user/group IDs
 /// - The operation fails due to I/O errors
-pub async fn fchownat_with_dirfd(dir_fd: i32, pathname: &str, uid: u32, gid: u32) -> Result<()> {
-    let pathname_cstr =
-        CString::new(pathname).map_err(|e| metadata_error(&format!("Invalid pathname: {}", e)))?;
-
-    let pathname_cstr = pathname_cstr.clone();
-    let uid = uid as libc::uid_t;
-    let gid = gid as libc::gid_t;
-
-    let result = compio::runtime::spawn_blocking(move || {
-        unsafe {
-            libc::fchownat(
-                dir_fd,
-                pathname_cstr.as_ptr(),
-                uid,
-                gid,
-                0, // No flags
-            )
-        }
-    })
-    .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
-
-    if result < 0 {
-        let errno = std::io::Error::last_os_error();
-        return Err(metadata_error(&format!("fchownat failed: {}", errno)));
-    }
-
-    Ok(())
+pub async fn fchownat_with_dirfd(
+    _dir_fd: i32,
+    _pathname: &str,
+    _uid: u32,
+    _gid: u32,
+) -> Result<()> {
+    Err(metadata_error(
+        "chown is not supported via std::fs; enable a libc-based path if required",
+    ))
 }
 
 /// Error helper for metadata operations

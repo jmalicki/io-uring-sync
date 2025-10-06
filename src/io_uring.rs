@@ -396,6 +396,7 @@ impl FileOperations {
     /// - Metadata preservation fails
     #[allow(clippy::future_not_send)]
     #[allow(clippy::needless_pass_by_ref_mut)]
+    #[allow(dead_code)]
     pub async fn copy_file_with_metadata(&mut self, src: &Path, dst: &Path) -> Result<u64> {
         // Ensure destination directory exists
         if let Some(parent) = dst.parent() {
@@ -454,6 +455,7 @@ impl FileOperations {
     /// This function preserves file metadata (permissions, ownership, timestamps)
     /// using the open file descriptors, avoiding repeated path lookups.
     #[allow(clippy::unused_async)]
+    #[allow(dead_code)]
     async fn preserve_metadata_from_fd(
         &self,
         _src_file: &compio::fs::File,

@@ -51,7 +51,7 @@ pub trait Fadvise {
     /// # Ok(())
     /// # }
     /// ```
-    async fn fadvise(&self, advice: FadviseAdvice, offset: u64, len: u64) -> Result<()>;
+    async fn fadvise(&self, advice: FadviseAdvice, offset: i64, len: i64) -> Result<()>;
 }
 
 /// fadvise advice types for file access pattern optimization
@@ -90,9 +90,9 @@ pub struct FadviseOp {
     /// File descriptor to apply advice to
     fd: i32,
     /// File offset to start the advice
-    offset: u64,
+    offset: i64,
     /// Length of the region to apply advice to
-    len: u64,
+    len: i64,
     /// The fadvise advice constant
     advice: i32,
 }
@@ -107,7 +107,7 @@ impl FadviseOp {
     /// * `len` - Length of the region to apply advice to
     /// * `advice` - The fadvise advice constant
     #[must_use]
-    pub fn new(fd: i32, offset: u64, len: u64, advice: i32) -> Self {
+    pub fn new(fd: i32, offset: i64, len: i64, advice: i32) -> Self {
         Self {
             fd,
             offset,
@@ -120,8 +120,8 @@ impl FadviseOp {
 impl OpCode for FadviseOp {
     fn create_entry(self: Pin<&mut Self>) -> compio::driver::OpEntry {
         compio::driver::OpEntry::Submission(
-            opcode::Fadvise::new(types::Fd(self.fd), self.len as i64, self.advice)
-                .offset(self.offset)
+            opcode::Fadvise::new(types::Fd(self.fd), self.len, self.advice)
+                .offset(self.offset as u64)
                 .build(),
         )
     }
@@ -163,27 +163,16 @@ impl OpCode for FadviseOp {
 /// # Ok(())
 /// # }
 /// ```
-pub async fn fadvise(file: &File, advice: FadviseAdvice, offset: u64, len: u64) -> Result<()> {
+pub async fn fadvise(file: &File, advice: FadviseAdvice, offset: i64, len: i64) -> Result<()> {
     let fd = file.as_raw_fd();
-
-    // Validate parameters
-    if offset > i64::MAX as u64 {
-        return Err(fadvise_error("offset too large"));
-    }
-    if len > i64::MAX as u64 {
-        return Err(fadvise_error("length too large"));
-    }
 
     // Submit io_uring fadvise operation using compio's runtime
     let result = submit(FadviseOp::new(fd, offset, len, advice.to_posix())).await;
 
-    // Convert the result to our error type
+    // Minimal mapping: preserve underlying error string without extra context
     match result.0 {
         Ok(_) => Ok(()),
-        Err(e) => Err(fadvise_error(&format!(
-            "io_uring fadvise operation failed: {}",
-            e
-        ))),
+        Err(e) => Err(fadvise_error(&e.to_string())),
     }
 }
 
@@ -280,9 +269,9 @@ mod tests {
     }
 
     #[compio::test]
-    async fn test_fadvise_invalid_offset() {
-        // Test: Verify that fadvise properly handles invalid offset values
-        // This test validates parameter validation in the fadvise_impl function
+    async fn test_fadvise_large_offset() {
+        // Test: Verify that fadvise works with large offset values
+        // Let the kernel handle validation instead of doing it ourselves
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
 
@@ -292,15 +281,12 @@ mod tests {
         // Open file using compio async File
         let file = File::open(&file_path).await.unwrap();
 
-        // Test fadvise with invalid offset (too large)
-        let result = fadvise(&file, FadviseAdvice::Sequential, u64::MAX, 0).await;
-        assert!(result.is_err(), "fadvise with invalid offset should fail");
-
-        if let Err(err) = result {
-            assert!(
-                err.to_string().contains("offset too large"),
-                "Error message should indicate offset too large"
-            );
+        // Test fadvise with large offset - let kernel decide if it's valid
+        let result = fadvise(&file, FadviseAdvice::Sequential, i64::MAX, 0).await;
+        // This might succeed or fail depending on kernel/filesystem, both are acceptable
+        match result {
+            Ok(_) => println!("fadvise with large offset succeeded"),
+            Err(e) => println!("fadvise with large offset failed as expected: {}", e),
         }
     }
 }

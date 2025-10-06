@@ -49,6 +49,7 @@ pub mod cli;
 pub mod copy;
 pub mod directory;
 pub mod error;
+pub mod integration;
 pub mod io_uring;
 pub mod progress;
 pub mod sync;

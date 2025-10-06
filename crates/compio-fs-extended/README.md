@@ -1,15 +1,19 @@
 # compio-fs-extended
 
-Extended filesystem operations for compio with support for copy_file_range, fadvise, symlinks, hardlinks, and extended attributes.
+Extended filesystem operations for compio with support for copy_file_range, fadvise, symlinks, hardlinks, metadata operations, and extended attributes.
 
 ## Features
 
 - **copy_file_range**: Efficient same-filesystem file copying using direct syscalls
-- **fadvise**: File access pattern optimization using posix_fadvise
-- **Symlink operations**: Create and read symbolic links
-- **Hardlink operations**: Create and manage hard links
-- **Directory operations**: Enhanced directory creation and management
+- **fadvise**: File access pattern optimization using posix_fadvise with type-safe advice enum
+- **fallocate**: File space preallocation and manipulation using io_uring
+- **Symlink operations**: Create and read symbolic links using io_uring and secure *at variants
+- **Hardlink operations**: Create and manage hard links using io_uring
+- **Directory operations**: Enhanced directory creation and management with DirectoryFd for security
+- **Metadata operations**: File permissions, timestamps, and ownership using std::fs fallbacks
 - **Extended attributes (xattr)**: Support for extended attributes using io_uring opcodes
+- **Device operations**: Special file creation (pipes, devices, sockets) with nix integration
+- **Robust error handling**: Distinguishes between I/O errors and spawn failures, preserving kernel errno
 
 ## Usage
 
