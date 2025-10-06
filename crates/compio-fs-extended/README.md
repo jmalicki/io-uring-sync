@@ -9,7 +9,7 @@ Extended filesystem operations for compio with support for copy_file_range, fadv
 - **Symlink operations**: Create and read symbolic links
 - **Hardlink operations**: Create and manage hard links
 - **Directory operations**: Enhanced directory creation and management
-- **Extended attributes (xattr)**: Support for extended attributes using io_uring opcodes
+- **Extended attributes (xattr)**: Complete support for extended attributes using file descriptor operations
 
 ## Usage
 
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Comprehensive Example: File Operations with Metadata
 
 ```rust
-use compio_fs_extended::{ExtendedFile, XattrOps, Fadvise, FadviseAdvice};
+use compio_fs_extended::{ExtendedFile, XattrOps, Fadvise, FadviseAdvice, OwnershipOps};
 use compio::fs::File;
 use std::path::Path;
 
@@ -103,6 +103,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Optimize for sequential access
     extended_file.fadvise(FadviseAdvice::Sequential, 0, 0).await?;
     
+    // Set file ownership (requires appropriate permissions)
+    extended_file.fchown(1000, 1000).await?;
+    
     // Get extended attributes
     let author = extended_file.get_xattr("user.author").await?;
     println!("Author: {}", String::from_utf8_lossy(&author));
@@ -117,12 +120,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Directory Operations with Metadata Preservation
+
+```rust
+use compio_fs_extended::{ExtendedFile, XattrOps, OwnershipOps};
+use compio::fs::File;
+use std::path::Path;
+
+#[compio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let dir_path = Path::new("example_dir");
+    
+    // Create directory
+    std::fs::create_dir(dir_path)?;
+    
+    // Open directory for metadata operations
+    let dir_file = File::open(dir_path).await?;
+    let extended_dir = ExtendedFile::new(dir_file);
+    
+    // Set directory extended attributes
+    extended_dir.set_xattr("user.purpose", b"backup").await?;
+    extended_dir.set_xattr("user.created", b"2024-01-01").await?;
+    
+    // Set directory ownership
+    extended_dir.fchown(1000, 1000).await?;
+    
+    // List directory attributes
+    let attrs = extended_dir.list_xattr().await?;
+    for attr in attrs {
+        println!("Directory attribute: {}", attr);
+    }
+    
+    Ok(())
+}
+```
+
 ## Architecture
 
 This crate extends `compio::fs::File` with additional operations that are not available in the base compio-fs crate. It uses:
 
 - **Direct syscalls** for most operations (copy_file_range, fadvise, symlinks, hardlinks)
-- **io_uring opcodes** for extended attributes (IORING_OP_SETXATTR, IORING_OP_GETXATTR, IORING_OP_LISTXATTR)
+- **File descriptor operations** for extended attributes (fgetxattr, fsetxattr, flistxattr)
 - **compio runtime integration** for all async operations
 
 ## Requirements

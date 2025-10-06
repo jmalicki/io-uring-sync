@@ -13,7 +13,7 @@ High-performance bulk file copying utility using io_uring for maximum efficiency
 - **Zero-Copy Operations**: Uses `copy_file_range` for same-filesystem copies
 - **Smart Hardlink Detection**: Integrated hardlink detection during traversal - content copied once, subsequent files become hardlinks
 - **Parallel Processing**: Per-CPU queue architecture for optimal scaling
-- **Metadata Preservation**: Complete preservation of ownership, permissions, and extended attributes
+- **Comprehensive Metadata Preservation**: Complete preservation of permissions, ownership, timestamps, and extended attributes for both files and directories
 - **Progress Tracking**: Real-time progress reporting showing both discovery and completion progress
 - **Cross-Filesystem Support**: Automatic fallback for different filesystems
 - **Single-Pass Operation**: Efficient traversal that discovers and copies in one pass
@@ -66,12 +66,11 @@ io-uring-sync \
   --max-files-in-flight 2048 \
   --cpu-count 8
 
-# Preserve extended attributes and ACLs
+# Preserve all metadata (permissions, ownership, timestamps, xattr)
 io-uring-sync \
   --source /data \
   --destination /backup \
-  --preserve-xattr \
-  --preserve-acl
+  --preserve-metadata
 
 # Dry run to see what would be copied
 io-uring-sync \
@@ -97,8 +96,9 @@ io-uring-sync \
 | `--cpu-count` | Number of CPUs to use (0 = auto) | 0 |
 | `--buffer-size` | Buffer size in KB (0 = auto) | 0 |
 | `--copy-method` | Copy method (auto/copy_file_range/splice/read_write) | auto |
-| `--preserve-xattr` | Preserve extended attributes | false |
-| `--preserve-acl` | Preserve POSIX ACLs | false |
+| `--preserve-metadata` | Preserve all metadata (permissions, ownership, timestamps, xattr) | true |
+| `--preserve-xattr` | Preserve extended attributes only | false |
+| `--preserve-ownership` | Preserve file/directory ownership only | false |
 | `--dry-run` | Show what would be copied | false |
 | `--progress` | Show progress information | false |
 | `--verbose`, `-v` | Verbose output (-v, -vv, -vvv) | 0 |
@@ -169,6 +169,28 @@ io-uring-sync uses a hybrid approach combining existing Rust libraries with cust
 2. **splice**: Zero-copy data transfer between file descriptors
 3. **read/write**: Traditional method with fallback support
 
+### Comprehensive Metadata Preservation
+
+io-uring-sync provides complete metadata preservation for both files and directories:
+
+#### **File Metadata Preservation**
+- **Permissions**: Preserves file permissions including special bits (setuid, setgid, sticky)
+- **Ownership**: Preserves user and group ownership using `fchown` syscalls
+- **Timestamps**: Preserves access and modification times with nanosecond precision
+- **Extended Attributes**: Preserves all extended attributes (xattr) using file descriptor operations
+
+#### **Directory Metadata Preservation**
+- **Permissions**: Preserves directory permissions including special bits
+- **Ownership**: Preserves directory ownership using `fchown` syscalls
+- **Timestamps**: Preserves directory access and modification times
+- **Extended Attributes**: Preserves all directory extended attributes
+
+#### **Technical Implementation**
+- **File Descriptor Operations**: Uses `fchmod`, `fchown`, `futimesat`, and `f*` xattr syscalls for maximum efficiency
+- **Error Handling**: Graceful degradation with detailed logging for failed metadata operations
+- **Performance**: Minimal impact on copy performance through efficient syscall usage
+- **Security**: File descriptor-based operations prevent race conditions and security issues
+
 ### Hardlink Detection and Preservation
 
 io-uring-sync intelligently handles hardlinks during directory traversal:
@@ -195,6 +217,7 @@ See the following documents for detailed development information:
 - [research.md](docs/research.md) - Comprehensive technical research and analysis
 - [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) - Detailed implementation phases and deliverables
 - [TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) - Comprehensive testing approach and requirements
+- [METADATA_PRESERVATION.md](docs/METADATA_PRESERVATION.md) - Comprehensive metadata preservation documentation
 
 ### Quick Start
 
