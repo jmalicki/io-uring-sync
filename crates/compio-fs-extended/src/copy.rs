@@ -5,6 +5,7 @@ use compio::fs::File;
 use std::os::unix::io::AsRawFd;
 
 /// Trait for copy_file_range operations
+#[allow(async_fn_in_trait)]
 pub trait CopyFileRange {
     /// Copy data between file descriptors using copy_file_range
     ///
@@ -58,6 +59,10 @@ pub trait CopyFileRange {
 }
 
 /// Implementation of copy_file_range using direct syscalls
+///
+/// # Errors
+///
+/// This function will return an error if the copy_file_range operation fails
 pub async fn copy_file_range_impl(
     src: &File,
     dst: &File,
@@ -107,10 +112,7 @@ pub async fn copy_file_range_impl(
 /// `true` if copy_file_range is supported, `false` otherwise
 pub async fn is_copy_file_range_supported(src: &File, dst: &File) -> bool {
     // Try a small copy_file_range operation to test support
-    match copy_file_range_impl(src, dst, 0, 0, 0).await {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    copy_file_range_impl(src, dst, 0, 0, 0).await.is_ok()
 }
 
 /// Get the maximum number of bytes that can be copied in a single copy_file_range operation
@@ -118,6 +120,7 @@ pub async fn is_copy_file_range_supported(src: &File, dst: &File) -> bool {
 /// # Returns
 ///
 /// The maximum number of bytes, or `None` if the limit is unknown
+#[must_use]
 pub fn max_copy_file_range_bytes() -> Option<usize> {
     // This is typically limited by the filesystem and kernel implementation
     // For most modern filesystems, this is effectively unlimited
@@ -137,6 +140,10 @@ pub fn max_copy_file_range_bytes() -> Option<usize> {
 /// # Returns
 ///
 /// Number of bytes copied
+///
+/// # Errors
+///
+/// This function will return an error if both copy_file_range and read/write operations fail
 pub async fn copy_file_range_with_fallback(
     src: &File,
     dst: &File,
@@ -164,7 +171,7 @@ mod tests {
     use std::fs::write;
     use tempfile::TempDir;
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_copy_file_range_basic() {
         let temp_dir = TempDir::new().unwrap();
         let src_path = temp_dir.path().join("source.txt");
@@ -195,7 +202,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_is_copy_file_range_supported() {
         let temp_dir = TempDir::new().unwrap();
         let src_path = temp_dir.path().join("source.txt");

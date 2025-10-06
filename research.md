@@ -895,6 +895,7 @@ With research complete, the project is ready to proceed to implementation:
 ## References
 
 ### Official Documentation
+- [Linux Kernel io_uring Header File](https://github.com/torvalds/linux/blob/master/include/uapi/linux/io_uring.h)
 - [io_uring Official Repository](https://github.com/axboe/liburing)
 - [Linux man pages - copy_file_range](https://man7.org/linux/man-pages/man2/copy_file_range.2.html)
 - [Linux man pages - io_uring](https://man7.org/linux/man-pages/man7/io_uring.7.html)

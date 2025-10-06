@@ -14,8 +14,12 @@ categories = ["asynchronous", "filesystem"]
 compio = { version = "0.16", features = ["macros", "dispatcher"] }
 compio-fs = "0.9"
 
+# io_uring dependencies (must match compio's version)
+io-uring = "0.7"
+
 # System call dependencies
 libc = "0.2"
+nix = { version = "0.28", features = ["fs"] }
 
 # Error handling
 thiserror = "1.0"
@@ -31,6 +35,7 @@ log = "0.4"
 tempfile = "3.0"
 tokio = { version = "1.0", features = ["full"] }
 criterion = { version = "0.5", features = ["html_reports"] }
+testcontainers = "0.25"
 
 [features]
 default = []

@@ -5,6 +5,7 @@ use compio::fs::File;
 use std::path::Path;
 
 /// Trait for hardlink operations
+#[allow(async_fn_in_trait)]
 pub trait HardlinkOps {
     /// Create a hard link to the file
     ///
@@ -38,6 +39,10 @@ pub trait HardlinkOps {
 }
 
 /// Implementation of hardlink operations using direct syscalls
+///
+/// # Errors
+///
+/// This function will return an error if the hardlink creation fails
 pub async fn create_hardlink_impl(_file: &File, _target: &Path) -> Result<()> {
     // Get the file path from the file descriptor
     // This is a simplified implementation - in practice, we'd need to track the path
@@ -93,6 +98,7 @@ pub async fn create_hardlink_at_path(original_path: &Path, link_path: &Path) -> 
 /// # Returns
 ///
 /// `true` if the paths point to the same file, `false` otherwise
+#[must_use]
 pub fn are_same_file(path1: &Path, path2: &Path) -> bool {
     match (std::fs::metadata(path1), std::fs::metadata(path2)) {
         (Ok(meta1), Ok(meta2)) => {
@@ -112,10 +118,11 @@ pub fn are_same_file(path1: &Path, path2: &Path) -> bool {
 /// # Returns
 ///
 /// The number of hard links, or `None` if the operation fails
+#[must_use]
 pub fn get_link_count(path: &Path) -> Option<u64> {
-    std::fs::metadata(path).ok().and_then(|meta| {
+    std::fs::metadata(path).ok().map(|meta| {
         use std::os::unix::fs::MetadataExt;
-        Some(meta.nlink())
+        meta.nlink()
     })
 }
 
@@ -128,8 +135,9 @@ pub fn get_link_count(path: &Path) -> Option<u64> {
 /// # Returns
 ///
 /// `true` if the file has multiple hard links, `false` otherwise
+#[must_use]
 pub fn has_multiple_links(path: &Path) -> bool {
-    get_link_count(path).map_or(false, |count| count > 1)
+    get_link_count(path).is_some_and(|count| count > 1)
 }
 
 /// Find all hard links for a file
@@ -146,6 +154,10 @@ pub fn has_multiple_links(path: &Path) -> bool {
 ///
 /// This is a simplified implementation that only checks the immediate directory.
 /// A full implementation would need to traverse the filesystem.
+///
+/// # Errors
+///
+/// This function will return an error if the file metadata cannot be read
 pub fn find_hard_links(path: &Path) -> Result<Vec<std::path::PathBuf>> {
     let original_meta = std::fs::metadata(path).map_err(|e| {
         hardlink_error(&format!(
@@ -163,13 +175,11 @@ pub fn find_hard_links(path: &Path) -> Result<Vec<std::path::PathBuf>> {
 
     if let Some(parent) = path.parent() {
         if let Ok(entries) = std::fs::read_dir(parent) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let entry_path = entry.path();
-                    if let Ok(meta) = std::fs::metadata(&entry_path) {
-                        if meta.ino() == original_ino && meta.dev() == original_dev {
-                            hard_links.push(entry_path);
-                        }
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if let Ok(meta) = std::fs::metadata(&entry_path) {
+                    if meta.ino() == original_ino && meta.dev() == original_dev {
+                        hard_links.push(entry_path);
                     }
                 }
             }

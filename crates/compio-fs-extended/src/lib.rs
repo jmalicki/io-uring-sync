@@ -35,11 +35,14 @@
 //! ```
 
 pub mod copy;
+pub mod device;
 pub mod directory;
 pub mod error;
 pub mod extended_file;
 pub mod fadvise;
+pub mod fallocate;
 pub mod hardlink;
+pub mod metadata;
 pub mod symlink;
 pub mod xattr;
 
@@ -49,8 +52,9 @@ pub use extended_file::ExtendedFile;
 
 // Re-export specific operation modules
 pub use copy::CopyFileRange;
-pub use directory::DirectoryOps;
+// DirectoryOps removed - use compio::fs directly for basic directory operations
 pub use fadvise::Fadvise;
+pub use fallocate::Fallocate;
 pub use hardlink::HardlinkOps;
 pub use symlink::SymlinkOps;
 pub use xattr::XattrOps;

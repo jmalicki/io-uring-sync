@@ -37,7 +37,7 @@ async fn test_fadvise_basic() {
 async fn test_symlink_basic() {
     let temp_dir = TempDir::new().unwrap();
     let source_file = temp_dir.path().join("source.txt");
-    let symlink_path = temp_dir.path().join("link.txt");
+    let symlink_path = temp_dir.path().join("test_symlink");
 
     // Create source file
     fs::write(&source_file, "Source content").unwrap();
@@ -48,9 +48,19 @@ async fn test_symlink_basic() {
     }
 
     // Create symlink
-    symlink::create_symlink_at_path(&symlink_path, &source_file)
+    async {
+        let dir_fd = crate::directory::DirectoryFd::open(temp_dir.path())
+            .await
+            .unwrap();
+        symlink::create_symlink_at_dirfd(
+            &dir_fd,
+            &source_file.file_name().unwrap().to_string_lossy(),
+            "test_symlink",
+        )
         .await
-        .unwrap();
+    }
+    .await
+    .unwrap();
 
     // Verify symlink exists
     assert!(symlink_path.exists());
@@ -61,8 +71,15 @@ async fn test_symlink_basic() {
     println!("Is symlink: {}", metadata.file_type().is_symlink());
 
     // Read symlink target
-    let target = symlink::read_symlink_at_path(&symlink_path).await.unwrap();
-    assert_eq!(target, source_file);
+    let target = async {
+        let dir_fd = crate::directory::DirectoryFd::open(temp_dir.path())
+            .await
+            .unwrap();
+        symlink::read_symlink_at_dirfd(&dir_fd, "test_symlink").await
+    }
+    .await
+    .unwrap();
+    assert_eq!(target, std::path::PathBuf::from("source.txt"));
 
     // Verify symlink content
     let content = fs::read_to_string(&symlink_path).unwrap();
@@ -76,22 +93,16 @@ async fn test_directory_basic() {
     let dir_path = temp_dir.path().join("test_dir");
 
     // Create directory
-    directory::create_directory_at_path(&dir_path)
-        .await
-        .unwrap();
+    compio::fs::create_dir(&dir_path).await.unwrap();
     assert!(dir_path.exists());
 
     // Create directory with specific mode
     let dir_path2 = temp_dir.path().join("test_dir2");
-    directory::create_directory_with_mode(&dir_path2, 0o755)
-        .await
-        .unwrap();
+    compio::fs::create_dir(&dir_path2).await.unwrap();
     assert!(dir_path2.exists());
 
     // Remove directory
-    directory::remove_directory_at_path(&dir_path2)
-        .await
-        .unwrap();
+    compio::fs::remove_dir(&dir_path2).await.unwrap();
     assert!(!dir_path2.exists());
 }
 
@@ -240,13 +251,19 @@ async fn test_error_handling() {
     let non_existent = temp_dir.path().join("does_not_exist.txt");
 
     // Test operations on non-existent files
-    let result = symlink::read_symlink_at_path(&non_existent).await;
+    let result = async {
+        let dir_fd = crate::directory::DirectoryFd::open(temp_dir.path())
+            .await
+            .unwrap();
+        symlink::read_symlink_at_dirfd(&dir_fd, "nonexistent").await
+    }
+    .await;
     assert!(result.is_err());
 
     let result = xattr::get_xattr_at_path(&non_existent, "user.test").await;
     assert!(result.is_err());
 
-    let result = directory::remove_directory_at_path(&non_existent).await;
+    let result = compio::fs::remove_dir(&non_existent).await;
     assert!(result.is_err());
 }
 
