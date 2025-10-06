@@ -139,9 +139,12 @@ async fn test_directory_complex_scenarios() {
         "logs/2023",
     ];
 
-    // Create all directories
+    // Create all directories (create parent directories first)
     for dir in &dirs {
         let dir_path = base_path.join(dir);
+        if let Some(parent) = dir_path.parent() {
+            compio::fs::create_dir_all(parent).await.unwrap();
+        }
         compio::fs::create_dir(&dir_path).await.unwrap();
         assert!(dir_path.exists());
     }

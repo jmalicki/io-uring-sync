@@ -123,7 +123,9 @@ pub async fn create_char_device_at_path(
     major: u32,
     minor: u32,
 ) -> Result<()> {
-    let dev = ((major & 0xfff) << 8) | (minor & 0xff) | (((major >> 12) & 0xfffff) << 32);
+    let dev = ((major & 0xfff) as u64) << 8
+        | (minor & 0xff) as u64
+        | (((major >> 12) & 0xfffff) as u64) << 32;
     let device_mode = stat::SFlag::S_IFCHR.bits() | (mode & 0o777);
 
     create_special_file_at_path(path, device_mode, dev as u64).await
@@ -155,7 +157,9 @@ pub async fn create_block_device_at_path(
     major: u32,
     minor: u32,
 ) -> Result<()> {
-    let dev = ((major & 0xfff) << 8) | (minor & 0xff) | (((major >> 12) & 0xfffff) << 32);
+    let dev = ((major & 0xfff) as u64) << 8
+        | (minor & 0xff) as u64
+        | (((major >> 12) & 0xfffff) as u64) << 32;
     let device_mode = stat::SFlag::S_IFBLK.bits() | (mode & 0o777);
 
     create_special_file_at_path(path, device_mode, dev as u64).await
