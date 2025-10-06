@@ -250,7 +250,6 @@ async fn test_metadata_preservation_concurrent_operations() {
 
 /// Test metadata preservation with files that have very specific timestamps
 #[compio::test]
-#[ignore = "Known limitation: nanosecond timestamp propagation is unreliable in CI. See https://github.com/jmalicki/io-uring-sync/issues/9"]
 async fn test_metadata_preservation_specific_timestamps() {
     let _timeout = test_timeout_guard(StdDuration::from_secs(240));
     let temp_dir = TempDir::new().unwrap();

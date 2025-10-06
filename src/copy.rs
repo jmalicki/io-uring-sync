@@ -564,7 +564,6 @@ mod tests {
     }
 
     #[compio::test]
-    #[ignore = "Known limitation: nanosecond timestamp propagation is unreliable in CI. See https://github.com/jmalicki/io-uring-sync/issues/9"]
     async fn test_preserve_metadata_nanosecond_precision() {
         let temp_dir = TempDir::new().unwrap();
         let src_path = temp_dir.path().join("source.txt");
