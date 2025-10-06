@@ -81,6 +81,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Comprehensive Example: File Operations with Metadata
+
+```rust
+use compio_fs_extended::{ExtendedFile, XattrOps, Fadvise, FadviseAdvice};
+use compio::fs::File;
+use std::path::Path;
+
+#[compio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let file_path = Path::new("example.txt");
+    
+    // Create a file with extended operations
+    let file = File::create(file_path).await?;
+    let extended_file = ExtendedFile::new(file);
+    
+    // Set extended attributes
+    extended_file.set_xattr("user.author", b"compio-fs-extended").await?;
+    extended_file.set_xattr("user.version", b"1.0.0").await?;
+    
+    // Optimize for sequential access
+    extended_file.fadvise(FadviseAdvice::Sequential, 0, 0).await?;
+    
+    // Get extended attributes
+    let author = extended_file.get_xattr("user.author").await?;
+    println!("Author: {}", String::from_utf8_lossy(&author));
+    
+    // List all attributes
+    let attrs = extended_file.list_xattr().await?;
+    for attr in attrs {
+        println!("Attribute: {}", attr);
+    }
+    
+    Ok(())
+}
+```
+
 ## Architecture
 
 This crate extends `compio::fs::File` with additional operations that are not available in the base compio-fs crate. It uses:
