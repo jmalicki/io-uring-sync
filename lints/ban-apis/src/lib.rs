@@ -69,6 +69,7 @@ use rustc_hir as hir;
 use rustc_hir::{Expr, ExprKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_session::{declare_lint, impl_lint_pass};
+use rustc_span::Span;
 
 /// Lint that flags usage of banned APIs (`libc::`, `nix::`, `std::fs::`)
 ///
