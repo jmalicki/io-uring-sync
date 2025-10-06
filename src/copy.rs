@@ -42,7 +42,7 @@
 use crate::error::{Result, SyncError};
 use compio::fs::OpenOptions;
 use compio::io::{AsyncReadAt, AsyncWriteAt};
-use std::fs::metadata;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -140,11 +140,42 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     // and improve write performance using io_uring fallocate.
     // Skip preallocation for empty files as fallocate fails with EINVAL for zero length.
     if file_size > 0 {
-        use compio_fs_extended::{ExtendedFile, Fallocate};
+        use compio_fs_extended::{fadvise::FadviseAdvice, ExtendedFile, Fadvise, Fallocate};
+
+        // Apply fadvise hints to both source and destination for "one and done" copy
+        let extended_src = ExtendedFile::from_ref(&src_file);
         let extended_dst = ExtendedFile::from_ref(&dst_file);
+
+        // Hint that source data won't be accessed again after this copy
+        extended_src
+            .fadvise(
+                FadviseAdvice::NoReuse,
+                0,
+                file_size.try_into().unwrap_or(i64::MAX),
+            )
+            .await
+            .map_err(|e| {
+                SyncError::FileSystem(format!("Failed to set fadvise NoReuse hint on source: {e}"))
+            })?;
+
+        // Preallocate destination file space
         extended_dst.fallocate(0, file_size, 0).await.map_err(|e| {
             SyncError::FileSystem(format!("Failed to preallocate destination file: {e}"))
         })?;
+
+        // Hint that destination data won't be accessed again after this copy
+        extended_dst
+            .fadvise(
+                FadviseAdvice::NoReuse,
+                0,
+                file_size.try_into().unwrap_or(i64::MAX),
+            )
+            .await
+            .map_err(|e| {
+                SyncError::FileSystem(format!(
+                    "Failed to set fadvise NoReuse hint on destination: {e}"
+                ))
+            })?;
     }
 
     // Use compio's async read_at/write_at operations
@@ -203,8 +234,9 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {e}")))?;
 
-    // Preserve file permissions and timestamps (timestamps from pre-copy capture)
-    preserve_permissions(src, dst).await?;
+    // Preserve file permissions, ownership, and timestamps (timestamps from pre-copy capture)
+    preserve_permissions_from_fd(&src_file, &dst_file).await?;
+    preserve_ownership_from_fd(&src_file, &dst_file).await?;
     set_dst_timestamps(dst, src_accessed, src_modified).await?;
 
     tracing::debug!(
@@ -214,44 +246,46 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Preserve file metadata (permissions and timestamps) from source to destination
-///
-/// This function copies the file permissions and timestamps from the source file
-/// to the destination file, including nanosecond precision where available.
-///
-/// # Arguments
-///
-/// * `src` - Source file path
-/// * `dst` - Destination file path
-///
-/// # Returns
-///
-/// Returns `Ok(())` if metadata was preserved successfully, or `Err(SyncError)` if failed.
-///
-/// # Errors
-///
-/// This function will return an error if:
-/// - Source file metadata cannot be read
-/// - Destination file permissions cannot be set
-/// - Timestamp preservation fails
-#[allow(dead_code)]
-async fn preserve_metadata(src: &Path, dst: &Path) -> Result<()> {
-    preserve_permissions(src, dst).await?;
-    let (accessed, modified) = get_precise_timestamps(src).await?;
-    set_dst_timestamps(dst, accessed, modified).await?;
-    Ok(())
-}
-
 /// Preserve only file permissions from source to destination
-#[allow(clippy::unused_async)]
-async fn preserve_permissions(src: &Path, dst: &Path) -> Result<()> {
-    let src_metadata = metadata(src)
+///
+/// This function preserves file permissions including special bits (setuid, setgid, sticky)
+/// using the chmod syscall for maximum compatibility and precision.
+async fn preserve_permissions_from_fd(
+    src_file: &compio::fs::File,
+    dst_file: &compio::fs::File,
+) -> Result<()> {
+    // Get source file permissions using file descriptor
+    let src_metadata = src_file
+        .metadata()
+        .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {e}")))?;
 
-    let permissions = src_metadata.permissions();
-    std::fs::set_permissions(dst, permissions).map_err(|e| {
-        SyncError::FileSystem(format!("Failed to set destination file permissions: {e}"))
-    })?;
+    let std_permissions = src_metadata.permissions();
+    let mode = std_permissions.mode();
+
+    // Convert to compio::fs::Permissions
+    let compio_permissions = compio::fs::Permissions::from_mode(mode);
+
+    // Use compio::fs::File::set_permissions which uses fchmod (file descriptor-based)
+    dst_file
+        .set_permissions(compio_permissions)
+        .await
+        .map_err(|e| SyncError::FileSystem(format!("Failed to preserve permissions: {e}")))
+}
+
+/// Preserve file ownership using file descriptors
+#[allow(clippy::future_not_send)]
+async fn preserve_ownership_from_fd(
+    src_file: &compio::fs::File,
+    dst_file: &compio::fs::File,
+) -> Result<()> {
+    use compio_fs_extended::OwnershipOps;
+
+    // Use compio-fs-extended for ownership preservation
+    dst_file
+        .preserve_ownership_from(src_file)
+        .await
+        .map_err(|e| SyncError::FileSystem(format!("Failed to preserve file ownership: {e}")))?;
     Ok(())
 }
 
@@ -432,7 +466,6 @@ fn system_time_to_timespec(time: SystemTime) -> libc::timespec {
 mod tests {
     use super::*;
     use std::fs;
-    use std::os::unix::fs::PermissionsExt;
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
 

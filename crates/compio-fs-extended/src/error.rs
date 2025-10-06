@@ -71,6 +71,10 @@ pub enum ExtendedError {
     /// System call error
     #[error("system call failed: {0}")]
     SystemCall(String),
+
+    /// Filesystem operation error
+    #[error("filesystem operation failed: {0}")]
+    FileSystem(String),
 }
 
 impl ExtendedError {
@@ -179,4 +183,10 @@ pub fn not_supported_error(msg: &str) -> ExtendedError {
 #[must_use]
 pub fn invalid_parameters_error(msg: &str) -> ExtendedError {
     ExtendedError::InvalidParameters(msg.to_string())
+}
+
+/// Helper for creating filesystem operation errors
+#[must_use]
+pub fn filesystem_error(msg: &str) -> ExtendedError {
+    ExtendedError::FileSystem(msg.to_string())
 }
