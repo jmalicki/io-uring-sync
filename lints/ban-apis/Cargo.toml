@@ -6,10 +6,12 @@ edition = "2021"
 publish = false
 
 [lib]
-crate-type = ["cdylib"]
+name = "ban_apis"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ban-apis"
+path = "src/main.rs"
 
 [dependencies]
-dylint_linting = "0.1.0"
-
-[dev-dependencies]
-dylint_testing = "0.1.0"
+# No external dependencies needed for this simple approach
