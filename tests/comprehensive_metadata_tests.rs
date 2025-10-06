@@ -45,6 +45,20 @@ async fn test_permission_preservation_special_bits() {
         let src_metadata = fs::metadata(&src_path).unwrap();
         let expected_permissions = src_metadata.permissions().mode();
 
+        println!(
+            "Special bits test - Trying to set: {:o}, Actually set: {:o}",
+            permission_mode, expected_permissions
+        );
+
+        // Skip test if special bits couldn't be set (system limitation)
+        if expected_permissions != permission_mode {
+            println!(
+                "Skipping special bits test - system doesn't support setting {:o} (got {:o})",
+                permission_mode, expected_permissions
+            );
+            continue;
+        }
+
         // Copy the file
         copy_file(&src_path, &dst_path).await.unwrap();
 
@@ -57,7 +71,7 @@ async fn test_permission_preservation_special_bits() {
             expected_permissions, dst_permissions
         );
 
-        // Special bits may not be preserved on all systems, so we check if they match
+        // Special bits should be preserved when they can be set
         assert_eq!(
             expected_permissions, dst_permissions,
             "Special permission bits should be preserved when supported"

@@ -43,6 +43,7 @@ use crate::error::{Result, SyncError};
 use compio::fs::OpenOptions;
 use compio::io::{AsyncReadAt, AsyncWriteAt};
 use std::fs::metadata;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -275,16 +276,40 @@ async fn preserve_metadata(src: &Path, dst: &Path) -> Result<()> {
 }
 
 /// Preserve only file permissions from source to destination
-#[allow(clippy::unused_async)]
+///
+/// This function preserves file permissions including special bits (setuid, setgid, sticky)
+/// using the chmod syscall for maximum compatibility and precision.
 async fn preserve_permissions(src: &Path, dst: &Path) -> Result<()> {
     let src_metadata = metadata(src)
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {e}")))?;
 
-    let permissions = src_metadata.permissions();
-    std::fs::set_permissions(dst, permissions).map_err(|e| {
-        SyncError::FileSystem(format!("Failed to set destination file permissions: {e}"))
-    })?;
-    Ok(())
+    let mode = src_metadata.permissions().mode();
+
+    // Use chmod syscall to preserve special bits
+    compio::runtime::spawn_blocking({
+        let dst_path = dst.to_path_buf();
+        move || {
+            use std::ffi::CString;
+            use std::os::unix::ffi::OsStrExt;
+
+            let path_cstr = CString::new(dst_path.as_os_str().as_bytes())
+                .map_err(|e| SyncError::FileSystem(format!("Invalid path for chmod: {e}")))?;
+
+            let result = unsafe { libc::chmod(path_cstr.as_ptr(), mode) };
+
+            if result == -1 {
+                let errno = std::io::Error::last_os_error();
+                Err(SyncError::FileSystem(format!(
+                    "chmod failed: {errno} (errno: {})",
+                    errno.raw_os_error().unwrap_or(-1)
+                )))
+            } else {
+                Ok(())
+            }
+        }
+    })
+    .await
+    .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?
 }
 
 /// Preserve file ownership using file descriptors
