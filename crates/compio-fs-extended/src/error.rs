@@ -55,6 +55,18 @@ pub enum ExtendedError {
     /// System call error
     #[error("system call failed: {0}")]
     SystemCall(String),
+
+    /// Metadata operation error
+    #[error("metadata operation failed: {0}")]
+    Metadata(String),
+
+    /// statx operation error
+    #[error("statx operation failed: {0}")]
+    Statx(String),
+
+    /// Device operation error
+    #[error("device operation failed: {0}")]
+    Device(String),
 }
 
 impl ExtendedError {
@@ -151,4 +163,22 @@ pub fn not_supported_error(msg: &str) -> ExtendedError {
 #[must_use]
 pub fn invalid_parameters_error(msg: &str) -> ExtendedError {
     ExtendedError::InvalidParameters(msg.to_string())
+}
+
+/// Helper for creating metadata specific errors
+#[must_use]
+pub fn metadata_error(msg: &str) -> ExtendedError {
+    ExtendedError::Metadata(msg.to_string())
+}
+
+/// Helper for creating statx specific errors
+#[must_use]
+pub fn statx_error(msg: &str) -> ExtendedError {
+    ExtendedError::Statx(msg.to_string())
+}
+
+/// Helper for creating device specific errors
+#[must_use]
+pub fn device_error(msg: &str) -> ExtendedError {
+    ExtendedError::Device(msg.to_string())
 }

@@ -131,9 +131,14 @@ impl CopyFileRange for ExtendedFile {
 
 // Implement Fadvise trait
 impl Fadvise for ExtendedFile {
-    async fn fadvise(&self, advice: i32, offset: u64, len: u64) -> Result<()> {
+    async fn fadvise(
+        &self,
+        advice: crate::fadvise::FadviseAdvice,
+        offset: u64,
+        len: u64,
+    ) -> Result<()> {
         // Delegate to the fadvise module implementation
-        crate::fadvise::fadvise_impl(&self.inner, advice, offset, len).await
+        crate::fadvise::fadvise(&self.inner, advice, offset, len).await
     }
 }
 

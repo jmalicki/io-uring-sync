@@ -44,21 +44,58 @@ pub trait Fadvise {
     /// # Ok(())
     /// # }
     /// ```
-    async fn fadvise(&self, advice: i32, offset: u64, len: u64) -> Result<()>;
+    async fn fadvise(&self, advice: FadviseAdvice, offset: u64, len: u64) -> Result<()>;
 }
 
-/// fadvise advice constants
-pub mod advice {
+/// fadvise advice enum
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FadviseAdvice {
+    /// Normal access pattern (no special optimization)
+    Normal,
     /// Data will be accessed sequentially
-    pub const SEQUENTIAL: i32 = libc::POSIX_FADV_SEQUENTIAL;
+    Sequential,
     /// Data will be accessed randomly
-    pub const RANDOM: i32 = libc::POSIX_FADV_RANDOM;
+    Random,
     /// Data will not be accessed again soon
-    pub const DONTNEED: i32 = libc::POSIX_FADV_DONTNEED;
+    DontNeed,
     /// Data will be accessed again soon
-    pub const WILLNEED: i32 = libc::POSIX_FADV_WILLNEED;
+    WillNeed,
     /// Data will not be accessed again
-    pub const NOREUSE: i32 = libc::POSIX_FADV_NOREUSE;
+    NoReuse,
+}
+
+impl FadviseAdvice {
+    /// Convert to the underlying libc constant
+    pub fn to_libc(self) -> i32 {
+        match self {
+            FadviseAdvice::Normal => 0,
+            FadviseAdvice::Sequential => libc::POSIX_FADV_SEQUENTIAL,
+            FadviseAdvice::Random => libc::POSIX_FADV_RANDOM,
+            FadviseAdvice::DontNeed => libc::POSIX_FADV_DONTNEED,
+            FadviseAdvice::WillNeed => libc::POSIX_FADV_WILLNEED,
+            FadviseAdvice::NoReuse => libc::POSIX_FADV_NOREUSE,
+        }
+    }
+}
+
+/// Public fadvise function for direct use
+///
+/// # Arguments
+///
+/// * `file` - The file to apply advice to
+/// * `advice` - The advice to apply
+/// * `offset` - File offset to start the advice
+/// * `len` - Length of the region to apply advice to
+///
+/// # Returns
+///
+/// `Ok(())` if the advice was successfully applied
+///
+/// # Errors
+///
+/// This function will return an error if the fadvise operation fails
+pub async fn fadvise(file: &File, advice: FadviseAdvice, offset: u64, len: u64) -> Result<()> {
+    fadvise_impl(file, advice, offset, len).await
 }
 
 /// Implementation of fadvise using direct syscalls
@@ -66,10 +103,11 @@ pub mod advice {
 /// # Errors
 ///
 /// This function will return an error if the fadvise operation fails
-pub async fn fadvise_impl(file: &File, advice: i32, offset: u64, len: u64) -> Result<()> {
+async fn fadvise_impl(file: &File, advice: FadviseAdvice, offset: u64, len: u64) -> Result<()> {
     let fd = file.as_raw_fd();
+    let advice_value = advice.to_libc();
 
-    let result = unsafe { libc::posix_fadvise(fd, offset as i64, len as i64, advice) };
+    let result = unsafe { libc::posix_fadvise(fd, offset as i64, len as i64, advice_value) };
 
     if result != 0 {
         return Err(fadvise_error(&format!(
@@ -97,7 +135,7 @@ pub async fn fadvise_impl(file: &File, advice: i32, offset: u64, len: u64) -> Re
 ///
 /// This function will return an error if the fadvise operation fails
 pub async fn optimize_for_sequential_access(file: &File, offset: u64, len: u64) -> Result<()> {
-    fadvise_impl(file, advice::SEQUENTIAL, offset, len).await
+    fadvise_impl(file, FadviseAdvice::Sequential, offset, len).await
 }
 
 /// Optimize file for random access
@@ -116,7 +154,7 @@ pub async fn optimize_for_sequential_access(file: &File, offset: u64, len: u64) 
 ///
 /// This function will return an error if the fadvise operation fails
 pub async fn optimize_for_random_access(file: &File, offset: u64, len: u64) -> Result<()> {
-    fadvise_impl(file, advice::RANDOM, offset, len).await
+    fadvise_impl(file, FadviseAdvice::Random, offset, len).await
 }
 
 /// Hint that data will not be needed again soon
@@ -135,7 +173,7 @@ pub async fn optimize_for_random_access(file: &File, offset: u64, len: u64) -> R
 ///
 /// This function will return an error if the fadvise operation fails
 pub async fn hint_dont_need(file: &File, offset: u64, len: u64) -> Result<()> {
-    fadvise_impl(file, advice::DONTNEED, offset, len).await
+    fadvise_impl(file, FadviseAdvice::DontNeed, offset, len).await
 }
 
 /// Hint that data will be needed soon
@@ -154,7 +192,7 @@ pub async fn hint_dont_need(file: &File, offset: u64, len: u64) -> Result<()> {
 ///
 /// This function will return an error if the fadvise operation fails
 pub async fn hint_will_need(file: &File, offset: u64, len: u64) -> Result<()> {
-    fadvise_impl(file, advice::WILLNEED, offset, len).await
+    fadvise_impl(file, FadviseAdvice::WillNeed, offset, len).await
 }
 
 /// Hint that data will not be reused
@@ -173,7 +211,7 @@ pub async fn hint_will_need(file: &File, offset: u64, len: u64) -> Result<()> {
 ///
 /// This function will return an error if the fadvise operation fails
 pub async fn hint_no_reuse(file: &File, offset: u64, len: u64) -> Result<()> {
-    fadvise_impl(file, advice::NOREUSE, offset, len).await
+    fadvise_impl(file, FadviseAdvice::NoReuse, offset, len).await
 }
 
 #[cfg(test)]
@@ -183,7 +221,7 @@ mod tests {
     use std::fs::write;
     use tempfile::TempDir;
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_fadvise_sequential() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
@@ -195,11 +233,11 @@ mod tests {
         let file = File::open(&file_path).await.unwrap();
 
         // Test fadvise
-        let result = fadvise_impl(&file, advice::SEQUENTIAL, 0, 0).await;
+        let result = fadvise_impl(&file, FadviseAdvice::Sequential, 0, 0).await;
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_fadvise_random() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
@@ -211,11 +249,11 @@ mod tests {
         let file = File::open(&file_path).await.unwrap();
 
         // Test fadvise
-        let result = fadvise_impl(&file, advice::RANDOM, 0, 0).await;
+        let result = fadvise_impl(&file, FadviseAdvice::Random, 0, 0).await;
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_optimize_for_sequential_access() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
@@ -231,7 +269,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_optimize_for_random_access() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");

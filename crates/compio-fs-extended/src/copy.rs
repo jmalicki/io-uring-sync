@@ -171,7 +171,7 @@ mod tests {
     use std::fs::write;
     use tempfile::TempDir;
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_copy_file_range_basic() {
         let temp_dir = TempDir::new().unwrap();
         let src_path = temp_dir.path().join("source.txt");
@@ -202,7 +202,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_is_copy_file_range_supported() {
         let temp_dir = TempDir::new().unwrap();
         let src_path = temp_dir.path().join("source.txt");

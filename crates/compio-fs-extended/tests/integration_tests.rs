@@ -274,7 +274,7 @@ async fn test_parallel_io_uring_operations() {
     // Create files in parallel
     let create_ops: Vec<_> = file_paths
         .iter()
-        .map(|path| async {
+        .map(|path| async move {
             fs::write(path, format!("Content for {}", path.display())).unwrap();
         })
         .collect();
@@ -289,7 +289,12 @@ async fn test_parallel_io_uring_operations() {
     // Perform parallel fadvise operations
     let fadvise_ops: Vec<_> = files
         .iter()
-        .map(|file| fadvise::fadvise(file, fadvise::FadviseAdvice::Sequential, 0, 0))
+        .filter_map(|file_result| {
+            file_result
+                .as_ref()
+                .ok()
+                .map(|file| fadvise::fadvise(file, fadvise::FadviseAdvice::Sequential, 0, 0))
+        })
         .collect();
 
     futures::future::join_all(fadvise_ops).await;
@@ -301,7 +306,8 @@ async fn test_parallel_io_uring_operations() {
         .map(|(i, path)| {
             let attr_name = format!("user.parallel_test_{}", i);
             let attr_value = format!("value_{}", i);
-            xattr::set_xattr_at_path(path, &attr_name, attr_value.as_bytes())
+            let path = path.clone();
+            async move { xattr::set_xattr_at_path(&path, &attr_name, attr_value.as_bytes()).await }
         })
         .collect();
 

@@ -195,7 +195,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_create_hardlink() {
         let temp_dir = TempDir::new().unwrap();
         let original_path = temp_dir.path().join("original.txt");
@@ -225,7 +225,7 @@ mod tests {
         assert_eq!(get_link_count(&link_path), Some(2));
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_are_same_file() {
         let temp_dir = TempDir::new().unwrap();
         let original_path = temp_dir.path().join("original.txt");
@@ -249,7 +249,7 @@ mod tests {
         assert!(!are_same_file(&link_path, &different_path));
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_link_count() {
         let temp_dir = TempDir::new().unwrap();
         let original_path = temp_dir.path().join("original.txt");
@@ -274,7 +274,7 @@ mod tests {
         assert!(has_multiple_links(&link_path));
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_find_hard_links() {
         let temp_dir = TempDir::new().unwrap();
         let original_path = temp_dir.path().join("original.txt");

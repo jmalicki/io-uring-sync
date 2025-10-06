@@ -299,13 +299,152 @@ pub fn get_directory_size(path: &Path) -> Option<u64> {
     }
 }
 
+/// Directory file descriptor for efficient directory-relative operations
+///
+/// This struct holds an open directory file descriptor and provides
+/// efficient operations relative to that directory using the `openat()`
+/// family of system calls.
+///
+/// # Usage
+///
+/// ```rust,no_run
+/// use compio_fs_extended::directory::DirectoryFd;
+/// use std::path::Path;
+///
+/// # async fn example() -> compio_fs_extended::Result<()> {
+/// // Open a directory
+/// let dir_fd = DirectoryFd::open(Path::new("/some/directory")).await?;
+///
+/// // Create directories relative to the open directory
+/// dir_fd.create_directory("subdir1", 0o755).await?;
+/// dir_fd.create_directory("subdir2", 0o755).await?;
+///
+/// // Get the file descriptor for other operations
+/// let fd = dir_fd.fd();
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Debug)]
+pub struct DirectoryFd {
+    /// The file descriptor of the open directory
+    fd: i32,
+    /// The path to the directory (for debugging and error messages)
+    path: std::path::PathBuf,
+}
+
+impl DirectoryFd {
+    /// Open a directory and return a DirectoryFd
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the directory to open
+    ///
+    /// # Returns
+    ///
+    /// A new DirectoryFd instance
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The path doesn't exist
+    /// - The path is not a directory
+    /// - Permission is denied
+    /// - The operation fails due to I/O errors
+    pub async fn open(path: &Path) -> Result<Self> {
+        let path_cstr = std::ffi::CString::new(path.to_string_lossy().as_bytes())
+            .map_err(|e| directory_error(&format!("Invalid path: {}", e)))?;
+
+        let result = compio::runtime::spawn_blocking(move || unsafe {
+            let fd = libc::open(path_cstr.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY, 0);
+            if fd < 0 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(fd)
+            }
+        })
+        .await
+        .map_err(|e| directory_error(&format!("Failed to open directory: {:?}", e)))?;
+
+        let fd =
+            result.map_err(|e| directory_error(&format!("Failed to open directory: {}", e)))?;
+
+        Ok(DirectoryFd {
+            fd,
+            path: path.to_path_buf(),
+        })
+    }
+
+    /// Create a directory relative to this directory
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the directory to create (relative to this directory)
+    /// * `mode` - File mode for the new directory
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the directory was created successfully
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The directory already exists
+    /// - Permission is denied
+    /// - The operation fails due to I/O errors
+    pub async fn create_directory(&self, name: &str, mode: u32) -> Result<()> {
+        let name_cstr = std::ffi::CString::new(name)
+            .map_err(|e| directory_error(&format!("Invalid directory name: {}", e)))?;
+        let fd = self.fd;
+
+        let result = compio::runtime::spawn_blocking(move || unsafe {
+            let result = libc::mkdirat(fd, name_cstr.as_ptr(), mode as libc::mode_t);
+            if result < 0 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        })
+        .await
+        .map_err(|e| directory_error(&format!("Failed to create directory: {:?}", e)))?;
+
+        result.map_err(|e| directory_error(&format!("Failed to create directory: {}", e)))?;
+        Ok(())
+    }
+
+    /// Get the file descriptor of this directory
+    ///
+    /// # Returns
+    ///
+    /// The file descriptor of the open directory
+    pub fn fd(&self) -> i32 {
+        self.fd
+    }
+
+    /// Get the path of this directory
+    ///
+    /// # Returns
+    ///
+    /// The path to the directory
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+}
+
+impl Drop for DirectoryFd {
+    fn drop(&mut self) {
+        unsafe {
+            libc::close(self.fd);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_create_directory() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().join("new_dir");
@@ -318,7 +457,7 @@ mod tests {
         assert!(is_directory(&dir_path));
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_create_directory_with_mode() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().join("new_dir");
@@ -331,7 +470,7 @@ mod tests {
         assert!(is_directory(&dir_path));
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_remove_directory() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().join("temp_dir");
@@ -345,7 +484,7 @@ mod tests {
         assert!(!dir_path.exists());
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_create_directory_recursive() {
         let temp_dir = TempDir::new().unwrap();
         let nested_path = temp_dir.path().join("level1").join("level2").join("level3");
@@ -359,7 +498,7 @@ mod tests {
         assert!(nested_path.parent().unwrap().parent().unwrap().exists());
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_is_directory() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().join("test_dir");
@@ -375,7 +514,7 @@ mod tests {
         assert!(!is_directory(&temp_dir.path().join("nonexistent")));
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_is_directory_empty() {
         let temp_dir = TempDir::new().unwrap();
         let empty_dir = temp_dir.path().join("empty_dir");
@@ -391,7 +530,7 @@ mod tests {
         assert!(!is_directory_empty(&non_empty_dir));
     }
 
-    #[tokio::test]
+    #[compio::test]
     async fn test_get_directory_size() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().join("test_dir");

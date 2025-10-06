@@ -38,7 +38,6 @@
 //! ```
 
 use crate::error::{ExtendedError, Result};
-use compio_runtime;
 use libc;
 use std::ffi::CString;
 use std::path::Path;
@@ -68,7 +67,7 @@ pub async fn fchmodat(path: &Path, mode: u32) -> Result<()> {
 
     let path_cstr = path_cstr.clone();
 
-    let result = compio_runtime::spawn_blocking(move || {
+    let result = compio::runtime::spawn_blocking(move || {
         unsafe {
             libc::fchmodat(
                 libc::AT_FDCWD,
@@ -134,7 +133,7 @@ pub async fn futimesat(path: &Path, accessed: SystemTime, modified: SystemTime) 
 
     let path_cstr = path_cstr.clone();
 
-    let result = compio_runtime::spawn_blocking(move || {
+    let result = compio::runtime::spawn_blocking(move || {
         unsafe {
             libc::utimensat(
                 libc::AT_FDCWD,
@@ -182,7 +181,7 @@ pub async fn fchownat(path: &Path, uid: u32, gid: u32) -> Result<()> {
     let uid = uid as libc::uid_t;
     let gid = gid as libc::gid_t;
 
-    let result = compio_runtime::spawn_blocking(move || {
+    let result = compio::runtime::spawn_blocking(move || {
         unsafe {
             libc::fchownat(
                 libc::AT_FDCWD,
@@ -224,7 +223,7 @@ pub async fn fchownat(path: &Path, uid: u32, gid: u32) -> Result<()> {
 /// - The operation fails due to I/O errors
 pub async fn fchmod(fd: i32, mode: u32) -> Result<()> {
     let result =
-        compio_runtime::spawn_blocking(move || unsafe { libc::fchmod(fd, mode as libc::mode_t) })
+        compio::runtime::spawn_blocking(move || unsafe { libc::fchmod(fd, mode as libc::mode_t) })
             .await
             .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
 
@@ -277,7 +276,7 @@ pub async fn futimes(fd: i32, accessed: SystemTime, modified: SystemTime) -> Res
     let times = [accessed_ts, modified_ts];
 
     let result =
-        compio_runtime::spawn_blocking(move || unsafe { libc::futimens(fd, times.as_ptr()) })
+        compio::runtime::spawn_blocking(move || unsafe { libc::futimens(fd, times.as_ptr()) })
             .await
             .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
 
@@ -312,7 +311,7 @@ pub async fn fchown(fd: i32, uid: u32, gid: u32) -> Result<()> {
     let uid = uid as libc::uid_t;
     let gid = gid as libc::gid_t;
 
-    let result = compio_runtime::spawn_blocking(move || unsafe { libc::fchown(fd, uid, gid) })
+    let result = compio::runtime::spawn_blocking(move || unsafe { libc::fchown(fd, uid, gid) })
         .await
         .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?;
 
@@ -349,7 +348,7 @@ pub async fn fchmodat_with_dirfd(dir_fd: i32, pathname: &str, mode: u32) -> Resu
 
     let pathname_cstr = pathname_cstr.clone();
 
-    let result = compio_runtime::spawn_blocking(move || {
+    let result = compio::runtime::spawn_blocking(move || {
         unsafe {
             libc::fchmodat(
                 dir_fd,
@@ -421,7 +420,7 @@ pub async fn futimesat_with_dirfd(
 
     let pathname_cstr = pathname_cstr.clone();
 
-    let result = compio_runtime::spawn_blocking(move || {
+    let result = compio::runtime::spawn_blocking(move || {
         unsafe {
             libc::utimensat(
                 dir_fd,
@@ -470,7 +469,7 @@ pub async fn fchownat_with_dirfd(dir_fd: i32, pathname: &str, uid: u32, gid: u32
     let uid = uid as libc::uid_t;
     let gid = gid as libc::gid_t;
 
-    let result = compio_runtime::spawn_blocking(move || {
+    let result = compio::runtime::spawn_blocking(move || {
         unsafe {
             libc::fchownat(
                 dir_fd,

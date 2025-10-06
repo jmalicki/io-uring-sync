@@ -35,12 +35,15 @@
 //! ```
 
 pub mod copy;
+pub mod device;
 pub mod directory;
 pub mod error;
 pub mod extended_file;
 pub mod fadvise;
 pub mod fallocate;
 pub mod hardlink;
+pub mod metadata;
+pub mod statx;
 pub mod symlink;
 pub mod xattr;
 
@@ -50,10 +53,11 @@ pub use extended_file::ExtendedFile;
 
 // Re-export specific operation modules
 pub use copy::CopyFileRange;
-pub use directory::DirectoryOps;
-pub use fadvise::Fadvise;
+pub use directory::{DirectoryFd, DirectoryOps};
+pub use fadvise::{fadvise, Fadvise, FadviseAdvice};
 pub use fallocate::Fallocate;
 pub use hardlink::HardlinkOps;
+pub use statx::{fstatx, statx, StatxMetadata};
 pub use symlink::SymlinkOps;
 pub use xattr::XattrOps;
 
