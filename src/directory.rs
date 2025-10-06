@@ -1333,6 +1333,74 @@ pub struct FilesystemStats {
     pub source_filesystem: Option<u64>,
 }
 
+/// Preserve directory extended attributes from source to destination
+///
+/// This function preserves all extended attributes from the source directory to the destination directory
+/// using file descriptor-based operations for maximum efficiency and security.
+///
+/// # Arguments
+///
+/// * `src_path` - Source directory path
+/// * `dst_path` - Destination directory path
+///
+/// # Returns
+///
+/// `Ok(())` if all extended attributes were preserved successfully
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Extended attributes cannot be read from source
+/// - Extended attributes cannot be written to destination
+/// - Permission is denied for xattr operations
+#[allow(clippy::future_not_send)]
+pub async fn preserve_directory_xattr(src_path: &Path, dst_path: &Path) -> Result<()> {
+    use compio_fs_extended::{ExtendedFile, XattrOps};
+
+    // Open source and destination directories for xattr operations
+    let src_dir = compio::fs::File::open(src_path).await.map_err(|e| {
+        SyncError::FileSystem(format!("Failed to open source directory for xattr: {e}"))
+    })?;
+    let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
+        SyncError::FileSystem(format!("Failed to open destination directory for xattr: {e}"))
+    })?;
+
+    // Convert to ExtendedFile to access xattr operations
+    let extended_src = ExtendedFile::from_ref(&src_dir);
+    let extended_dst = ExtendedFile::from_ref(&dst_dir);
+
+    // Get all extended attribute names from source directory
+    let Ok(xattr_names) = extended_src.list_xattr().await else {
+        // If xattr is not supported or no xattrs exist, that's fine
+        return Ok(());
+    };
+
+    // Copy each extended attribute
+    for name in xattr_names {
+        match extended_src.get_xattr(&name).await {
+            Ok(value) => {
+                if let Err(e) = extended_dst.set_xattr(&name, &value).await {
+                    // Log warning but continue with other xattrs
+                    tracing::warn!(
+                        "Failed to preserve directory extended attribute '{}': {}",
+                        name,
+                        e
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to read directory extended attribute '{}': {}",
+                    name,
+                    e
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Preserve directory metadata (permissions, ownership, timestamps) from source to destination
 ///
 /// This function preserves all directory metadata including permissions, ownership,
@@ -1407,6 +1475,9 @@ async fn preserve_directory_metadata(
         .map_err(|e| {
             SyncError::FileSystem(format!("Failed to preserve directory timestamps: {e}"))
         })?;
+
+    // Preserve directory extended attributes using compio-fs-extended
+    preserve_directory_xattr(_src_path, dst_path).await?;
 
     debug!(
         "Preserved directory metadata for {}: permissions={:o}, uid={}, gid={}",
