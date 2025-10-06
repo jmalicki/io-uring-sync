@@ -73,9 +73,13 @@ pub mod mode {
 
 /// Custom fallocate operation that implements compio's OpCode trait
 pub struct FallocateOp {
+    /// File descriptor to apply fallocate to
     fd: i32,
+    /// Starting offset for the allocation
     offset: u64,
+    /// Length of the region to allocate
     len: u64,
+    /// Allocation mode flags
     mode: i32,
 }
 
@@ -88,6 +92,7 @@ impl FallocateOp {
     /// * `offset` - Starting offset for the allocation
     /// * `len` - Length of the region to allocate
     /// * `mode` - Allocation mode flags
+    #[must_use]
     pub fn new(file: &File, offset: u64, len: u64, mode: u32) -> Self {
         Self {
             fd: file.as_raw_fd(),

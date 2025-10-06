@@ -78,6 +78,7 @@ impl DirectoryFd {
     ///
     /// This is used internally by `*at` operations to get the file descriptor
     /// for the directory.
+    #[must_use]
     pub fn as_file(&self) -> &File {
         &self.file
     }
@@ -85,6 +86,7 @@ impl DirectoryFd {
     /// Get the path this directory represents
     ///
     /// This is primarily used for error messages and debugging.
+    #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -92,6 +94,7 @@ impl DirectoryFd {
     /// Get the raw file descriptor for use with system calls
     ///
     /// This is used internally by `*at` operations that need the raw fd.
+    #[must_use]
     pub fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
         self.file.as_raw_fd()
     }

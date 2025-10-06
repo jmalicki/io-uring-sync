@@ -87,9 +87,13 @@ impl FadviseAdvice {
 
 /// Custom fadvise operation that implements compio's OpCode trait
 pub struct FadviseOp {
+    /// File descriptor to apply advice to
     fd: i32,
+    /// File offset to start the advice
     offset: u64,
+    /// Length of the region to apply advice to
     len: u64,
+    /// The fadvise advice constant
     advice: i32,
 }
 
@@ -102,6 +106,7 @@ impl FadviseOp {
     /// * `offset` - File offset to start the advice
     /// * `len` - Length of the region to apply advice to
     /// * `advice` - The fadvise advice constant
+    #[must_use]
     pub fn new(fd: i32, offset: u64, len: u64, advice: i32) -> Self {
         Self {
             fd,

@@ -12,8 +12,11 @@ use std::pin::Pin;
 
 /// Custom symlink operation that implements compio's OpCode trait
 pub struct SymlinkOp {
+    /// Target path for the symbolic link
     target: CString,
+    /// Name of the symbolic link to create
     link_path: CString,
+    /// Directory file descriptor for secure symlink creation
     dir_fd: Option<std::os::unix::io::RawFd>,
 }
 
