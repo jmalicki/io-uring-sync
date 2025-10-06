@@ -250,6 +250,7 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
 ///
 /// This function preserves file permissions including special bits (setuid, setgid, sticky)
 /// using the chmod syscall for maximum compatibility and precision.
+#[allow(clippy::future_not_send)]
 async fn preserve_permissions_from_fd(
     src_file: &compio::fs::File,
     dst_file: &compio::fs::File,
