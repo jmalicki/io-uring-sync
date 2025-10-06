@@ -191,10 +191,10 @@ Hardlink detection: 1 unique files, 3 hardlink groups, 8 total hardlinks
 
 See the following documents for detailed development information:
 
-- [DEVELOPER.md](DEVELOPER.md) - Development guidelines and standards
-- [research.md](research.md) - Comprehensive technical research and analysis
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) - Detailed implementation phases and deliverables
-- [TESTING_STRATEGY.md](TESTING_STRATEGY.md) - Comprehensive testing approach and requirements
+- [DEVELOPER.md](docs/DEVELOPER.md) - Development guidelines and standards
+- [research.md](docs/research.md) - Comprehensive technical research and analysis
+- [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) - Detailed implementation phases and deliverables
+- [TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) - Comprehensive testing approach and requirements
 
 ### Quick Start
 
@@ -234,7 +234,7 @@ cargo bench
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please see [DEVELOPER.md](docs/DEVELOPER.md) for guidelines.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -244,12 +244,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## License
 
-This project is licensed under either of
-
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT License ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
+This project is licensed under the MIT license (see [LICENSE](LICENSE) or http://opensource.org/licenses/MIT).
 
 ## Acknowledgments
 
