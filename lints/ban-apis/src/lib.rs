@@ -1,6 +1,6 @@
 //! # Banned APIs Lint for io-uring-sync
 //!
-//! This crate provides a simple script-based linter that enforces the `io_uring`-first policy
+//! This Dylint crate provides a custom Rust linter that enforces the `io_uring`-first policy
 //! for the `io-uring-sync` project. It flags direct usage of `libc::`, `nix::`, and `std::fs::`
 //! APIs to encourage the use of `io_uring` operations via `compio` and `compio-fs-extended`.
 //!
@@ -22,8 +22,9 @@
 //!
 //! ## How It Works
 //!
-//! The linter uses simple pattern matching to detect banned API usage. While not as precise
-//! as AST-based analysis, it provides comprehensive coverage and is easy to understand and maintain.
+//! The linter uses Rust's type system and def-path resolution to track the origin of symbols,
+//! ensuring that even aliased or re-exported APIs are caught. It operates at the AST level
+//! to provide precise error reporting with helpful suggestions.
 //!
 //! ## Banned APIs
 //!
@@ -41,7 +42,7 @@
 //! ## Exception Handling
 //!
 //! When a banned API must be used (e.g., for operations not yet available in `io_uring`),
-//! add an explicit `#[allow(banned_apis)]` attribute with a comment explaining
+//! add an explicit `#[allow(BAN_LIBC_NIX_STDFS)]` attribute with a comment explaining
 //! the technical justification.
 //!
 //! ## Example
@@ -56,268 +57,189 @@
 //! use compio_fs_extended::metadata::statx;
 //! ```
 
-use std::fs;
-use std::path::Path;
-use std::process::Command;
+#![feature(rustc_private)]
 
-/// The main linter function that checks for banned API usage
-///
-/// This function scans Rust source files for patterns that indicate usage
-/// of banned APIs (`libc::`, `nix::`, `std::fs::`). It provides comprehensive
-/// coverage through pattern matching and regex-based detection.
-///
-/// # Arguments
-///
-/// * `path` - The path to scan (file or directory)
-///
-/// # Returns
-///
-/// `Result<Vec<String>, Box<dyn std::error::Error>>` - List of violations found
-pub fn check_banned_apis<P: AsRef<Path>>(
-    path: P,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let mut violations = Vec::new();
-    let path = path.as_ref();
+extern crate rustc_hir;
+extern crate rustc_lint;
+extern crate rustc_middle;
+extern crate rustc_session;
+extern crate rustc_span;
 
-    if path.is_file() {
-        if let Some(ext) = path.extension() {
-            if ext == "rs" {
-                violations.extend(check_file(path)?);
-            }
-        }
-    } else if path.is_dir() {
-        violations.extend(check_directory(path)?);
-    }
+use rustc_hir as hir;
+use rustc_hir::{Expr, ExprKind, Item, ItemKind};
+use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_session::{declare_lint, impl_lint_pass};
+use rustc_span::Span;
 
-    Ok(violations)
+/// Lint that flags usage of banned APIs (`libc::`, `nix::`, `std::fs::`)
+///
+/// This lint enforces the `io_uring`-first policy by detecting and flagging direct usage
+/// of traditional POSIX APIs that bypass the performance benefits of `io_uring`.
+///
+/// The lint operates by:
+/// 1. Resolving symbol definitions to their original crate paths
+/// 2. Checking import statements for banned crate roots
+/// 3. Analyzing expression usage to catch method calls and function calls
+///
+/// This ensures that even aliased or re-exported APIs are caught, providing
+/// comprehensive coverage of banned API usage.
+declare_lint! {
+    pub BAN_LIBC_NIX_STDFS,
+    Warn,
+    "ban usages of libc::, nix::, or std::fs:: APIs (resolves imports)"
 }
 
-/// Checks a single Rust file for banned API usage
+/// The main lint pass implementation
+pub struct BanApis;
+impl_lint_pass!(BanApis => [BAN_LIBC_NIX_STDFS]);
+
+/// Checks if a def-path string represents a banned API
 ///
-/// This function reads a Rust source file and scans it for patterns that
-/// indicate usage of banned APIs. It uses simple string matching for
-/// reliability and performance.
+/// This function determines whether a resolved symbol path belongs to one of the
+/// banned API crates. It checks for:
+/// - `libc::` - Raw FFI bindings to C standard library
+/// - `nix::` - Safe Rust bindings to Unix system calls  
+/// - `std::fs::` - Standard library filesystem operations
 ///
 /// # Arguments
 ///
-/// * `file_path` - The path to the Rust file to check
+/// * `path` - The resolved def-path string to check
 ///
 /// # Returns
 ///
-/// `Result<Vec<String>, Box<dyn std::error::Error>>` - List of violations found
-fn check_file(file_path: &Path) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let content = fs::read_to_string(file_path)?;
-    let mut violations = Vec::new();
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line = line.trim();
-
-        // Skip comments and allow attributes
-        if line.starts_with("//") || line.starts_with("/*") || line.starts_with("*") {
-            continue;
-        }
-
-        // Check for banned imports
-        if line.starts_with("use ") {
-            if is_banned_import(line) {
-                violations.push(format!(
-                    "{}:{}: banned import: {}",
-                    file_path.display(),
-                    line_num + 1,
-                    line
-                ));
-            }
-        }
-
-        // Check for banned API usage in expressions
-        if contains_banned_usage(line) {
-            violations.push(format!(
-                "{}:{}: banned API usage: {}",
-                file_path.display(),
-                line_num + 1,
-                line
-            ));
-        }
-    }
-
-    Ok(violations)
+/// `true` if the path represents a banned API, `false` otherwise
+fn is_banned_path_str(path: &str) -> bool {
+    path.starts_with("libc::") || path.starts_with("nix::") || path.starts_with("std::fs::")
 }
 
-/// Checks a directory recursively for banned API usage
+/// Resolves a def-id to its full def-path string
 ///
-/// This function recursively scans a directory for Rust source files
-/// and checks each one for banned API usage.
+/// This function uses the type context to resolve a definition ID to its
+/// complete path string, which includes the crate name and module hierarchy.
+/// This is essential for detecting banned APIs even when they're imported
+/// or re-exported through other modules.
 ///
 /// # Arguments
 ///
-/// * `dir_path` - The path to the directory to check
+/// * `cx` - The late context containing type information
+/// * `def_id` - The definition ID to resolve
 ///
 /// # Returns
 ///
-/// `Result<Vec<String>, Box<dyn std::error::Error>>` - List of violations found
-fn check_directory(dir_path: &Path) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let mut violations = Vec::new();
+/// The full def-path string for the given definition ID
+fn def_path_str<'tcx>(cx: &LateContext<'tcx>, def_id: rustc_hir::def_id::DefId) -> String {
+    cx.tcx.def_path_str(def_id)
+}
 
-    for entry in fs::read_dir(dir_path)? {
-        let entry = entry?;
-        let path = entry.path();
+/// Emits a lint warning for banned API usage
+///
+/// This function creates and emits a structured lint warning that includes:
+/// - The specific banned API that was detected
+/// - A helpful suggestion to use `io_uring` alternatives
+/// - Proper span information for IDE integration
+///
+/// # Arguments
+///
+/// * `cx` - The late context for lint emission
+/// * `span` - The source span where the violation occurred
+/// * `what` - The specific banned API that was detected
+fn lint_banned<'tcx>(cx: &LateContext<'tcx>, span: Span, what: &str) {
+    cx.span_lint(BAN_LIBC_NIX_STDFS, span, |diag| {
+        diag.build(&format!("banned API usage: {}", what))
+            .help("use io_uring via compio/compio-fs-extended or approved abstraction")
+            .emit();
+    });
+}
 
-        if path.is_file() {
-            if let Some(ext) = path.extension() {
-                if ext == "rs" {
-                    violations.extend(check_file(&path)?);
+impl<'tcx> LateLintPass<'tcx> for BanApis {
+    /// Checks import statements for banned crate usage
+    ///
+    /// This method analyzes `use` statements to detect direct imports from
+    /// banned crates. It checks the first segment of the import path to identify
+    /// imports from `libc`, `nix`, or `std::fs`.
+    ///
+    /// # Arguments
+    ///
+    /// * `cx` - The late context for lint operations
+    /// * `item` - The item being checked (should be a `use` statement)
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        if let ItemKind::Use(path, _) = &item.kind {
+            let segs: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+            if !segs.is_empty() {
+                let head = segs.get(0).map(String::as_str).unwrap_or("");
+                if head == "libc"
+                    || head == "nix"
+                    || (head == "std" && segs.get(1).map(String::as_str) == Some("fs"))
+                {
+                    lint_banned(cx, item.span, &segs.join("::"));
                 }
             }
-        } else if path.is_dir() {
-            // Skip common directories that don't contain source code
-            if let Some(dir_name) = path.file_name() {
-                let dir_name = dir_name.to_string_lossy();
-                if dir_name == "target" || dir_name == ".git" || dir_name == "node_modules" {
-                    continue;
+        }
+    }
+
+    /// Checks expressions for banned API usage
+    ///
+    /// This method analyzes expressions to detect usage of banned APIs through:
+    /// - Path expressions (direct symbol references)
+    /// - Method calls (calls to methods from banned crates)
+    /// - Function calls (calls to functions from banned crates)
+    ///
+    /// It uses def-path resolution to track the origin of symbols, ensuring
+    /// that even aliased or re-exported APIs are caught.
+    ///
+    /// # Arguments
+    ///
+    /// * `cx` - The late context for lint operations
+    /// * `expr` - The expression being checked
+    fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
+        match &expr.kind {
+            ExprKind::Path(qpath) => {
+                // Check direct path references (e.g., `libc::statx`)
+                let res = cx.qpath_res(qpath, expr.hir_id);
+                if let rustc_hir::def::Res::Def(_, def_id) = res {
+                    let p = def_path_str(cx, def_id);
+                    if is_banned_path_str(&p) {
+                        lint_banned(cx, expr.span, &p);
+                    }
                 }
             }
-            violations.extend(check_directory(&path)?);
-        }
-    }
-
-    Ok(violations)
-}
-
-/// Checks if an import statement contains banned APIs
-///
-/// This function analyzes import statements to detect usage of banned crates.
-/// It checks for direct imports from `libc`, `nix`, or `std::fs`.
-///
-/// # Arguments
-///
-/// * `line` - The import line to check
-///
-/// # Returns
-///
-/// `true` if the import contains banned APIs, `false` otherwise
-fn is_banned_import(line: &str) -> bool {
-    // Check for direct imports from banned crates
-    line.contains("use libc::") ||
-    line.contains("use nix::") ||
-    line.contains("use std::fs::") ||
-    // Check for wildcard imports
-    (line.contains("use libc") && line.contains("*")) ||
-    (line.contains("use nix") && line.contains("*")) ||
-    (line.contains("use std::fs") && line.contains("*"))
-}
-
-/// Checks if a line contains banned API usage
-///
-/// This function analyzes code lines to detect usage of banned APIs.
-/// It uses pattern matching to identify common usage patterns.
-///
-/// # Arguments
-///
-/// * `line` - The code line to check
-///
-/// # Returns
-///
-/// `true` if the line contains banned API usage, `false` otherwise
-fn contains_banned_usage(line: &str) -> bool {
-    // Check for direct API usage
-    line.contains("libc::") ||
-    line.contains("nix::") ||
-    line.contains("std::fs::") ||
-    // Check for common banned function calls
-    line.contains("std::fs::read_to_string") ||
-    line.contains("std::fs::write") ||
-    line.contains("std::fs::create_dir") ||
-    line.contains("std::fs::remove_file") ||
-    line.contains("std::fs::metadata") ||
-    line.contains("std::fs::File::open") ||
-    line.contains("std::fs::File::create")
-}
-
-/// Runs the linter using ripgrep for better performance
-///
-/// This function uses ripgrep to quickly scan for banned API patterns
-/// across the entire codebase. It's much faster than file-by-file scanning.
-///
-/// # Arguments
-///
-/// * `path` - The path to scan
-///
-/// # Returns
-///
-/// `Result<Vec<String>, Box<dyn std::error::Error>>` - List of violations found
-pub fn check_with_ripgrep<P: AsRef<Path>>(
-    path: P,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let mut violations = Vec::new();
-    let path_str = path.as_ref().to_string_lossy();
-
-    // Patterns to search for
-    let patterns = [
-        r"use\s+(libc|nix|std::fs)::",
-        r"libc::",
-        r"nix::",
-        r"std::fs::",
-    ];
-
-    for pattern in &patterns {
-        let output = Command::new("rg")
-            .arg("--type")
-            .arg("rust")
-            .arg("--line-number")
-            .arg("--no-heading")
-            .arg(pattern)
-            .arg(&*path_str)
-            .output()?;
-
-        if output.status.success() {
-            let stdout = String::from_utf8(output.stdout)?;
-            for line in stdout.lines() {
-                violations.push(format!("banned API usage: {}", line));
+            ExprKind::MethodCall(_, _, _, _) => {
+                // Check method calls (e.g., `file.read_to_string()`)
+                if let Some(def_id) = cx.typeck_results().type_dependent_def_id(expr.hir_id) {
+                    let p = def_path_str(cx, def_id);
+                    if is_banned_path_str(&p) {
+                        lint_banned(cx, expr.span, &p);
+                    }
+                }
             }
+            ExprKind::Call(callee, _) => {
+                // Check function calls (e.g., `std::fs::read_to_string()`)
+                if let ExprKind::Path(qp) = &callee.kind {
+                    let res = cx.qpath_res(qp, callee.hir_id);
+                    if let rustc_hir::def::Res::Def(_, def_id) = res {
+                        let p = def_path_str(cx, def_id);
+                        if is_banned_path_str(&p) {
+                            lint_banned(cx, callee.span, &p);
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
-
-    Ok(violations)
 }
 
-/// Main entry point for the linter
+/// Registers the custom lints with the Rust compiler
 ///
-/// This function provides a simple interface for running the linter.
-/// It can be called from build scripts or CI/CD pipelines.
+/// This function is called by the Rust compiler to register our custom lints.
+/// It registers the `BAN_LIBC_NIX_STDFS` lint and the `BanApis` lint pass.
 ///
 /// # Arguments
 ///
-/// * `args` - Command line arguments
-///
-/// # Returns
-///
-/// `Result<(), Box<dyn std::error::Error>>` - Success or error
-pub fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() < 2 {
-        eprintln!("Usage: {} <path>", args[0]);
-        eprintln!("  path: File or directory to check for banned APIs");
-        eprintln!("");
-        eprintln!("Banned APIs:");
-        eprintln!("  - libc::* (use compio-fs-extended instead)");
-        eprintln!("  - nix::* (use compio-fs-extended instead)");
-        eprintln!("  - std::fs::* (use compio::fs instead)");
-        return Ok(());
-    }
-
-    let path = &args[1];
-    let violations = check_banned_apis(path)?;
-
-    if violations.is_empty() {
-        println!("✅ No banned API usage found!");
-        return Ok(());
-    }
-
-    println!("❌ Found {} banned API usage(s):", violations.len());
-    for violation in violations {
-        println!("  {}", violation);
-    }
-
-    std::process::exit(1);
+/// * `_sess` - The compiler session (unused)
+/// * `lint_store` - The lint store to register lints with
+#[no_mangle]
+pub fn register_lints(_sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
+    lint_store.register_lints(&[&BAN_LIBC_NIX_STDFS]);
+    lint_store.register_late_pass(|_| Box::new(BanApis));
 }
