@@ -525,16 +525,33 @@ pub async fn copy_directory(
     let root_metadata = ExtendedMetadata::new(src).await?;
     hardlink_tracker.set_source_filesystem(root_metadata.device_id());
 
-    // Traverse source directory iteratively using compio's dispatcher
-    traverse_and_copy_directory_iterative(
+    // Create a dispatcher for async operations
+    let dispatcher = Box::leak(Box::new(Dispatcher::new()?));
+
+    // Leak file_ops to give it a static lifetime (it's fine since it's just a reference)
+    let file_ops_static: &'static FileOperations = unsafe { std::mem::transmute(file_ops) };
+
+    // Wrap shared state in wrapper types for static lifetimes
+    let shared_stats = SharedStats::new(std::mem::take(&mut stats));
+    let shared_hardlink_tracker = SharedHardlinkTracker::new(std::mem::take(&mut hardlink_tracker));
+
+    // Process the directory
+    let result = process_directory_entry_with_compio(
+        dispatcher,
         src.to_path_buf(),
         dst.to_path_buf(),
-        file_ops,
+        file_ops_static,
         _copy_method,
-        &mut stats,
-        &mut hardlink_tracker,
+        shared_stats.clone(),
+        shared_hardlink_tracker.clone(),
     )
-    .await?;
+    .await;
+
+    // Restore state from shared wrappers
+    stats = shared_stats.into_inner()?;
+    hardlink_tracker = shared_hardlink_tracker.into_inner()?;
+
+    result?;
 
     // Log hardlink detection results
     let hardlink_stats = hardlink_tracker.get_stats();
@@ -552,86 +569,6 @@ pub async fn copy_directory(
     }
 
     Ok(stats)
-}
-
-/// Directory traversal using compio's dispatcher for iterative processing
-///
-/// This function implements iterative directory traversal using compio's dispatcher
-/// instead of recursion or manual worklists. It creates a static dispatcher and
-/// uses it to schedule all directory operations asynchronously.
-///
-/// # Architecture
-///
-/// 1. **Dispatcher Creation**: Creates a static dispatcher using `Box::leak` for lifetime management
-/// 2. **State Wrapping**: Wraps `DirectoryStats` and `FilesystemTracker` in `Arc<Mutex<>>` for shared access
-/// 3. **Entry Processing**: Dispatches all directory entries to `process_directory_entry_with_compio`
-/// 4. **Error Handling**: Uses `try_join_all` to short-circuit on first error
-///
-/// # Key Benefits
-///
-/// - **No Recursion**: Avoids stack overflow on deep directory structures
-/// - **No Manual Worklists**: Uses compio's built-in async scheduling
-/// - **Efficient Error Handling**: Short-circuits on first error, cancelling remaining operations
-/// - **Concurrent Processing**: All directory entries processed concurrently
-///
-/// # Parameters
-///
-/// * `initial_src` - Source directory path to traverse
-/// * `initial_dst` - Destination directory path for copying
-/// * `file_ops` - File operations handler with `io_uring` support
-/// * `copy_method` - Copy method (e.g., `io_uring`, fallback)
-/// * `stats` - Statistics tracking (files, bytes, errors, etc.)
-/// * `hardlink_tracker` - Hardlink detection and tracking
-///
-/// # Returns
-///
-/// Returns `Ok(())` if all operations complete successfully, or `Err(SyncError)` if any operation fails.
-///
-/// # Errors
-///
-/// This function will return an error if:
-/// - Dispatcher creation fails
-/// - Any directory entry processing fails
-/// - File system operations fail
-/// - Hardlink operations fail
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::future_not_send)]
-#[allow(clippy::used_underscore_binding)]
-async fn traverse_and_copy_directory_iterative(
-    initial_src: PathBuf,
-    initial_dst: PathBuf,
-    file_ops: &FileOperations,
-    _copy_method: CopyMethod,
-    stats: &mut DirectoryStats,
-    hardlink_tracker: &mut FilesystemTracker,
-) -> Result<()> {
-    // Create a dispatcher for async operations
-    let dispatcher = Box::leak(Box::new(Dispatcher::new()?));
-
-    // Leak file_ops to give it a static lifetime (it's fine since it's just a reference)
-    let file_ops_static: &'static FileOperations = unsafe { std::mem::transmute(file_ops) };
-
-    // Wrap shared state in wrapper types for static lifetimes
-    let shared_stats = SharedStats::new(std::mem::take(stats));
-    let shared_hardlink_tracker = SharedHardlinkTracker::new(std::mem::take(hardlink_tracker));
-
-    // Process the directory
-    let result = process_directory_entry_with_compio(
-        dispatcher,
-        initial_src,
-        initial_dst,
-        file_ops_static,
-        _copy_method,
-        shared_stats.clone(),
-        shared_hardlink_tracker.clone(),
-    )
-    .await;
-
-    // Restore the state
-    *stats = shared_stats.into_inner()?;
-    *hardlink_tracker = shared_hardlink_tracker.into_inner()?;
-
-    result
 }
 
 /// Process directory entry using compio's dispatcher for async operations
