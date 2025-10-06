@@ -3,7 +3,7 @@
 //! This module tests directory metadata preservation including permissions,
 //! ownership, and timestamps during directory copy operations.
 
-use io_uring_sync::directory::ExtendedMetadata;
+use io_uring_sync::directory::{preserve_directory_metadata, ExtendedMetadata};
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::time::{Duration, SystemTime};
@@ -25,15 +25,17 @@ async fn test_directory_permissions_preservation() {
     fs::create_dir(&dst_dir).unwrap();
 
     // Get source metadata
-    let _extended_metadata = ExtendedMetadata::new(&src_dir).await.unwrap();
+    let extended_metadata = ExtendedMetadata::new(&src_dir).await.unwrap();
 
-    // Test the preserve_directory_metadata function directly
-    // Note: This is a simplified test - in real usage, this would be called
-    // from the directory copying logic
+    // Actually call the preserve_directory_metadata function
+    preserve_directory_metadata(&src_dir, &dst_dir, &extended_metadata)
+        .await
+        .unwrap();
+
+    // Verify permissions were preserved
     let src_metadata = fs::metadata(&src_dir).unwrap();
     let dst_metadata = fs::metadata(&dst_dir).unwrap();
 
-    // Verify permissions were set correctly
     assert_eq!(
         src_metadata.permissions().mode(),
         dst_metadata.permissions().mode(),
@@ -57,9 +59,14 @@ async fn test_directory_permissions_special_bits() {
     fs::create_dir(&dst_dir).unwrap();
 
     // Get source metadata
-    let _extended_metadata = ExtendedMetadata::new(&src_dir).await.unwrap();
+    let extended_metadata = ExtendedMetadata::new(&src_dir).await.unwrap();
 
-    // Test the preserve_directory_metadata function directly
+    // Actually call the preserve_directory_metadata function
+    preserve_directory_metadata(&src_dir, &dst_dir, &extended_metadata)
+        .await
+        .unwrap();
+
+    // Verify special bits were preserved
     let src_metadata = fs::metadata(&src_dir).unwrap();
     let dst_metadata = fs::metadata(&dst_dir).unwrap();
 

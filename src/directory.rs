@@ -1425,19 +1425,28 @@ pub async fn preserve_directory_xattr(src_path: &Path, dst_path: &Path) -> Resul
 /// - Ownership preservation fails
 /// - Timestamp preservation fails
 #[allow(clippy::future_not_send, clippy::similar_names)]
-async fn preserve_directory_metadata(
-    _src_path: &Path,
+pub async fn preserve_directory_metadata(
+    src_path: &Path,
     dst_path: &Path,
     extended_metadata: &ExtendedMetadata,
 ) -> Result<()> {
     use compio_fs_extended::{metadata, OwnershipOps};
 
-    // Preserve directory permissions using compio::fs::set_permissions
+    // Preserve directory permissions using file descriptor-based approach
     let src_permissions = extended_metadata.metadata.permissions();
     let mode = src_permissions.mode();
     let compio_permissions = compio::fs::Permissions::from_mode(mode);
 
-    compio::fs::set_permissions(dst_path, compio_permissions)
+    // Open destination directory for permission operations
+    let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
+        SyncError::FileSystem(format!(
+            "Failed to open destination directory for permissions: {e}"
+        ))
+    })?;
+
+    // Use file descriptor-based set_permissions to avoid umask interference
+    dst_dir
+        .set_permissions(compio_permissions)
         .await
         .map_err(|e| {
             SyncError::FileSystem(format!("Failed to preserve directory permissions: {e}"))
@@ -1447,16 +1456,7 @@ async fn preserve_directory_metadata(
     let source_uid = extended_metadata.metadata.uid();
     let source_gid = extended_metadata.metadata.gid();
 
-    // Use compio-fs-extended for ownership preservation
-
-    // Open destination directory for ownership operations
-    let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
-        SyncError::FileSystem(format!(
-            "Failed to open destination directory for ownership: {e}"
-        ))
-    })?;
-
-    // Set ownership using fchown
+    // Set ownership using fchown (reuse the same file descriptor)
     dst_dir.fchown(source_uid, source_gid).await.map_err(|e| {
         SyncError::FileSystem(format!("Failed to preserve directory ownership: {e}"))
     })?;
@@ -1479,7 +1479,7 @@ async fn preserve_directory_metadata(
         })?;
 
     // Preserve directory extended attributes using compio-fs-extended
-    preserve_directory_xattr(_src_path, dst_path).await?;
+    preserve_directory_xattr(src_path, dst_path).await?;
 
     debug!(
         "Preserved directory metadata for {}: permissions={:o}, uid={}, gid={}",
