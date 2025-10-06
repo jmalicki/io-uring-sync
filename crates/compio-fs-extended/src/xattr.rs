@@ -107,12 +107,54 @@ pub trait XattrOps {
 /// # Errors
 ///
 /// This function will return an error if the xattr operation fails
-pub async fn get_xattr_impl(_file: &File, _name: &str) -> Result<Vec<u8>> {
-    // TODO: Implement using io_uring opcodes (IORING_OP_GETXATTR)
-    // This requires integration with compio's io_uring infrastructure
-    Err(xattr_error(
-        "get_xattr not yet implemented - requires io_uring opcodes",
-    ))
+pub async fn get_xattr_impl(file: &File, name: &str) -> Result<Vec<u8>> {
+    use std::ffi::CString;
+    use std::os::fd::AsRawFd;
+
+    let name_cstr =
+        CString::new(name).map_err(|e| xattr_error(&format!("Invalid xattr name: {e}")))?;
+
+    compio::runtime::spawn_blocking({
+        let file_fd = file.as_raw_fd();
+        let name_cstr = name_cstr.clone();
+        move || {
+            // First, get the size of the xattr
+            let size =
+                unsafe { libc::fgetxattr(file_fd, name_cstr.as_ptr(), std::ptr::null_mut(), 0) };
+
+            if size < 0 {
+                let errno = std::io::Error::last_os_error();
+                return Err(xattr_error(&format!(
+                    "fgetxattr size check failed: {errno}"
+                )));
+            }
+
+            if size == 0 {
+                return Ok(Vec::new());
+            }
+
+            // Allocate buffer and get the actual value
+            let mut buffer = vec![0u8; size as usize];
+            let result = unsafe {
+                libc::fgetxattr(
+                    file_fd,
+                    name_cstr.as_ptr(),
+                    buffer.as_mut_ptr() as *mut libc::c_void,
+                    size as usize,
+                )
+            };
+
+            if result < 0 {
+                let errno = std::io::Error::last_os_error();
+                Err(xattr_error(&format!("fgetxattr failed: {errno}")))
+            } else {
+                buffer.truncate(result as usize);
+                Ok(buffer)
+            }
+        }
+    })
+    .await
+    .map_err(|e| xattr_error(&format!("spawn_blocking failed: {e:?}")))?
 }
 
 /// Implementation of xattr setting using io_uring opcodes
@@ -120,12 +162,38 @@ pub async fn get_xattr_impl(_file: &File, _name: &str) -> Result<Vec<u8>> {
 /// # Errors
 ///
 /// This function will return an error if the xattr operation fails
-pub async fn set_xattr_impl(_file: &File, _name: &str, _value: &[u8]) -> Result<()> {
-    // TODO: Implement using io_uring opcodes (IORING_OP_SETXATTR)
-    // This requires integration with compio's io_uring infrastructure
-    Err(xattr_error(
-        "set_xattr not yet implemented - requires io_uring opcodes",
-    ))
+pub async fn set_xattr_impl(file: &File, name: &str, value: &[u8]) -> Result<()> {
+    use std::ffi::CString;
+    use std::os::fd::AsRawFd;
+
+    let name_cstr =
+        CString::new(name).map_err(|e| xattr_error(&format!("Invalid xattr name: {e}")))?;
+
+    compio::runtime::spawn_blocking({
+        let file_fd = file.as_raw_fd();
+        let name_cstr = name_cstr.clone();
+        let value = value.to_vec();
+        move || {
+            let result = unsafe {
+                libc::fsetxattr(
+                    file_fd,
+                    name_cstr.as_ptr(),
+                    value.as_ptr() as *const libc::c_void,
+                    value.len(),
+                    0, // flags
+                )
+            };
+
+            if result < 0 {
+                let errno = std::io::Error::last_os_error();
+                Err(xattr_error(&format!("fsetxattr failed: {errno}")))
+            } else {
+                Ok(())
+            }
+        }
+    })
+    .await
+    .map_err(|e| xattr_error(&format!("spawn_blocking failed: {e:?}")))?
 }
 
 /// Implementation of xattr listing using io_uring opcodes
@@ -133,12 +201,52 @@ pub async fn set_xattr_impl(_file: &File, _name: &str, _value: &[u8]) -> Result<
 /// # Errors
 ///
 /// This function will return an error if the xattr operation fails
-pub async fn list_xattr_impl(_file: &File) -> Result<Vec<String>> {
-    // TODO: Implement using io_uring opcodes (IORING_OP_LISTXATTR)
-    // This requires integration with compio's io_uring infrastructure
-    Err(xattr_error(
-        "list_xattr not yet implemented - requires io_uring opcodes",
-    ))
+pub async fn list_xattr_impl(file: &File) -> Result<Vec<String>> {
+    use std::os::fd::AsRawFd;
+
+    compio::runtime::spawn_blocking({
+        let file_fd = file.as_raw_fd();
+        move || {
+            // First, get the size of the xattr list
+            let size = unsafe { libc::flistxattr(file_fd, std::ptr::null_mut(), 0) };
+
+            if size < 0 {
+                let errno = std::io::Error::last_os_error();
+                return Err(xattr_error(&format!(
+                    "flistxattr size check failed: {errno}"
+                )));
+            }
+
+            if size == 0 {
+                return Ok(Vec::new());
+            }
+
+            // Allocate buffer and get the actual list
+            let mut buffer = vec![0u8; size as usize];
+            let result = unsafe {
+                libc::flistxattr(
+                    file_fd,
+                    buffer.as_mut_ptr() as *mut libc::c_char,
+                    size as usize,
+                )
+            };
+
+            if result < 0 {
+                let errno = std::io::Error::last_os_error();
+                Err(xattr_error(&format!("flistxattr failed: {errno}")))
+            } else {
+                // Parse the null-separated list of names
+                let names = String::from_utf8_lossy(&buffer[..result as usize])
+                    .split('\0')
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect();
+                Ok(names)
+            }
+        }
+    })
+    .await
+    .map_err(|e| xattr_error(&format!("spawn_blocking failed: {e:?}")))?
 }
 
 /// Get an extended attribute value at the given path
