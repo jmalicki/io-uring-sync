@@ -177,13 +177,10 @@ pub async fn fadvise(file: &File, advice: FadviseAdvice, offset: u64, len: u64) 
     // Submit io_uring fadvise operation using compio's runtime
     let result = submit(FadviseOp::new(fd, offset, len, advice.to_posix())).await;
 
-    // Convert the result to our error type
+    // Minimal mapping: preserve underlying error string without extra context
     match result.0 {
         Ok(_) => Ok(()),
-        Err(e) => Err(fadvise_error(&format!(
-            "io_uring fadvise operation failed: {}",
-            e
-        ))),
+        Err(e) => Err(fadvise_error(&e.to_string())),
     }
 }
 

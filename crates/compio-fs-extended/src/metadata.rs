@@ -44,17 +44,14 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+/// Get the /proc/self/fd path for a file descriptor
 fn proc_fd_path(fd: i32) -> PathBuf {
     PathBuf::from(format!("/proc/self/fd/{}", fd))
 }
 
+/// Join a directory file descriptor path with a relative pathname
 fn join_dirfd_path(dir_fd: i32, pathname: &str) -> Result<PathBuf> {
-    let dir_path = std::fs::read_link(proc_fd_path(dir_fd)).map_err(|e| {
-        metadata_error(&format!(
-            "Failed to resolve dirfd {} via /proc/self/fd: {}",
-            dir_fd, e
-        ))
-    })?;
+    let dir_path = std::fs::read_link(proc_fd_path(dir_fd))?;
     Ok(dir_path.join(pathname))
 }
 
@@ -78,14 +75,15 @@ fn join_dirfd_path(dir_fd: i32, pathname: &str) -> Result<PathBuf> {
 /// - The operation fails due to I/O errors
 pub async fn fchmodat(path: &Path, mode: u32) -> Result<()> {
     let path = path.to_path_buf();
-    compio::runtime::spawn_blocking(move || {
+    let inner = compio::runtime::spawn(async move {
         let mut perms = std::fs::metadata(&path)?.permissions();
         perms.set_mode(mode);
         std::fs::set_permissions(&path, perms)
     })
     .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?
-    .map_err(|e| metadata_error(&format!("set_permissions failed: {}", e)))
+    .map_err(ExtendedError::SpawnJoin)?;
+    inner?;
+    Ok(())
 }
 
 /// Change file timestamps using file descriptor
@@ -109,14 +107,15 @@ pub async fn fchmodat(path: &Path, mode: u32) -> Result<()> {
 /// - The operation fails due to I/O errors
 pub async fn futimesat(path: &Path, accessed: SystemTime, modified: SystemTime) -> Result<()> {
     let path = path.to_path_buf();
-    compio::runtime::spawn_blocking(move || {
+    let inner = compio::runtime::spawn(async move {
         let atime = FileTime::from(accessed);
         let mtime = FileTime::from(modified);
         set_file_times(&path, atime, mtime)
     })
     .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?
-    .map_err(|e| metadata_error(&format!("set_file_times failed: {}", e)))
+    .map_err(ExtendedError::SpawnJoin)?;
+    inner?;
+    Ok(())
 }
 
 /// Change file ownership using file descriptor
@@ -163,15 +162,16 @@ pub async fn fchownat(_path: &Path, _uid: u32, _gid: u32) -> Result<()> {
 /// - Invalid mode value
 /// - The operation fails due to I/O errors
 pub async fn fchmod(fd: i32, mode: u32) -> Result<()> {
-    compio::runtime::spawn_blocking(move || {
+    let inner = compio::runtime::spawn(async move {
         let path = proc_fd_path(fd);
         let mut perms = std::fs::metadata(&path)?.permissions();
         perms.set_mode(mode);
         std::fs::set_permissions(&path, perms)
     })
     .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?
-    .map_err(|e| metadata_error(&format!("set_permissions failed: {}", e)))
+    .map_err(ExtendedError::SpawnJoin)?;
+    inner?;
+    Ok(())
 }
 
 /// Change file timestamps using file descriptor (more efficient)
@@ -194,15 +194,16 @@ pub async fn fchmod(fd: i32, mode: u32) -> Result<()> {
 /// - Invalid timestamp values
 /// - The operation fails due to I/O errors
 pub async fn futimes(fd: i32, accessed: SystemTime, modified: SystemTime) -> Result<()> {
-    compio::runtime::spawn_blocking(move || {
+    let inner = compio::runtime::spawn(async move {
         let path = proc_fd_path(fd);
         let atime = FileTime::from(accessed);
         let mtime = FileTime::from(modified);
         set_file_times(&path, atime, mtime)
     })
     .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?
-    .map_err(|e| metadata_error(&format!("set_file_times failed: {}", e)))
+    .map_err(ExtendedError::SpawnJoin)?;
+    inner?;
+    Ok(())
 }
 
 /// Change file ownership using file descriptor (more efficient)
@@ -251,14 +252,15 @@ pub async fn fchown(_fd: i32, _uid: u32, _gid: u32) -> Result<()> {
 /// - The operation fails due to I/O errors
 pub async fn fchmodat_with_dirfd(dir_fd: i32, pathname: &str, mode: u32) -> Result<()> {
     let full = join_dirfd_path(dir_fd, pathname)?;
-    compio::runtime::spawn_blocking(move || {
+    let inner = compio::runtime::spawn(async move {
         let mut perms = std::fs::metadata(&full)?.permissions();
         perms.set_mode(mode);
         std::fs::set_permissions(&full, perms)
     })
     .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?
-    .map_err(|e| metadata_error(&format!("set_permissions failed: {}", e)))
+    .map_err(ExtendedError::SpawnJoin)?;
+    inner?;
+    Ok(())
 }
 
 /// Change file timestamps using DirectoryFd (most efficient)
@@ -288,14 +290,15 @@ pub async fn futimesat_with_dirfd(
     modified: SystemTime,
 ) -> Result<()> {
     let full = join_dirfd_path(dir_fd, pathname)?;
-    compio::runtime::spawn_blocking(move || {
+    let inner = compio::runtime::spawn(async move {
         let atime = FileTime::from(accessed);
         let mtime = FileTime::from(modified);
         set_file_times(&full, atime, mtime)
     })
     .await
-    .map_err(|e| metadata_error(&format!("spawn_blocking failed: {:?}", e)))?
-    .map_err(|e| metadata_error(&format!("set_file_times failed: {}", e)))
+    .map_err(ExtendedError::SpawnJoin)?;
+    inner?;
+    Ok(())
 }
 
 /// Change file ownership using DirectoryFd (most efficient)
