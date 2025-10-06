@@ -35,12 +35,14 @@
 //! ```
 
 pub mod copy;
+pub mod device;
 pub mod directory;
 pub mod error;
 pub mod extended_file;
 pub mod fadvise;
 pub mod fallocate;
 pub mod hardlink;
+pub mod metadata;
 pub mod symlink;
 pub mod xattr;
 

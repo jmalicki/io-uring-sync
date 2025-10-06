@@ -3,7 +3,7 @@
 use crate::copy::CopyFileRange;
 use crate::directory::DirectoryOps;
 use crate::error::Result;
-use crate::fadvise::Fadvise;
+use crate::fadvise::{Fadvise, FadviseAdvice};
 use crate::fallocate::Fallocate;
 use crate::hardlink::HardlinkOps;
 use crate::symlink::SymlinkOps;
@@ -131,9 +131,9 @@ impl CopyFileRange for ExtendedFile {
 
 // Implement Fadvise trait
 impl Fadvise for ExtendedFile {
-    async fn fadvise(&self, advice: i32, offset: u64, len: u64) -> Result<()> {
+    async fn fadvise(&self, advice: FadviseAdvice, offset: u64, len: u64) -> Result<()> {
         // Delegate to the fadvise module implementation
-        crate::fadvise::fadvise_impl(&self.inner, advice, offset, len).await
+        crate::fadvise::fadvise(&self.inner, advice, offset, len).await
     }
 }
 

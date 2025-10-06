@@ -30,7 +30,6 @@
 //! ```
 
 use crate::error::{ExtendedError, Result};
-use compio_runtime;
 use libc;
 use std::ffi::CString;
 use std::path::Path;
@@ -61,7 +60,7 @@ pub async fn create_special_file_at_path(path: &Path, mode: u32, dev: u64) -> Re
     // Use spawn_blocking since IORING_OP_MKNODAT is not available in current io-uring crate
     let path_cstr = path_cstr.clone();
 
-    let result = compio_runtime::spawn_blocking(move || unsafe {
+    let result = compio::runtime::spawn_blocking(move || unsafe {
         libc::mknodat(
             libc::AT_FDCWD,
             path_cstr.as_ptr(),
@@ -104,7 +103,7 @@ pub async fn create_named_pipe_at_path(path: &Path, mode: u32) -> Result<()> {
     // Use spawn_blocking since IORING_OP_MKFIFOAT is not available in current io-uring crate
     let path_cstr = path_cstr.clone();
 
-    let result = compio_runtime::spawn_blocking(move || unsafe {
+    let result = compio::runtime::spawn_blocking(move || unsafe {
         libc::mkfifoat(libc::AT_FDCWD, path_cstr.as_ptr(), mode as libc::mode_t)
     })
     .await
@@ -207,5 +206,5 @@ pub async fn create_socket_at_path(path: &Path, mode: u32) -> Result<()> {
 
 /// Error helper for device operations
 fn device_error(msg: &str) -> ExtendedError {
-    ExtendedError::Device(msg.to_string())
+    crate::error::device_error(msg)
 }

@@ -40,6 +40,14 @@ pub enum ExtendedError {
     #[error("xattr operation failed: {0}")]
     Xattr(String),
 
+    /// Device operation error
+    #[error("device operation failed: {0}")]
+    Device(String),
+
+    /// Metadata operation error
+    #[error("metadata operation failed: {0}")]
+    Metadata(String),
+
     /// Filesystem detection error
     #[error("filesystem detection failed: {0}")]
     FilesystemDetection(String),
@@ -133,6 +141,18 @@ pub fn directory_error(msg: &str) -> ExtendedError {
 #[must_use]
 pub fn xattr_error(msg: &str) -> ExtendedError {
     ExtendedError::Xattr(msg.to_string())
+}
+
+/// Helper for creating device specific errors
+#[must_use]
+pub fn device_error(msg: &str) -> ExtendedError {
+    ExtendedError::Device(msg.to_string())
+}
+
+/// Helper for creating metadata specific errors
+#[must_use]
+pub fn metadata_error(msg: &str) -> ExtendedError {
+    ExtendedError::Metadata(msg.to_string())
 }
 
 /// Helper for creating filesystem detection errors
