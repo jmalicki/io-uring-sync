@@ -1,7 +1,7 @@
 //! Extended file operations wrapper around compio::fs::File
 
 use crate::copy::CopyFileRange;
-use crate::directory::DirectoryOps;
+// DirectoryOps removed - use compio::fs directly for basic directory operations
 use crate::error::Result;
 use crate::fadvise::{Fadvise, FadviseAdvice};
 use crate::fallocate::Fallocate;
@@ -166,18 +166,7 @@ impl HardlinkOps for ExtendedFile {
     }
 }
 
-// Implement DirectoryOps trait
-impl DirectoryOps for ExtendedFile {
-    async fn create_directory(&self, path: &std::path::Path) -> Result<()> {
-        // Delegate to the directory module implementation
-        crate::directory::create_directory_impl(&self.inner, path).await
-    }
-
-    async fn remove_directory(&self, path: &std::path::Path) -> Result<()> {
-        // Delegate to the directory module implementation
-        crate::directory::remove_directory_impl(&self.inner, path).await
-    }
-}
+// DirectoryOps removed - use compio::fs directly for basic directory operations
 
 // Implement XattrOps trait (when xattr feature is enabled)
 #[cfg(feature = "xattr")]

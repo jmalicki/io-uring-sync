@@ -61,7 +61,7 @@ pub async fn create_special_file_at_path(path: &Path, mode: u32, dev: u64) -> Re
             &path,
             stat::SFlag::from_bits_truncate(mode),
             stat::Mode::from_bits_truncate(mode & 0o777),
-            dev as u64,
+            dev,
         )
         .map_err(|e| device_error(&format!("mknod failed: {}", e)))
     })

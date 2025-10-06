@@ -52,7 +52,7 @@ pub use extended_file::ExtendedFile;
 
 // Re-export specific operation modules
 pub use copy::CopyFileRange;
-pub use directory::DirectoryOps;
+// DirectoryOps removed - use compio::fs directly for basic directory operations
 pub use fadvise::Fadvise;
 pub use fallocate::Fallocate;
 pub use hardlink::HardlinkOps;
