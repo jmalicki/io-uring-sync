@@ -141,42 +141,26 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
     // and improve write performance using io_uring fallocate.
     // Skip preallocation for empty files as fallocate fails with EINVAL for zero length.
     if file_size > 0 {
-        use compio_fs_extended::{fadvise::FadviseAdvice, ExtendedFile, Fadvise, Fallocate};
-
+        use compio_fs_extended::{ExtendedFile, Fallocate, Fadvise, fadvise::FadviseAdvice};
+        
         // Apply fadvise hints to both source and destination for "one and done" copy
         let extended_src = ExtendedFile::from_ref(&src_file);
         let extended_dst = ExtendedFile::from_ref(&dst_file);
-
+        
         // Hint that source data won't be accessed again after this copy
-        extended_src
-            .fadvise(
-                FadviseAdvice::NoReuse,
-                0,
-                file_size.try_into().unwrap_or(i64::MAX),
-            )
-            .await
-            .map_err(|e| {
-                SyncError::FileSystem(format!("Failed to set fadvise NoReuse hint on source: {e}"))
-            })?;
-
+        extended_src.fadvise(FadviseAdvice::NoReuse, 0, file_size.try_into().unwrap_or(i64::MAX)).await.map_err(|e| {
+            SyncError::FileSystem(format!("Failed to set fadvise NoReuse hint on source: {e}"))
+        })?;
+        
         // Preallocate destination file space
         extended_dst.fallocate(0, file_size, 0).await.map_err(|e| {
             SyncError::FileSystem(format!("Failed to preallocate destination file: {e}"))
         })?;
-
+        
         // Hint that destination data won't be accessed again after this copy
-        extended_dst
-            .fadvise(
-                FadviseAdvice::NoReuse,
-                0,
-                file_size.try_into().unwrap_or(i64::MAX),
-            )
-            .await
-            .map_err(|e| {
-                SyncError::FileSystem(format!(
-                    "Failed to set fadvise NoReuse hint on destination: {e}"
-                ))
-            })?;
+        extended_dst.fadvise(FadviseAdvice::NoReuse, 0, file_size.try_into().unwrap_or(i64::MAX)).await.map_err(|e| {
+            SyncError::FileSystem(format!("Failed to set fadvise NoReuse hint on destination: {e}"))
+        })?;
     }
 
     // Use compio's async read_at/write_at operations
@@ -283,48 +267,27 @@ async fn preserve_permissions(src: &Path, dst: &Path) -> Result<()> {
     let src_metadata = metadata(src)
         .map_err(|e| SyncError::FileSystem(format!("Failed to get source file metadata: {e}")))?;
 
-    let mode = src_metadata.permissions().mode();
+    let std_permissions = src_metadata.permissions();
+    let mode = std_permissions.mode();
+    
+    // Convert to compio::fs::Permissions
+    let compio_permissions = compio::fs::Permissions::from_mode(mode);
 
-    // Use chmod syscall to preserve special bits
-    compio::runtime::spawn_blocking({
-        let dst_path = dst.to_path_buf();
-        move || {
-            use std::ffi::CString;
-            use std::os::unix::ffi::OsStrExt;
-
-            let path_cstr = CString::new(dst_path.as_os_str().as_bytes())
-                .map_err(|e| SyncError::FileSystem(format!("Invalid path for chmod: {e}")))?;
-
-            let result = unsafe { libc::chmod(path_cstr.as_ptr(), mode) };
-
-            if result == -1 {
-                let errno = std::io::Error::last_os_error();
-                Err(SyncError::FileSystem(format!(
-                    "chmod failed: {errno} (errno: {})",
-                    errno.raw_os_error().unwrap_or(-1)
-                )))
-            } else {
-                Ok(())
-            }
-        }
-    })
-    .await
-    .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?
+    // Use compio::fs::set_permissions which preserves special bits via libc::chmod
+    compio::fs::set_permissions(dst, compio_permissions)
+        .await
+        .map_err(|e| SyncError::FileSystem(format!("Failed to preserve permissions: {e}")))
 }
 
 /// Preserve file ownership using file descriptors
 #[allow(clippy::future_not_send)]
-async fn preserve_ownership_from_fd(
-    src_file: &compio::fs::File,
-    dst_file: &compio::fs::File,
-) -> Result<()> {
+async fn preserve_ownership_from_fd(src_file: &compio::fs::File, dst_file: &compio::fs::File) -> Result<()> {
     use compio_fs_extended::OwnershipOps;
-
+    
     // Use compio-fs-extended for ownership preservation
-    dst_file
-        .preserve_ownership_from(src_file)
-        .await
-        .map_err(|e| SyncError::FileSystem(format!("Failed to preserve file ownership: {e}")))?;
+    dst_file.preserve_ownership_from(src_file).await.map_err(|e| {
+        SyncError::FileSystem(format!("Failed to preserve file ownership: {e}"))
+    })?;
     Ok(())
 }
 
@@ -505,7 +468,6 @@ fn system_time_to_timespec(time: SystemTime) -> libc::timespec {
 mod tests {
     use super::*;
     use std::fs;
-    use std::os::unix::fs::PermissionsExt;
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
 
