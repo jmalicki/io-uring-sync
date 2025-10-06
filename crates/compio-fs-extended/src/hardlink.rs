@@ -90,11 +90,14 @@ pub async fn create_hardlink_at_path(original_path: &Path, link_path: &Path) -> 
 
 /// io_uring hardlink (linkat) operation
 struct HardlinkOp {
+    /// Source path to link from
     oldpath: CString,
+    /// Destination path for the new hardlink
     newpath: CString,
 }
 
 impl HardlinkOp {
+    /// Create a new hardlink operation for submission to io_uring
     #[must_use]
     fn new(oldpath: CString, newpath: CString) -> Self {
         Self { oldpath, newpath }
