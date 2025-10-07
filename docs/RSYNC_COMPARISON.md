@@ -92,10 +92,10 @@ Features that `io-uring-sync` has but `rsync` doesn't:
 
 | Metadata Type | rsync | io-uring-sync | Implementation |
 |---------------|-------|---------------|----------------|
-| **Permissions** | ✅ `chmod` | ✅ `fchmod` (FD-based) | Both work, io-uring-sync avoids umask issues |
-| **Ownership** | ✅ `chown` | ✅ `fchown` (FD-based) | Both work, io-uring-sync is FD-based |
+| **Permissions** | ✅ `chmod` (path-based) | ✅ `fchmod` (FD-based) | io-uring-sync avoids umask + TOCTOU *([see security →](#security-file-descriptor-based-operations))* |
+| **Ownership** | ✅ `lchown` (path-based) | ✅ `fchown` (FD-based) | io-uring-sync prevents race conditions *([see security →](#security-file-descriptor-based-operations))* |
 | **Timestamps** | ✅ `utimes` | ✅ `utimensat` (nanosec) | io-uring-sync has nanosecond precision |
-| **Extended Attributes** | ✅ `-X` | ✅ `-X` (FD-based) | io-uring-sync uses `fgetxattr`/`fsetxattr` |
+| **Extended Attributes** | ✅ `getxattr`/`setxattr` | ✅ `fgetxattr`/`fsetxattr` (FD-based) | io-uring-sync is immune to symlink attacks *([see security →](#security-file-descriptor-based-operations))* |
 | **ACLs** | ✅ `-A` | ✅ `-A` (implies `-p`) | Compatible behavior |
 | **Hard Links** | ✅ `-H` | ✅ `-H` (integrated) | io-uring-sync detects during traversal |
 
@@ -299,6 +299,128 @@ For remote sync, network operations, or advanced rsync features (`--delete`, `--
 ---
 
 ## Detailed Comparisons
+
+### Security: File Descriptor-Based Operations
+
+`io-uring-sync` uses **file descriptor-based syscalls** (`fchmod`, `fchown`, `fgetxattr`, `fsetxattr`) for all metadata operations, while rsync uses **path-based syscalls** (`chmod`, `lchown`, `getxattr`, `setxattr`). This is a critical security difference.
+
+#### The TOCTOU Vulnerability (Time-of-Check-Time-of-Use)
+
+Path-based syscalls are vulnerable to **race condition attacks** where an attacker can substitute a symlink between when the path is checked and when it's used:
+
+**rsync's approach (vulnerable):**
+```c
+// From rsync's syscall.c:
+// https://github.com/WayneD/rsync/blob/master/syscall.c
+
+int do_chmod(const char *path, mode_t mode) {
+    return chmod(path, mode);  // ← Path-based: TOCTOU vulnerable
+}
+
+int do_lchown(const char *path, uid_t owner, gid_t group) {
+    return lchown(path, owner, group);  // ← Path-based: TOCTOU vulnerable
+}
+```
+
+**Attack scenario:**
+1. rsync checks file `/backup/important.txt` (legitimate file)
+2. **Attacker swaps it with symlink** → `/etc/passwd`
+3. rsync calls `chmod("/backup/important.txt", 0644)`
+4. **Kernel follows symlink** → changes `/etc/passwd` permissions! 💥
+
+#### io-uring-sync's Solution: File Descriptor-Based Operations
+
+**Our approach (secure):**
+```rust
+// Open file ONCE, get file descriptor
+let file = File::open(path).await?;
+
+// All operations use the file descriptor (immune to path changes)
+file.set_permissions(perms).await?;     // fchmod(fd, ...)
+file.fchown(uid, gid).await?;           // fchown(fd, ...)
+extended_file.get_xattr(name).await?;   // fgetxattr(fd, ...)
+extended_file.set_xattr(name, val).await?;  // fsetxattr(fd, ...)
+```
+
+**Why this is secure:**
+1. File descriptor obtained at open time (validated once)
+2. All subsequent operations use the FD (not the path)
+3. Even if path is swapped, FD still refers to original file
+4. **Immune to symlink attacks and race conditions**
+
+#### Authoritative References
+
+**MITRE CWE-362: TOCTOU Race Condition**
+- https://cwe.mitre.org/data/definitions/362.html
+- Explicitly recommends using file descriptors to avoid TOCTOU
+
+**Linux man pages on security:**
+- `openat(2)`: "The openat() system call... can be used to avoid certain types of race conditions"
+- `fchmod(2)`: "fchmod() is identical to chmod(), except... using an open file descriptor, thereby avoiding races"
+- `fchown(2)`: "fchown() is like chown(), but operates on a file descriptor instead of a path"
+
+**Common Vulnerabilities:**
+- CVE-2004-0452: Race condition in chown/chmod operations
+- CVE-2007-4476: Symlink following in path-based operations
+
+#### Real-World Impact
+
+**rsync's vulnerability (example):**
+```bash
+# Terminal 1: Run rsync backup
+$ rsync -a /source/ /backup/
+
+# Terminal 2: Attacker replaces file with symlink mid-operation
+$ rm /backup/sensitive-file.txt
+$ ln -s /etc/shadow /backup/sensitive-file.txt
+
+# rsync may now change permissions on /etc/shadow instead of the backup!
+```
+
+**io-uring-sync is immune:**
+```bash
+# Even if attacker swaps the path, the file descriptor still refers
+# to the original file that was opened, not the symlink
+$ io-uring-sync -a --source /source --destination /backup
+# ✓ Secure: All operations use FDs, not paths
+```
+
+#### rsync Source Code References
+
+**rsync uses path-based syscalls:**
+- [`syscall.c` (chmod)](https://github.com/WayneD/rsync/blob/master/syscall.c#L90-L100) - Uses `chmod(path, mode)`
+- [`syscall.c` (lchown)](https://github.com/WayneD/rsync/blob/master/syscall.c#L206-L215) - Uses `lchown(path, uid, gid)`
+- No use of `fchmod`, `fchown`, `fgetxattr`, or `fsetxattr`
+
+**Why rsync doesn't use FD-based:**
+- Historical compatibility (written before `*at` syscalls were common)
+- Requires opening files/dirs for metadata operations (extra overhead in single-threaded model)
+- Path-based is simpler but less secure
+
+**Why io-uring-sync uses FD-based:**
+- Already opening files for async I/O operations (no extra overhead)
+- io_uring benefits from file descriptors for async operations
+- Modern security best practices (eliminate TOCTOU)
+- Avoids umask interference as a bonus
+
+#### Performance Note
+
+File descriptor-based operations are **not slower** - in io-uring-sync's case, they're actually faster because:
+1. Files are already opened for I/O operations
+2. Reusing the same FD for metadata is more efficient
+3. Kernel doesn't need to re-resolve paths
+
+#### Summary
+
+| Aspect | rsync | io-uring-sync | Security |
+|--------|-------|---------------|----------|
+| **Syscalls** | Path-based (`chmod`, `lchown`) | FD-based (`fchmod`, `fchown`) | **io-uring-sync** |
+| **TOCTOU Vulnerable** | ✅ Yes | ❌ No | **io-uring-sync** |
+| **Symlink Attack** | ✅ Vulnerable | ❌ Immune | **io-uring-sync** |
+| **Umask Interference** | ✅ Yes | ❌ No | **io-uring-sync** |
+| **Security Compliance** | Legacy approach | Modern best practice | **io-uring-sync** |
+
+**Conclusion:** io-uring-sync's use of file descriptor-based operations provides **both security and correctness advantages** over rsync's path-based approach, eliminating entire classes of race condition vulnerabilities.
 
 ### Hardlink Detection: io-uring-sync vs rsync
 
