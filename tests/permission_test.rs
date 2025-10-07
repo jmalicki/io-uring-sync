@@ -1,9 +1,43 @@
 //! Test permission preservation in file copying
 
+use io_uring_sync::cli::{Args, CopyMethod};
 use io_uring_sync::copy::copy_file;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use tempfile::TempDir;
+
+/// Create a default Args struct for testing with archive mode enabled
+fn create_test_args_with_archive() -> Args {
+    Args {
+        source: PathBuf::from("/test/source"),
+        destination: PathBuf::from("/test/dest"),
+        queue_depth: 4096,
+        max_files_in_flight: 1024,
+        cpu_count: 1,
+        buffer_size_kb: 64,
+        copy_method: CopyMethod::Auto,
+        archive: true, // Enable archive mode for full metadata preservation
+        recursive: false,
+        links: false,
+        perms: false,
+        times: false,
+        group: false,
+        owner: false,
+        devices: false,
+        xattrs: false,
+        acls: false,
+        hard_links: false,
+        atimes: false,
+        crtimes: false,
+        preserve_xattr: false,
+        preserve_acl: false,
+        dry_run: false,
+        progress: false,
+        verbose: 0,
+        quiet: false,
+    }
+}
 
 #[compio::test]
 async fn test_permission_preservation() {
@@ -18,8 +52,9 @@ async fn test_permission_preservation() {
     let permissions = std::fs::Permissions::from_mode(0o644);
     fs::set_permissions(&src_path, permissions).unwrap();
 
-    // Copy the file
-    copy_file(&src_path, &dst_path).await.unwrap();
+    // Copy the file with archive mode (full metadata preservation)
+    let args = create_test_args_with_archive();
+    copy_file(&src_path, &dst_path, &args).await.unwrap();
 
     // Check that permissions were preserved
     let src_metadata = fs::metadata(&src_path).unwrap();
@@ -54,8 +89,9 @@ async fn test_timestamp_preservation() {
     // Wait a bit to ensure timestamps are different
     std::thread::sleep(std::time::Duration::from_millis(10));
 
-    // Copy the file
-    copy_file(&src_path, &dst_path).await.unwrap();
+    // Copy the file with archive mode (full metadata preservation)
+    let args = create_test_args_with_archive();
+    copy_file(&src_path, &dst_path, &args).await.unwrap();
 
     // Check that timestamps were preserved
     let dst_metadata = fs::metadata(&dst_path).unwrap();

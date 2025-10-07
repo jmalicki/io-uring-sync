@@ -37,14 +37,69 @@ pub struct Args {
     #[arg(long, default_value = "auto")]
     pub copy_method: CopyMethod,
 
+    // ========== rsync-compatible flags ==========
+    /// Archive mode; same as -rlptgoD (recursive, links, perms, times, group, owner, devices)
+    #[arg(short = 'a', long)]
+    pub archive: bool,
+
+    /// Recurse into directories
+    #[arg(short = 'r', long)]
+    pub recursive: bool,
+
+    /// Copy symlinks as symlinks
+    #[arg(short = 'l', long)]
+    pub links: bool,
+
+    /// Preserve permissions
+    #[arg(short = 'p', long)]
+    pub perms: bool,
+
+    /// Preserve modification times
+    #[arg(short = 't', long)]
+    pub times: bool,
+
+    /// Preserve group
+    #[arg(short = 'g', long)]
+    pub group: bool,
+
+    /// Preserve owner (super-user only)
+    #[arg(short = 'o', long)]
+    pub owner: bool,
+
+    /// Preserve device files (super-user only) and special files
+    #[arg(short = 'D', long)]
+    pub devices: bool,
+
     /// Preserve extended attributes
+    #[arg(short = 'X', long)]
+    pub xattrs: bool,
+
+    /// Preserve ACLs (implies --perms)
+    #[arg(short = 'A', long)]
+    pub acls: bool,
+
+    /// Preserve hard links
+    #[arg(short = 'H', long)]
+    pub hard_links: bool,
+
+    /// Preserve access (use) times
+    #[arg(short = 'U', long)]
+    pub atimes: bool,
+
+    /// Preserve creation times (when supported)
     #[arg(long)]
+    pub crtimes: bool,
+
+    // ========== Deprecated flags (for backwards compatibility) ==========
+    /// Preserve extended attributes (deprecated: use -X/--xattrs)
+    #[arg(long, hide = true)]
     pub preserve_xattr: bool,
 
-    /// Preserve POSIX ACLs
-    #[arg(long)]
+    /// Preserve POSIX ACLs (deprecated: use -A/--acls)
+    #[arg(long, hide = true)]
     pub preserve_acl: bool,
 
+    // ========== Other flags ==========
     /// Show what would be copied without actually copying
     #[arg(long)]
     pub dry_run: bool,
@@ -178,6 +233,95 @@ impl Args {
     pub const fn buffer_size_bytes(&self) -> usize {
         self.buffer_size_kb * 1024
     }
+
+    // ========== rsync-compatible helper methods ==========
+
+    /// Check if permissions should be preserved
+    #[must_use]
+    pub const fn should_preserve_permissions(&self) -> bool {
+        self.perms || self.archive || self.acls
+    }
+
+    /// Check if ownership (user and/or group) should be preserved
+    #[must_use]
+    pub const fn should_preserve_ownership(&self) -> bool {
+        self.owner || self.group || self.archive
+    }
+
+    /// Check if user ownership should be preserved
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_owner(&self) -> bool {
+        self.owner || self.archive
+    }
+
+    /// Check if group ownership should be preserved
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_group(&self) -> bool {
+        self.group || self.archive
+    }
+
+    /// Check if timestamps should be preserved
+    #[must_use]
+    pub const fn should_preserve_timestamps(&self) -> bool {
+        self.times || self.archive
+    }
+
+    /// Check if access times should be preserved
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_atimes(&self) -> bool {
+        self.atimes
+    }
+
+    /// Check if creation times should be preserved
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_crtimes(&self) -> bool {
+        self.crtimes
+    }
+
+    /// Check if extended attributes should be preserved
+    #[must_use]
+    pub const fn should_preserve_xattrs(&self) -> bool {
+        self.xattrs || self.preserve_xattr
+    }
+
+    /// Check if ACLs should be preserved
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_acls(&self) -> bool {
+        self.acls || self.preserve_acl
+    }
+
+    /// Check if symlinks should be copied as symlinks
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_links(&self) -> bool {
+        self.links || self.archive
+    }
+
+    /// Check if hard links should be preserved
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_hard_links(&self) -> bool {
+        self.hard_links
+    }
+
+    /// Check if device files should be preserved
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_preserve_devices(&self) -> bool {
+        self.devices || self.archive
+    }
+
+    /// Check if recursive copying should be performed
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn should_recurse(&self) -> bool {
+        self.recursive || self.archive
+    }
 }
 
 #[cfg(test)]
@@ -220,7 +364,20 @@ mod tests {
             cpu_count: 2,
             buffer_size_kb: 1024,
             max_files_in_flight: 100,
-            preserve_xattr: true,
+            archive: false,
+            recursive: false,
+            links: false,
+            perms: false,
+            times: false,
+            group: false,
+            owner: false,
+            devices: false,
+            xattrs: true,
+            acls: false,
+            hard_links: false,
+            atimes: false,
+            crtimes: false,
+            preserve_xattr: false,
             preserve_acl: false,
             dry_run: false,
             progress: false,
@@ -242,7 +399,20 @@ mod tests {
             cpu_count: 2,
             buffer_size_kb: 1024,
             max_files_in_flight: 100,
-            preserve_xattr: true,
+            archive: false,
+            recursive: false,
+            links: false,
+            perms: false,
+            times: false,
+            group: false,
+            owner: false,
+            devices: false,
+            xattrs: true,
+            acls: false,
+            hard_links: false,
+            atimes: false,
+            crtimes: false,
+            preserve_xattr: false,
             preserve_acl: false,
             dry_run: false,
             progress: false,
@@ -263,7 +433,20 @@ mod tests {
             cpu_count: 2,
             buffer_size_kb: 1024,
             max_files_in_flight: 100,
-            preserve_xattr: true,
+            archive: false,
+            recursive: false,
+            links: false,
+            perms: false,
+            times: false,
+            group: false,
+            owner: false,
+            devices: false,
+            xattrs: true,
+            acls: false,
+            hard_links: false,
+            atimes: false,
+            crtimes: false,
+            preserve_xattr: false,
             preserve_acl: false,
             dry_run: false,
             progress: false,

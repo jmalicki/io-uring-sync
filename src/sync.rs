@@ -256,6 +256,7 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
             &args.destination,
             &file_ops,
             args.copy_method.clone(),
+            args,
         )
         .await?;
 

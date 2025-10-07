@@ -7,12 +7,46 @@
 // Known limitation: Nanosecond timestamp propagation is currently unreliable in CI.
 // See issue: https://github.com/jmalicki/io-uring-sync/issues/9
 
+use io_uring_sync::cli::{Args, CopyMethod};
 use io_uring_sync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 use tempfile::TempDir;
+
+/// Create a default Args struct for testing with archive mode enabled
+fn create_test_args_with_archive() -> Args {
+    Args {
+        source: PathBuf::from("/test/source"),
+        destination: PathBuf::from("/test/dest"),
+        queue_depth: 4096,
+        max_files_in_flight: 1024,
+        cpu_count: 1,
+        buffer_size_kb: 64,
+        copy_method: CopyMethod::Auto,
+        archive: true, // Enable archive mode for full metadata preservation
+        recursive: false,
+        links: false,
+        perms: false,
+        times: false,
+        group: false,
+        owner: false,
+        devices: false,
+        xattrs: false,
+        acls: false,
+        hard_links: false,
+        atimes: false,
+        crtimes: false,
+        preserve_xattr: false,
+        preserve_acl: false,
+        dry_run: false,
+        progress: false,
+        verbose: 0,
+        quiet: false,
+    }
+}
 #[path = "common/mod.rs"]
 mod test_utils;
 use std::time::Duration as StdDuration;
@@ -60,7 +94,8 @@ async fn test_permission_preservation_special_bits() {
         }
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -104,7 +139,8 @@ async fn test_timestamp_preservation_old_timestamps() {
 
     if result == 0 {
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that the old timestamp was preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -168,7 +204,8 @@ async fn test_timestamp_preservation_future_timestamps() {
 
     if result == 0 {
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that the future timestamp was preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -241,7 +278,8 @@ async fn test_permission_preservation_restrictive_permissions() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file - skip if permission prevents reading
-        match copy_file(&src_path, &dst_path).await {
+        let args = create_test_args_with_archive();
+        match copy_file(&src_path, &dst_path, &args).await {
             Ok(_) => {
                 // Test passed, continue with assertion
             }
@@ -317,7 +355,8 @@ async fn test_timestamp_preservation_nanosecond_edge_cases() {
 
         if result == 0 {
             // Copy the file
-            copy_file(&src_path, &dst_path).await.unwrap();
+            let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Check that nanosecond precision was preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -395,7 +434,8 @@ async fn test_permission_preservation_umask_interaction() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved exactly as they were set
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -446,7 +486,8 @@ async fn test_concurrent_metadata_preservation() {
 
         // Spawn concurrent copy task
         let handle = compio::runtime::spawn(async move {
-            copy_file(&src_path, &dst_path).await.unwrap();
+            let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Verify permissions were preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -504,7 +545,8 @@ async fn test_metadata_preservation_large_file_stress() {
     let original_modified = src_metadata.modified().unwrap();
 
     // Copy the large file
-    copy_file(&src_path, &dst_path).await.unwrap();
+    let args = create_test_args_with_archive();
+    copy_file(&src_path, &dst_path, &args).await.unwrap();
 
     // Verify file content
     let copied_content = fs::read_to_string(&dst_path).unwrap();
