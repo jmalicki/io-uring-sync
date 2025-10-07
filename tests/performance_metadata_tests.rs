@@ -4,16 +4,50 @@
 //! These tests verify that metadata preservation works correctly under
 //! various performance scenarios and stress conditions.
 
-use io_uring_sync::copy::copy_file;
+use arsync::cli::{Args, CopyMethod};
+use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::time::SystemTime;
 use tempfile::TempDir;
 #[path = "common/mod.rs"]
 mod test_utils;
 use std::time::Duration as StdDuration;
 use test_utils::test_timeout_guard;
+
+/// Create a default Args struct for testing with archive mode enabled
+fn create_test_args_with_archive() -> Args {
+    Args {
+        source: PathBuf::from("/test/source"),
+        destination: PathBuf::from("/test/dest"),
+        queue_depth: 4096,
+        max_files_in_flight: 1024,
+        cpu_count: 1,
+        buffer_size_kb: 64,
+        copy_method: CopyMethod::Auto,
+        archive: true, // Enable archive mode for full metadata preservation
+        recursive: false,
+        links: false,
+        perms: false,
+        times: false,
+        group: false,
+        owner: false,
+        devices: false,
+        xattrs: false,
+        acls: false,
+        hard_links: false,
+        atimes: false,
+        crtimes: false,
+        preserve_xattr: false,
+        preserve_acl: false,
+        dry_run: false,
+        progress: false,
+        verbose: 0,
+        quiet: false,
+    }
+}
 
 /// Test metadata preservation performance with many small files
 #[compio::test]
@@ -41,7 +75,8 @@ async fn test_metadata_preservation_many_small_files() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -88,7 +123,8 @@ async fn test_metadata_preservation_rapid_sequential() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -147,7 +183,8 @@ async fn test_metadata_preservation_mixed_sizes() {
         let original_modified = src_metadata.modified().unwrap();
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -211,7 +248,8 @@ async fn test_metadata_preservation_concurrent_operations() {
 
         // Spawn concurrent copy task
         let handle = compio::runtime::spawn(async move {
-            copy_file(&src_path, &dst_path).await.unwrap();
+            let args = create_test_args_with_archive();
+            copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Verify permissions were preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -290,7 +328,8 @@ async fn test_metadata_preservation_specific_timestamps() {
 
         if result == 0 {
             // Copy the file
-            copy_file(&src_path, &dst_path).await.unwrap();
+            let args = create_test_args_with_archive();
+            copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Check that the specific timestamp was preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -359,7 +398,8 @@ async fn test_metadata_preservation_alternating_permissions() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -424,7 +464,8 @@ async fn test_metadata_preservation_specific_permissions() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file - skip if permission prevents reading
-        match copy_file(&src_path, &dst_path).await {
+        let args = create_test_args_with_archive();
+        match copy_file(&src_path, &dst_path, &args).await {
             Ok(_) => {
                 // Test passed, continue with assertion
             }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the testing priorities for io-uring-sync, organized by criticality and implementation phases. The goal is to focus on core functionality first, with advanced features as lower priority.
+This document outlines the testing priorities for arsync, organized by criticality and implementation phases. The goal is to focus on core functionality first, with advanced features as lower priority.
 
 ## Testing Levels
 

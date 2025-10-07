@@ -1,8 +1,8 @@
-# io-uring-sync
+# arsync
 
-[![CI](https://github.com/yourusername/io-uring-sync/workflows/CI/badge.svg)](https://github.com/yourusername/io-uring-sync/actions)
-[![Crates.io](https://img.shields.io/crates/v/io-uring-sync.svg)](https://crates.io/crates/io-uring-sync)
-[![Documentation](https://docs.rs/io-uring-sync/badge.svg)](https://docs.rs/io-uring-sync)
+[![CI](https://github.com/yourusername/arsync/workflows/CI/badge.svg)](https://github.com/yourusername/arsync/actions)
+[![Crates.io](https://img.shields.io/crates/v/arsync.svg)](https://crates.io/crates/arsync)
+[![Documentation](https://docs.rs/arsync/badge.svg)](https://docs.rs/arsync)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](https://opensource.org/licenses/MIT)
 
 High-performance bulk file copying utility using io_uring for maximum efficiency and parallelism.
@@ -10,10 +10,12 @@ High-performance bulk file copying utility using io_uring for maximum efficiency
 ## Features
 
 - **High Performance**: Leverages Linux io_uring for asynchronous I/O operations
-- **Zero-Copy Operations**: Uses `copy_file_range` for same-filesystem copies
+- **Async File Operations**: Uses io_uring `read_at`/`write_at` with `fallocate` preallocation
 - **Smart Hardlink Detection**: Integrated hardlink detection during traversal - content copied once, subsequent files become hardlinks
 - **Parallel Processing**: Per-CPU queue architecture for optimal scaling
 - **Comprehensive Metadata Preservation**: Complete preservation of permissions, ownership, timestamps, and extended attributes for both files and directories
+- **rsync-Compatible CLI**: Drop-in replacement with `-a`, `-r`, `-l`, `-p`, `-t`, `-g`, `-o`, `-D`, `-X`, `-A`, `-H` flags
+- **Security**: File descriptor-based operations immune to TOCTOU/symlink attacks
 - **Progress Tracking**: Real-time progress reporting showing both discovery and completion progress
 - **Cross-Filesystem Support**: Automatic fallback for different filesystems
 - **Single-Pass Operation**: Efficient traversal that discovers and copies in one pass
@@ -29,15 +31,15 @@ High-performance bulk file copying utility using io_uring for maximum efficiency
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/io-uring-sync.git
-cd io-uring-sync
+git clone https://github.com/yourusername/arsync.git
+cd arsync
 cargo build --release
 ```
 
 ### From Crates.io
 
 ```bash
-cargo install io-uring-sync
+cargo install arsync
 ```
 
 ## Usage
@@ -46,20 +48,20 @@ cargo install io-uring-sync
 
 ```bash
 # Copy a directory
-io-uring-sync --source /path/to/source --destination /path/to/destination
+arsync --source /path/to/source --destination /path/to/destination
 
 # Copy a single file
-io-uring-sync --source file.txt --destination backup/file.txt
+arsync --source file.txt --destination backup/file.txt
 
 # Show progress
-io-uring-sync --source /data --destination /backup --progress
+arsync --source /data --destination /backup --progress
 ```
 
 ### Advanced Options
 
 ```bash
 # Custom queue depth and concurrency
-io-uring-sync \
+arsync \
   --source /data \
   --destination /backup \
   --queue-depth 8192 \
@@ -67,19 +69,19 @@ io-uring-sync \
   --cpu-count 8
 
 # Preserve all metadata (permissions, ownership, timestamps, xattr)
-io-uring-sync \
+arsync \
   --source /data \
   --destination /backup \
   --preserve-metadata
 
 # Dry run to see what would be copied
-io-uring-sync \
+arsync \
   --source /data \
   --destination /backup \
   --dry-run
 
 # Verbose output
-io-uring-sync \
+arsync \
   --source /data \
   --destination /backup \
   --verbose
@@ -95,7 +97,7 @@ io-uring-sync \
 | `--max-files-in-flight` | Max concurrent files per CPU | 1024 |
 | `--cpu-count` | Number of CPUs to use (0 = auto) | 0 |
 | `--buffer-size` | Buffer size in KB (0 = auto) | 0 |
-| `--copy-method` | Copy method (auto/copy_file_range/splice/read_write) | auto |
+| `--copy-method` | Copy method (currently auto=read_write) | auto |
 | `--preserve-metadata` | Preserve all metadata (permissions, ownership, timestamps, xattr) | true |
 | `--preserve-xattr` | Preserve extended attributes only | false |
 | `--preserve-ownership` | Preserve file/directory ownership only | false |
@@ -109,7 +111,7 @@ io-uring-sync \
 
 On a modern system with NVMe SSD storage:
 
-| Scenario | io-uring-sync | rsync | cp |
+| Scenario | arsync | rsync | cp |
 |----------|---------------|-------|-----|
 | 1GB single file | 2.1 GB/s | 1.8 GB/s | 1.9 GB/s |
 | 10,000 small files | 850 MB/s | 420 MB/s | 680 MB/s |
@@ -139,7 +141,7 @@ On a modern system with NVMe SSD storage:
 
 ### io_uring Integration
 
-io-uring-sync uses a hybrid approach combining existing Rust libraries with custom implementations:
+arsync uses a hybrid approach combining existing Rust libraries with custom implementations:
 
 - **Base Library**: [rio](https://github.com/spacejam/rio) for core io_uring operations
 - **Extended Operations**: Custom implementations for missing operations
@@ -163,15 +165,20 @@ io-uring-sync uses a hybrid approach combining existing Rust libraries with cust
                     └─────────────┘
 ```
 
-### Copy Methods
+### Copy Method
 
-1. **copy_file_range**: Optimal for same-filesystem copies (zero-copy)
-2. **splice**: Zero-copy data transfer between file descriptors
-3. **read/write**: Traditional method with fallback support
+**Current Implementation**: io_uring `read_at`/`write_at` with `fallocate` preallocation
+- Async I/O operations for maximum concurrency
+- File preallocation to reduce fragmentation
+- Optimized buffer management with `fadvise` hints
+
+**Future Optimizations** (planned):
+- `copy_file_range`: Zero-copy for same-filesystem copies
+- `splice`: Zero-copy data transfer between file descriptors
 
 ### Comprehensive Metadata Preservation
 
-io-uring-sync provides complete metadata preservation for both files and directories:
+arsync provides complete metadata preservation for both files and directories:
 
 #### **File Metadata Preservation**
 - **Permissions**: Preserves file permissions including special bits (setuid, setgid, sticky)
@@ -193,7 +200,7 @@ io-uring-sync provides complete metadata preservation for both files and directo
 
 ### Hardlink Detection and Preservation
 
-io-uring-sync intelligently handles hardlinks during directory traversal:
+arsync intelligently handles hardlinks during directory traversal:
 
 - **Discovery Phase**: Uses `io_uring statx` to analyze each file's metadata (size, permissions, device ID, inode number, link count)
 - **Smart Copying**: 
@@ -223,8 +230,8 @@ See the following documents for detailed development information:
 
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/io-uring-sync.git
-cd io-uring-sync
+git clone https://github.com/yourusername/arsync.git
+cd arsync
 
 # Install dependencies
 cargo install cargo-tarpaulin cargo-criterion

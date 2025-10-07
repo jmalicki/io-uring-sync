@@ -4,7 +4,7 @@
 //! using `io_uring` operations where possible, with fallbacks to standard
 //! filesystem operations for unsupported operations.
 
-use crate::cli::CopyMethod;
+use crate::cli::{Args, CopyMethod};
 use crate::copy::copy_file;
 use crate::error::{Result, SyncError};
 use crate::io_uring::FileOperations;
@@ -498,6 +498,7 @@ pub async fn copy_directory(
     dst: &Path,
     file_ops: &FileOperations,
     _copy_method: CopyMethod,
+    args: &Args,
 ) -> Result<DirectoryStats> {
     let mut stats = DirectoryStats::default();
     let mut hardlink_tracker = FilesystemTracker::new();
@@ -524,9 +525,9 @@ pub async fn copy_directory(
         stats.directories_created += 1;
         debug!("Created destination directory: {}", dst.display());
 
-        // Preserve root directory metadata (permissions, ownership, timestamps)
+        // Preserve root directory metadata (permissions, ownership, timestamps) if requested
         let root_metadata = ExtendedMetadata::new(src).await?;
-        preserve_directory_metadata(src, dst, &root_metadata).await?;
+        preserve_directory_metadata(src, dst, &root_metadata, args).await?;
 
         // Set source filesystem from root directory
         hardlink_tracker.set_source_filesystem(root_metadata.device_id());
@@ -540,6 +541,7 @@ pub async fn copy_directory(
         _copy_method,
         &mut stats,
         &mut hardlink_tracker,
+        args,
     )
     .await?;
 
@@ -611,12 +613,14 @@ async fn traverse_and_copy_directory_iterative(
     _copy_method: CopyMethod,
     stats: &mut DirectoryStats,
     hardlink_tracker: &mut FilesystemTracker,
+    args: &Args,
 ) -> Result<()> {
     // Create a dispatcher for async operations
     let dispatcher = Box::leak(Box::new(Dispatcher::new()?));
 
-    // Leak file_ops to give it a static lifetime (it's fine since it's just a reference)
+    // Leak file_ops and args to give them static lifetimes (it's fine since they're just references)
     let file_ops_static: &'static FileOperations = unsafe { std::mem::transmute(file_ops) };
+    let args_static: &'static Args = unsafe { std::mem::transmute(args) };
 
     // Wrap shared state in wrapper types for static lifetimes
     let shared_stats = SharedStats::new(std::mem::take(stats));
@@ -631,6 +635,7 @@ async fn traverse_and_copy_directory_iterative(
         _copy_method,
         shared_stats.clone(),
         shared_hardlink_tracker.clone(),
+        args_static,
     )
     .await;
 
@@ -694,6 +699,7 @@ async fn process_directory_entry_with_compio(
     _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
+    args: &'static Args,
 ) -> Result<()> {
     // Get comprehensive metadata using compio's async operations
     let extended_metadata = ExtendedMetadata::new(&src_path).await?;
@@ -715,8 +721,8 @@ async fn process_directory_entry_with_compio(
             })?;
             stats.increment_directories_created()?;
 
-            // Preserve directory metadata (permissions, ownership, timestamps)
-            preserve_directory_metadata(&src_path, &dst_path, &extended_metadata).await?;
+            // Preserve directory metadata (permissions, ownership, timestamps) if requested
+            preserve_directory_metadata(&src_path, &dst_path, &extended_metadata, args).await?;
         }
 
         // Read directory entries using std::fs::read_dir
@@ -769,6 +775,7 @@ async fn process_directory_entry_with_compio(
                         copy_method,
                         stats,
                         hardlink_tracker,
+                        args,
                     )
                 })
                 .map_err(|e| {
@@ -807,6 +814,7 @@ async fn process_directory_entry_with_compio(
             _copy_method,
             stats,
             hardlink_tracker,
+            args,
         )
         .await?;
     } else if extended_metadata.is_symlink() {
@@ -850,6 +858,7 @@ async fn process_file(
     _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
+    args: &'static Args,
 ) -> Result<()> {
     debug!(
         "Processing file: {} (link_count: {})",
@@ -874,7 +883,7 @@ async fn process_file(
         // First time seeing this inode - copy the file content normally
         debug!("Copying file content: {}", src_path.display());
 
-        match copy_file(&src_path, &dst_path).await {
+        match copy_file(&src_path, &dst_path, args).await {
             Ok(()) => {
                 stats.increment_files_copied()?;
                 stats.increment_bytes_copied(metadata.len())?;
@@ -1429,65 +1438,89 @@ pub async fn preserve_directory_metadata(
     src_path: &Path,
     dst_path: &Path,
     extended_metadata: &ExtendedMetadata,
+    args: &Args,
 ) -> Result<()> {
     use compio_fs_extended::{metadata, OwnershipOps};
 
-    // Preserve directory permissions using file descriptor-based approach
-    let src_permissions = extended_metadata.metadata.permissions();
-    let mode = src_permissions.mode();
-    let compio_permissions = compio::fs::Permissions::from_mode(mode);
+    // Preserve directory permissions if requested
+    if args.should_preserve_permissions() {
+        let src_permissions = extended_metadata.metadata.permissions();
+        let mode = src_permissions.mode();
+        let compio_permissions = compio::fs::Permissions::from_mode(mode);
 
-    // Open destination directory for permission operations
-    let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
-        SyncError::FileSystem(format!(
-            "Failed to open destination directory for permissions: {e}"
-        ))
-    })?;
-
-    // Use file descriptor-based set_permissions to avoid umask interference
-    dst_dir
-        .set_permissions(compio_permissions)
-        .await
-        .map_err(|e| {
-            SyncError::FileSystem(format!("Failed to preserve directory permissions: {e}"))
+        // Open destination directory for permission operations
+        let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
+            SyncError::FileSystem(format!(
+                "Failed to open destination directory for permissions: {e}"
+            ))
         })?;
 
-    // Preserve directory ownership using compio-fs-extended
-    let source_uid = extended_metadata.metadata.uid();
-    let source_gid = extended_metadata.metadata.gid();
+        // Use file descriptor-based set_permissions to avoid umask interference
+        dst_dir
+            .set_permissions(compio_permissions)
+            .await
+            .map_err(|e| {
+                SyncError::FileSystem(format!("Failed to preserve directory permissions: {e}"))
+            })?;
 
-    // Set ownership using fchown (reuse the same file descriptor)
-    dst_dir.fchown(source_uid, source_gid).await.map_err(|e| {
-        SyncError::FileSystem(format!("Failed to preserve directory ownership: {e}"))
-    })?;
+        debug!(
+            "Preserved directory permissions for {}: {:o}",
+            dst_path.display(),
+            mode
+        );
+    }
 
-    // Preserve directory timestamps using filetime
-    let src_accessed = extended_metadata.metadata.accessed().map_err(|e| {
-        SyncError::FileSystem(format!("Failed to get source directory access time: {e}"))
-    })?;
-    let src_modified = extended_metadata.metadata.modified().map_err(|e| {
-        SyncError::FileSystem(format!(
-            "Failed to get source directory modification time: {e}"
-        ))
-    })?;
+    // Preserve directory ownership if requested
+    if args.should_preserve_ownership() {
+        let source_uid = extended_metadata.metadata.uid();
+        let source_gid = extended_metadata.metadata.gid();
 
-    // Use compio-fs-extended for timestamp preservation
-    metadata::futimesat(dst_path, src_accessed, src_modified)
-        .await
-        .map_err(|e| {
-            SyncError::FileSystem(format!("Failed to preserve directory timestamps: {e}"))
+        // Open destination directory for ownership operations
+        let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
+            SyncError::FileSystem(format!(
+                "Failed to open destination directory for ownership: {e}"
+            ))
         })?;
 
-    // Preserve directory extended attributes using compio-fs-extended
-    preserve_directory_xattr(src_path, dst_path).await?;
+        // Set ownership using fchown
+        dst_dir.fchown(source_uid, source_gid).await.map_err(|e| {
+            SyncError::FileSystem(format!("Failed to preserve directory ownership: {e}"))
+        })?;
 
-    debug!(
-        "Preserved directory metadata for {}: permissions={:o}, uid={}, gid={}",
-        dst_path.display(),
-        mode,
-        source_uid,
-        source_gid
-    );
+        debug!(
+            "Preserved directory ownership for {}: uid={}, gid={}",
+            dst_path.display(),
+            source_uid,
+            source_gid
+        );
+    }
+
+    // Preserve directory timestamps if requested
+    if args.should_preserve_timestamps() {
+        let src_accessed = extended_metadata.metadata.accessed().map_err(|e| {
+            SyncError::FileSystem(format!("Failed to get source directory access time: {e}"))
+        })?;
+        let src_modified = extended_metadata.metadata.modified().map_err(|e| {
+            SyncError::FileSystem(format!(
+                "Failed to get source directory modification time: {e}"
+            ))
+        })?;
+
+        // Use compio-fs-extended for timestamp preservation
+        metadata::futimesat(dst_path, src_accessed, src_modified)
+            .await
+            .map_err(|e| {
+                SyncError::FileSystem(format!("Failed to preserve directory timestamps: {e}"))
+            })?;
+
+        debug!("Preserved directory timestamps for {}", dst_path.display());
+    }
+
+    // Preserve directory extended attributes if requested
+    if args.should_preserve_xattrs() {
+        preserve_directory_xattr(src_path, dst_path).await?;
+        debug!("Preserved directory xattrs for {}", dst_path.display());
+    }
 
     Ok(())
 }

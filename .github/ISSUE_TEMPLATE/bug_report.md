@@ -23,7 +23,7 @@ A clear and concise description of what you expected to happen.
 **Environment (please complete the following information):**
  - OS: [e.g. Ubuntu 22.04]
  - Kernel version: [e.g. 5.15.0-52-generic]
- - io-uring-sync version: [e.g. 0.1.0]
+ - arsync version: [e.g. 0.1.0]
  - Architecture: [e.g. x86_64]
 
 **Additional context**

@@ -1,8 +1,8 @@
 //! Tests for file extended attributes (xattr) preservation
 
+use arsync::copy::preserve_xattr_from_fd;
 use compio::fs;
 use compio_fs_extended::{ExtendedFile, XattrOps};
-use io_uring_sync::copy::preserve_xattr_from_fd;
 use tempfile::TempDir;
 
 /// Test basic extended attributes preservation

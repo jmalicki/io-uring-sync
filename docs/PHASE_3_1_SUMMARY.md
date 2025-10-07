@@ -136,7 +136,7 @@
 
 ## 🎉 **Conclusion**
 
-This branch represents a major milestone in the io-uring-sync project, completing the migration to compio and implementing comprehensive advanced filesystem operations. The project now has:
+This branch represents a major milestone in the arsync project, completing the migration to compio and implementing comprehensive advanced filesystem operations. The project now has:
 
 - **Complete compio integration** with native io_uring operations
 - **Comprehensive metadata preservation** with nanosecond precision

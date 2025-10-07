@@ -4,16 +4,50 @@
 //! These tests cover extreme scenarios and edge cases that could reveal
 //! subtle bugs in the permission and timestamp preservation logic.
 
-use io_uring_sync::copy::copy_file;
+use arsync::cli::{Args, CopyMethod};
+use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 use tempfile::TempDir;
 #[path = "common/mod.rs"]
 mod test_utils;
 use std::time::Duration as StdDuration;
 use test_utils::test_timeout_guard;
+
+/// Create a default Args struct for testing with archive mode enabled
+fn create_test_args_with_archive() -> Args {
+    Args {
+        source: PathBuf::from("/test/source"),
+        destination: PathBuf::from("/test/dest"),
+        queue_depth: 4096,
+        max_files_in_flight: 1024,
+        cpu_count: 1,
+        buffer_size_kb: 64,
+        copy_method: CopyMethod::Auto,
+        archive: true, // Enable archive mode for full metadata preservation
+        recursive: false,
+        links: false,
+        perms: false,
+        times: false,
+        group: false,
+        owner: false,
+        devices: false,
+        xattrs: false,
+        acls: false,
+        hard_links: false,
+        atimes: false,
+        crtimes: false,
+        preserve_xattr: false,
+        preserve_acl: false,
+        dry_run: false,
+        progress: false,
+        verbose: 0,
+        quiet: false,
+    }
+}
 
 /// Test permission preservation with files that have no read permission
 #[compio::test]
@@ -35,7 +69,8 @@ async fn test_permission_preservation_no_read_permission() {
     let expected_permissions = src_metadata.permissions().mode();
 
     // Copy the file (this should still work as we're the owner)
-    copy_file(&src_path, &dst_path).await.unwrap();
+    let args = create_test_args_with_archive();
+    copy_file(&src_path, &dst_path, &args).await.unwrap();
 
     // Check that permissions were preserved
     let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -80,7 +115,8 @@ async fn test_timestamp_preservation_very_recent() {
         std::thread::sleep(Duration::from_millis(10));
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that the recent timestamp was preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -98,7 +134,7 @@ async fn test_timestamp_preservation_very_recent() {
 
         // Should be very close (within 100ms)
         // Recent timestamp test - only assert modified timestamp to avoid atime flakiness in CI
-        // See https://github.com/jmalicki/io-uring-sync/issues/10
+        // See https://github.com/jmalicki/arsync/issues/10
         let modified_diff = copied_modified.duration_since(now).unwrap_or_default();
         println!(
             "Recent timestamp test - Modified diff: {}ms",
@@ -140,7 +176,8 @@ async fn test_permission_preservation_execute_only() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file - skip if permission prevents reading
-        match copy_file(&src_path, &dst_path).await {
+        let args = create_test_args_with_archive();
+        match copy_file(&src_path, &dst_path, &args).await {
             Ok(_) => {
                 // Test passed, continue with assertion
             }
@@ -204,7 +241,8 @@ async fn test_timestamp_preservation_identical_times() {
 
     if result == 0 {
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that identical timestamps were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -228,7 +266,7 @@ async fn test_timestamp_preservation_identical_times() {
         );
 
         // Only modified vs accessed comparison: atime may change due to reads, but here they were set identical
-        // See https://github.com/jmalicki/io-uring-sync/issues/10
+        // See https://github.com/jmalicki/arsync/issues/10
         let delta = if let Ok(d) = copied_modified.duration_since(copied_accessed) {
             d
         } else if let Ok(d) = copied_accessed.duration_since(copied_modified) {
@@ -276,7 +314,8 @@ async fn test_permission_preservation_all_bits() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file - skip if permission prevents reading or writing
-        match copy_file(&src_path, &dst_path).await {
+        let args = create_test_args_with_archive();
+        match copy_file(&src_path, &dst_path, &args).await {
             Ok(_) => {
                 // Test passed, continue with assertion
             }
@@ -335,7 +374,8 @@ async fn test_metadata_preservation_long_filename() {
     let original_modified = src_metadata.modified().unwrap();
 
     // Copy the file
-    copy_file(&src_path, &dst_path).await.unwrap();
+    let args = create_test_args_with_archive();
+    copy_file(&src_path, &dst_path, &args).await.unwrap();
 
     // Check that permissions were preserved
     let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -401,7 +441,8 @@ async fn test_metadata_preservation_special_characters() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -448,7 +489,8 @@ async fn test_metadata_preservation_unicode_filenames() {
         let expected_permissions = src_metadata.permissions().mode();
 
         // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();

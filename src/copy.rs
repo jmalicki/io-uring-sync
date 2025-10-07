@@ -21,12 +21,12 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use io_uring_sync::copy::copy_file;
-//! use io_uring_sync::cli::CopyMethod;
+//! use arsync::copy::copy_file;
+//! use arsync::cli::CopyMethod;
 //! use std::path::Path;
 //!
 //! #[compio::main]
-//! async fn main() -> io_uring_sync::Result<()> {
+//! async fn main() -> arsync::Result<()> {
 //!     let src_path = Path::new("source.txt");
 //!     let dst_path = Path::new("destination.txt");
 //!     
@@ -39,6 +39,7 @@
 //! }
 //! ```
 
+use crate::cli::Args;
 use crate::error::{Result, SyncError};
 use compio::fs::OpenOptions;
 use compio::io::{AsyncReadAt, AsyncWriteAt};
@@ -63,10 +64,10 @@ const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer
 /// - Metadata preservation fails
 /// - The specified copy method is not supported or fails
 #[allow(clippy::future_not_send)]
-pub async fn copy_file(src: &Path, dst: &Path) -> Result<()> {
+pub async fn copy_file(src: &Path, dst: &Path, args: &Args) -> Result<()> {
     // Simplified: always use read/write method
     // This is the only reliable method that works everywhere
-    copy_read_write(src, dst).await
+    copy_read_write(src, dst, args).await
 }
 
 /// Copy file using compio read/write operations (reliable fallback)
@@ -94,19 +95,19 @@ pub async fn copy_file(src: &Path, dst: &Path) -> Result<()> {
 /// # Examples
 ///
 /// ```rust,ignore
-/// use io_uring_sync::copy::copy_read_write;
+/// use arsync::copy::copy_read_write;
 /// use std::path::Path;
 ///
 /// #[compio::main]
-/// async fn main() -> io_uring_sync::Result<()> {
+/// async fn main() -> arsync::Result<()> {
 ///     let src_path = Path::new("source.txt");
 ///     let dst_path = Path::new("destination.txt");
 ///     copy_read_write(src_path, dst_path).await?;
 ///     Ok(())
 /// }
 /// ```
-#[allow(clippy::future_not_send)]
-async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
+#[allow(clippy::future_not_send, clippy::too_many_lines)]
+async fn copy_read_write(src: &Path, dst: &Path, args: &Args) -> Result<()> {
     // Capture source timestamps BEFORE any reads to avoid atime/mtime drift
     let (src_accessed, src_modified) = get_precise_timestamps(src).await?;
 
@@ -234,11 +235,22 @@ async fn copy_read_write(src: &Path, dst: &Path) -> Result<()> {
         .await
         .map_err(|e| SyncError::FileSystem(format!("Failed to sync destination file: {e}")))?;
 
-    // Preserve file permissions, ownership, timestamps, and extended attributes
-    preserve_permissions_from_fd(&src_file, &dst_file).await?;
-    preserve_ownership_from_fd(&src_file, &dst_file).await?;
-    preserve_xattr_from_fd(&src_file, &dst_file).await?;
-    set_dst_timestamps(dst, src_accessed, src_modified).await?;
+    // Preserve file metadata only if explicitly requested (rsync behavior)
+    if args.should_preserve_permissions() {
+        preserve_permissions_from_fd(&src_file, &dst_file).await?;
+    }
+
+    if args.should_preserve_ownership() {
+        preserve_ownership_from_fd(&src_file, &dst_file).await?;
+    }
+
+    if args.should_preserve_xattrs() {
+        preserve_xattr_from_fd(&src_file, &dst_file).await?;
+    }
+
+    if args.should_preserve_timestamps() {
+        set_dst_timestamps(dst, src_accessed, src_modified).await?;
+    }
 
     tracing::debug!(
         "compio read_at/write_at: successfully copied {} bytes",
@@ -522,9 +534,43 @@ fn system_time_to_timespec(time: SystemTime) -> libc::timespec {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::CopyMethod;
     use std::fs;
+    use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
+
+    /// Create a default Args struct for testing with archive mode enabled
+    fn create_test_args_with_archive() -> Args {
+        Args {
+            source: PathBuf::from("/test/source"),
+            destination: PathBuf::from("/test/dest"),
+            queue_depth: 4096,
+            max_files_in_flight: 1024,
+            cpu_count: 1,
+            buffer_size_kb: 64,
+            copy_method: CopyMethod::Auto,
+            archive: true, // Enable archive mode for full metadata preservation
+            recursive: false,
+            links: false,
+            perms: false,
+            times: false,
+            group: false,
+            owner: false,
+            devices: false,
+            xattrs: false,
+            acls: false,
+            hard_links: false,
+            atimes: false,
+            crtimes: false,
+            preserve_xattr: false,
+            preserve_acl: false,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+        }
+    }
 
     #[compio::test]
     async fn test_preserve_metadata_permissions() {
@@ -539,8 +585,9 @@ mod tests {
         let permissions = std::fs::Permissions::from_mode(0o644);
         fs::set_permissions(&src_path, permissions).unwrap();
 
-        // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        // Copy the file with archive mode (full metadata preservation)
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let src_metadata = fs::metadata(&src_path).unwrap();
@@ -582,8 +629,9 @@ mod tests {
         // Wait a bit to ensure timestamps are different
         std::thread::sleep(Duration::from_millis(10));
 
-        // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        // Copy the file with archive mode (full metadata preservation)
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that timestamps were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -638,8 +686,9 @@ mod tests {
             let src_metadata = fs::metadata(&src_path).unwrap();
             let expected_permissions = src_metadata.permissions().mode();
 
-            // Copy the file
-            copy_file(&src_path, &dst_path).await.unwrap();
+            // Copy the file with archive mode (full metadata preservation)
+            let args = create_test_args_with_archive();
+            copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Check that permissions were preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -667,8 +716,9 @@ mod tests {
         let original_accessed = src_metadata.accessed().unwrap();
         let original_modified = src_metadata.modified().unwrap();
 
-        // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        // Copy the file with archive mode (full metadata preservation)
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that timestamps were preserved with high precision
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -714,8 +764,9 @@ mod tests {
         let original_accessed = src_metadata.accessed().unwrap();
         let original_modified = src_metadata.modified().unwrap();
 
-        // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        // Copy the file with archive mode (full metadata preservation)
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Verify file content
         let copied_content = fs::read_to_string(&dst_path).unwrap();
@@ -770,8 +821,9 @@ mod tests {
         let src_metadata = fs::metadata(&src_path).unwrap();
         let expected_permissions = src_metadata.permissions().mode();
 
-        // Copy the file
-        copy_file(&src_path, &dst_path).await.unwrap();
+        // Copy the file with archive mode (full metadata preservation)
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -826,8 +878,9 @@ mod tests {
         let content = "Test content for fallocate preallocation";
         fs::write(&src_path, content).unwrap();
 
-        // Copy the file (this should trigger fallocate preallocation)
-        copy_file(&src_path, &dst_path).await.unwrap();
+        // Copy the file with archive mode (full metadata preservation)
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Verify the file was copied correctly
         let copied_content = fs::read_to_string(&dst_path).unwrap();
@@ -853,8 +906,9 @@ mod tests {
         let large_content = "A".repeat(1024 * 1024); // 1MB of 'A' characters
         fs::write(&src_path, &large_content).unwrap();
 
-        // Copy the file (this should trigger fallocate preallocation)
-        copy_file(&src_path, &dst_path).await.unwrap();
+        // Copy the file with archive mode (full metadata preservation)
+        let args = create_test_args_with_archive();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Verify the file was copied correctly
         let copied_content = fs::read_to_string(&dst_path).unwrap();

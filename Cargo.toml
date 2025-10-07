@@ -1,21 +1,21 @@
 [package]
-name = "io-uring-sync"
+name = "arsync"
 version = "0.1.0"
 edition = "2021"
 authors = ["Your Name <your.email@example.com>"]
-description = "High-performance bulk file copying utility using io_uring"
+description = "High-performance async file copying utility using io_uring - modern rsync alternative"
 license = "MIT"
-repository = "https://github.com/yourusername/io-uring-sync"
+repository = "https://github.com/yourusername/arsync"
 keywords = ["io_uring", "file-copy", "async", "performance", "rsync"]
 categories = ["command-line-utilities", "filesystem", "asynchronous"]
 readme = "README.md"
 
 [lib]
-name = "io_uring_sync"
+name = "arsync"
 path = "src/lib.rs"
 
 [[bin]]
-name = "io-uring-sync"
+name = "arsync"
 path = "src/main.rs"
 
 [workspace]

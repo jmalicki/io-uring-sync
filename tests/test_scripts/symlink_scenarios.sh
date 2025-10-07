@@ -41,7 +41,7 @@ echo "Target with spaces and special chars" > "$SOURCE_DIR/symlinks/target with 
 ln -s "target with spaces.txt" "$SOURCE_DIR/symlinks/symlink_to_spaces.txt"
 
 # Create symlink to absolute path outside the test directory
-echo "External target" > "/tmp/io_uring_sync_external_target.txt"
-ln -s "/tmp/io_uring_sync_external_target.txt" "$SOURCE_DIR/symlinks/symlink_external.txt"
+echo "External target" > "/tmp/arsync_external_target.txt"
+ln -s "/tmp/arsync_external_target.txt" "$SOURCE_DIR/symlinks/symlink_external.txt"
 
 echo "✓ Symlink scenarios created"
