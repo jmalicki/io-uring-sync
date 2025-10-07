@@ -44,7 +44,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 **What is io_uring?** [io_uring](https://kernel.dk/io_uring.pdf) is a modern Linux kernel interface (introduced in kernel 5.1, 2019) that provides **asynchronous I/O** through shared ring buffers between userspace and the kernel. Unlike traditional blocking syscalls that require one system call per operation, io_uring lets you submit **batches of I/O operations** without blocking, and the kernel notifies you when they complete. Think of it as a high-speed conveyor belt for I/O requests.
 
-**The Problem:** Modern [NVMe](https://nvmexpress.org/) SSDs were designed with **massively parallel command queues** (up to 64K commands per queue, 64K queues) to saturate PCIe bandwidth and exploit the inherent parallelism of flash memory. Traditional blocking syscalls (one thread = one I/O at a time) create a **bottleneck** that wastes this hardware capability *([see NVMe architecture deep-dive ↓](#appendix-nvme-architecture-and-io_uring))*:
+**The Problem:** Modern [NVMe](https://nvmexpress.org/) SSDs were designed with **massively parallel command queues** (up to 64K commands per queue, 64K queues) to saturate PCIe bandwidth and exploit the inherent parallelism of flash memory. Traditional blocking syscalls (one thread = one I/O at a time) create a **bottleneck** that wastes this hardware capability *([see NVMe architecture deep-dive →](docs/NVME_ARCHITECTURE.md))*:
 - Each `read()` or `write()` call blocks the thread
 - Single-threaded rsync can only issue ~10,000 operations/second
 - **Result: Your $2000 NVMe SSD performs like a $50 USB stick**
@@ -236,10 +236,11 @@ This is what **30 years of Linux evolution + modern software engineering** looks
 12. [Additional Technical Details](#additional-technical-details)
     - [Hardlink Detection: arsync vs rsync](#hardlink-detection-arsync-vs-rsync)
     - [Progress Reporting: arsync vs rsync](#progress-reporting-arsync-vs-rsync)
-13. [Appendix: NVMe Architecture and io_uring](#appendix-nvme-architecture-and-io_uring)
-14. [Appendix: Why fadvise is Superior to O_DIRECT](#appendix-why-fadvise-is-superior-to-o_direct)
-15. [Contributing](#contributing)
-16. [License](#license)
+13. [Appendices](#appendices)
+    - [NVMe Architecture and io_uring](docs/NVME_ARCHITECTURE.md)
+    - [Why fadvise is Superior to O_DIRECT](docs/FADVISE_VS_O_DIRECT.md)
+14. [Contributing](#contributing)
+15. [License](#license)
 
 ---
 
@@ -946,9 +947,11 @@ This is enabled by arsync's parallel architecture where discovery and copying ha
 
 ---
 
-## Appendix: NVMe Architecture and io_uring
+## Appendices
 
-For a comprehensive deep-dive into why NVMe was designed with massive parallelism and how io_uring exploits this architecture, see [RSYNC_COMPARISON.md - Appendix: NVMe Architecture](docs/RSYNC_COMPARISON.md#appendix-nvme-architecture-and-io_uring).
+### NVMe Architecture and io_uring
+
+For a comprehensive deep-dive into why NVMe was designed with massive parallelism and how io_uring exploits this architecture, see [NVME_ARCHITECTURE.md](docs/NVME_ARCHITECTURE.md).
 
 **Key takeaways:**
 - NVMe: 64K queues × 64K commands = 4 billion outstanding operations
@@ -956,11 +959,9 @@ For a comprehensive deep-dive into why NVMe was designed with massive parallelis
 - io_uring's queue-pair model matches NVMe's native architecture
 - Result: 8.5x throughput improvement on small files
 
----
+### Why fadvise is Superior to O_DIRECT
 
-## Appendix: Why fadvise is Superior to O_DIRECT
-
-For a detailed explanation of why arsync uses `fadvise` instead of `O_DIRECT`, including Linus Torvalds' famous "deranged monkey" critique, see [RSYNC_COMPARISON.md - Appendix: fadvise vs O_DIRECT](docs/RSYNC_COMPARISON.md#appendix-why-fadvise-is-superior-to-o_direct).
+For a detailed explanation of why arsync uses `fadvise` instead of `O_DIRECT`, including Linus Torvalds' famous "deranged monkey" critique, see [FADVISE_VS_O_DIRECT.md](docs/FADVISE_VS_O_DIRECT.md).
 
 **Key takeaways:**
 - O_DIRECT requires strict 4KB alignment (painful)
