@@ -100,7 +100,7 @@ Features that `io-uring-sync` has but `rsync` doesn't:
 | `--max-files-in-flight` | Max concurrent files per CPU (1-10000) | Optimal parallelism tuning |
 | `--cpu-count` | Number of CPUs to use (0 = auto) | Per-CPU queue architecture for scaling |
 | `--buffer-size-kb` | Buffer size in KB (0 = auto) | Fine-tune memory vs throughput |
-| `--copy-method` | Copy method (auto/copy_file_range/splice/read_write) | Force specific syscall for testing |
+| `--copy-method` | Copy method (currently auto=read_write) | Reserved for future optimizations |
 
 ## Security Advantages
 
@@ -265,7 +265,7 @@ rsync's use of path-based syscalls is a **30+ year old design** from before thes
 | Feature | rsync | io-uring-sync | Advantage |
 |---------|-------|---------------|-----------|
 | **I/O Architecture** | Blocking syscalls | io_uring async | **io-uring-sync**: 2-5x throughput |
-| **File Copying** | `read`/`write` loops | `copy_file_range` | **io-uring-sync**: Zero-copy in kernel |
+| **File Copying** | `read`/`write` loops | io_uring `read_at`/`write_at` + `fallocate` | **io-uring-sync**: Async I/O with preallocation |
 | **Metadata Operations** | Synchronous syscalls | io_uring `statx` | **io-uring-sync**: Async metadata |
 | **Hardlink Detection** | Separate analysis pass | Integrated during traversal | **io-uring-sync**: Single-pass operation |
 | **Symlink Operations** | `readlink`/`symlink` | io_uring `readlinkat`/`symlinkat` | **io-uring-sync**: Async symlinks |
@@ -568,7 +568,7 @@ for each directory entry {
 
 Additionally, `io-uring-sync` uses `statx` to detect filesystem boundaries automatically:
 - Prevents cross-filesystem hardlinks (would fail anyway)
-- Optimizes operations per filesystem (enables `copy_file_range`)
+- Optimizes operations per filesystem (detects boundaries for hardlinks)
 - No user configuration needed (unlike rsync's `-x` flag)
 
 ### Conclusion

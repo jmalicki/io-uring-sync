@@ -10,10 +10,12 @@ High-performance bulk file copying utility using io_uring for maximum efficiency
 ## Features
 
 - **High Performance**: Leverages Linux io_uring for asynchronous I/O operations
-- **Zero-Copy Operations**: Uses `copy_file_range` for same-filesystem copies
+- **Async File Operations**: Uses io_uring `read_at`/`write_at` with `fallocate` preallocation
 - **Smart Hardlink Detection**: Integrated hardlink detection during traversal - content copied once, subsequent files become hardlinks
 - **Parallel Processing**: Per-CPU queue architecture for optimal scaling
 - **Comprehensive Metadata Preservation**: Complete preservation of permissions, ownership, timestamps, and extended attributes for both files and directories
+- **rsync-Compatible CLI**: Drop-in replacement with `-a`, `-r`, `-l`, `-p`, `-t`, `-g`, `-o`, `-D`, `-X`, `-A`, `-H` flags
+- **Security**: File descriptor-based operations immune to TOCTOU/symlink attacks
 - **Progress Tracking**: Real-time progress reporting showing both discovery and completion progress
 - **Cross-Filesystem Support**: Automatic fallback for different filesystems
 - **Single-Pass Operation**: Efficient traversal that discovers and copies in one pass
@@ -95,7 +97,7 @@ io-uring-sync \
 | `--max-files-in-flight` | Max concurrent files per CPU | 1024 |
 | `--cpu-count` | Number of CPUs to use (0 = auto) | 0 |
 | `--buffer-size` | Buffer size in KB (0 = auto) | 0 |
-| `--copy-method` | Copy method (auto/copy_file_range/splice/read_write) | auto |
+| `--copy-method` | Copy method (currently auto=read_write) | auto |
 | `--preserve-metadata` | Preserve all metadata (permissions, ownership, timestamps, xattr) | true |
 | `--preserve-xattr` | Preserve extended attributes only | false |
 | `--preserve-ownership` | Preserve file/directory ownership only | false |
@@ -163,11 +165,16 @@ io-uring-sync uses a hybrid approach combining existing Rust libraries with cust
                     └─────────────┘
 ```
 
-### Copy Methods
+### Copy Method
 
-1. **copy_file_range**: Optimal for same-filesystem copies (zero-copy)
-2. **splice**: Zero-copy data transfer between file descriptors
-3. **read/write**: Traditional method with fallback support
+**Current Implementation**: io_uring `read_at`/`write_at` with `fallocate` preallocation
+- Async I/O operations for maximum concurrency
+- File preallocation to reduce fragmentation
+- Optimized buffer management with `fadvise` hints
+
+**Future Optimizations** (planned):
+- `copy_file_range`: Zero-copy for same-filesystem copies
+- `splice`: Zero-copy data transfer between file descriptors
 
 ### Comprehensive Metadata Preservation
 
