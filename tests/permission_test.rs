@@ -1,7 +1,7 @@
 //! Test permission preservation in file copying
 
-use io_uring_sync::cli::{Args, CopyMethod};
-use io_uring_sync::copy::copy_file;
+use arsync::cli::{Args, CopyMethod};
+use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;

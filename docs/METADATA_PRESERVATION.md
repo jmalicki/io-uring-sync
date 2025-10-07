@@ -1,10 +1,10 @@
 # Metadata Preservation
 
-io-uring-sync provides comprehensive metadata preservation for both files and directories, ensuring that all file system attributes are correctly copied from source to destination.
+arsync provides comprehensive metadata preservation for both files and directories, ensuring that all file system attributes are correctly copied from source to destination.
 
 ## Overview
 
-Metadata preservation in io-uring-sync includes:
+Metadata preservation in arsync includes:
 
 - **File Permissions**: Including special bits (setuid, setgid, sticky)
 - **File Ownership**: User and group ownership preservation
@@ -46,11 +46,11 @@ Metadata preservation is designed for minimal performance impact:
 
 ### Automatic Metadata Preservation
 
-By default, io-uring-sync preserves all metadata:
+By default, arsync preserves all metadata:
 
 ```bash
 # All metadata is preserved by default
-io-uring-sync --source /data --destination /backup
+arsync --source /data --destination /backup
 ```
 
 ### Selective Metadata Preservation
@@ -59,13 +59,13 @@ You can control which metadata is preserved:
 
 ```bash
 # Preserve only extended attributes
-io-uring-sync --source /data --destination /backup --preserve-xattr
+arsync --source /data --destination /backup --preserve-xattr
 
 # Preserve only ownership
-io-uring-sync --source /data --destination /backup --preserve-ownership
+arsync --source /data --destination /backup --preserve-ownership
 
 # Disable all metadata preservation
-io-uring-sync --source /data --destination /backup --no-preserve-metadata
+arsync --source /data --destination /backup --no-preserve-metadata
 ```
 
 ### Verbose Metadata Logging
@@ -74,10 +74,10 @@ Enable detailed logging for metadata operations:
 
 ```bash
 # Show metadata preservation details
-io-uring-sync --source /data --destination /backup --verbose
+arsync --source /data --destination /backup --verbose
 
 # Show only metadata warnings
-io-uring-sync --source /data --destination /backup --log-level metadata
+arsync --source /data --destination /backup --log-level metadata
 ```
 
 ## File Metadata Preservation
@@ -202,10 +202,10 @@ If you encounter permission denied errors:
 
 ```bash
 # Run with appropriate permissions
-sudo io-uring-sync --source /data --destination /backup
+sudo arsync --source /data --destination /backup
 
 # Or preserve only what you have permission for
-io-uring-sync --source /data --destination /backup --preserve-xattr
+arsync --source /data --destination /backup --preserve-xattr
 ```
 
 #### Extended Attributes Not Supported
@@ -214,7 +214,7 @@ If extended attributes are not supported on your filesystem:
 
 ```bash
 # Disable xattr preservation
-io-uring-sync --source /data --destination /backup --no-preserve-xattr
+arsync --source /data --destination /backup --no-preserve-xattr
 ```
 
 #### Ownership Preservation Fails
@@ -227,7 +227,7 @@ id
 ls -la /data
 
 # Or disable ownership preservation
-io-uring-sync --source /data --destination /backup --no-preserve-ownership
+arsync --source /data --destination /backup --no-preserve-ownership
 ```
 
 ### Debugging
@@ -236,10 +236,10 @@ Enable verbose logging to debug metadata issues:
 
 ```bash
 # Enable detailed logging
-io-uring-sync --source /data --destination /backup --verbose --log-level debug
+arsync --source /data --destination /backup --verbose --log-level debug
 
 # Check specific metadata operations
-io-uring-sync --source /data --destination /backup --log-level metadata
+arsync --source /data --destination /backup --log-level metadata
 ```
 
 ## Performance Considerations

@@ -1,4 +1,4 @@
-//! Integration tests for io-uring-sync
+//! Integration tests for arsync
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -9,7 +9,7 @@ use tempfile::TempDir;
 
 #[test]
 fn test_help_output() {
-    let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
+    let mut cmd = Command::cargo_bin("arsync").unwrap();
     cmd.arg("--help")
         .assert()
         .success()
@@ -20,18 +20,18 @@ fn test_help_output() {
 
 #[test]
 fn test_version_output() {
-    let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
+    let mut cmd = Command::cargo_bin("arsync").unwrap();
     cmd.arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("io-uring-sync"));
+        .stdout(predicate::str::contains("arsync"));
 }
 
 #[test]
 fn test_missing_source() {
     let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
+    let mut cmd = Command::cargo_bin("arsync").unwrap();
     cmd.args([
         "--source",
         "/nonexistent/path",
@@ -47,7 +47,7 @@ fn test_missing_source() {
 fn test_invalid_queue_depth() {
     let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
+    let mut cmd = Command::cargo_bin("arsync").unwrap();
     cmd.args([
         "--source",
         temp_dir.path().to_str().unwrap(),
@@ -67,7 +67,7 @@ fn test_invalid_queue_depth() {
 fn test_dry_run() {
     let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
+    let mut cmd = Command::cargo_bin("arsync").unwrap();
     cmd.args([
         "--source",
         temp_dir.path().to_str().unwrap(),

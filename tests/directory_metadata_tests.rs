@@ -3,8 +3,8 @@
 //! This module tests directory metadata preservation including permissions,
 //! ownership, and timestamps during directory copy operations.
 
-use io_uring_sync::cli::{Args, CopyMethod};
-use io_uring_sync::directory::{preserve_directory_metadata, ExtendedMetadata};
+use arsync::cli::{Args, CopyMethod};
+use arsync::directory::{preserve_directory_metadata, ExtendedMetadata};
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::PathBuf;

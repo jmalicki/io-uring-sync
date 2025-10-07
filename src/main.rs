@@ -1,4 +1,4 @@
-//! io-uring-sync: High-performance bulk file copying utility
+//! arsync: High-performance bulk file copying utility
 //!
 //! This utility provides rsync-like functionality optimized for single-machine operations
 //! using `io_uring` for maximum performance and parallelism.
@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
 
     // Log startup information (unless in quiet mode)
     if !args.quiet {
-        info!("Starting io-uring-sync v{}", env!("CARGO_PKG_VERSION"));
+        info!("Starting arsync v{}", env!("CARGO_PKG_VERSION"));
         info!("Source: {}", args.source.display());
         info!("Destination: {}", args.destination.display());
         info!("Copy method: {:?}", args.copy_method);

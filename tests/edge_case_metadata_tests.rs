@@ -4,8 +4,8 @@
 //! These tests cover extreme scenarios and edge cases that could reveal
 //! subtle bugs in the permission and timestamp preservation logic.
 
-use io_uring_sync::cli::{Args, CopyMethod};
-use io_uring_sync::copy::copy_file;
+use arsync::cli::{Args, CopyMethod};
+use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
@@ -134,7 +134,7 @@ async fn test_timestamp_preservation_very_recent() {
 
         // Should be very close (within 100ms)
         // Recent timestamp test - only assert modified timestamp to avoid atime flakiness in CI
-        // See https://github.com/jmalicki/io-uring-sync/issues/10
+        // See https://github.com/jmalicki/arsync/issues/10
         let modified_diff = copied_modified.duration_since(now).unwrap_or_default();
         println!(
             "Recent timestamp test - Modified diff: {}ms",
@@ -266,7 +266,7 @@ async fn test_timestamp_preservation_identical_times() {
         );
 
         // Only modified vs accessed comparison: atime may change due to reads, but here they were set identical
-        // See https://github.com/jmalicki/io-uring-sync/issues/10
+        // See https://github.com/jmalicki/arsync/issues/10
         let delta = if let Ok(d) = copied_modified.duration_since(copied_accessed) {
             d
         } else if let Ok(d) = copied_accessed.duration_since(copied_modified) {

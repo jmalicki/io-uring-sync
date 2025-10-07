@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Minimal extensions to rio for copy_file_range, xattr, and getdents64 operations"
 license = "MIT"
-repository = "https://github.com/jmalicki/io_uring_sync"
+repository = "https://github.com/jmalicki/arsync"
 documentation = "https://docs.rs/io-uring-extended"
 
 [dependencies]

@@ -5,10 +5,10 @@
 //! confidence in the permission and timestamp preservation functionality.
 
 // Known limitation: Nanosecond timestamp propagation is currently unreliable in CI.
-// See issue: https://github.com/jmalicki/io-uring-sync/issues/9
+// See issue: https://github.com/jmalicki/arsync/issues/9
 
-use io_uring_sync::cli::{Args, CopyMethod};
-use io_uring_sync::copy::copy_file;
+use arsync::cli::{Args, CopyMethod};
+use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
@@ -568,7 +568,7 @@ async fn test_metadata_preservation_large_file_stress() {
     let copied_modified = dst_metadata.modified().unwrap();
 
     // Skip strict atime assertion in CI: focus on modified timestamp
-    // See https://github.com/jmalicki/io-uring-sync/issues/10
+    // See https://github.com/jmalicki/arsync/issues/10
     let modified_diff = copied_modified
         .duration_since(original_modified)
         .unwrap_or_default();

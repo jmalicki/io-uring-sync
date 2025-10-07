@@ -15,11 +15,11 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use io_uring_sync::io_uring::FileOperations;
+//! use arsync::io_uring::FileOperations;
 //! use std::path::Path;
 //!
 //! #[compio::main]
-//! async fn main() -> io_uring_sync::Result<()> {
+//! async fn main() -> arsync::Result<()> {
 //!     let mut ops = FileOperations::new(4096, 64 * 1024)?;
 //!     let src_path = Path::new("source.txt");
 //!     let dst_path = Path::new("destination.txt");
@@ -70,7 +70,7 @@ impl FileOperations {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::io_uring::FileOperations;
+    /// use arsync::io_uring::FileOperations;
     ///
     /// let ops = FileOperations::new(4096, 64 * 1024).unwrap();
     /// ```
@@ -288,11 +288,11 @@ impl FileOperations {
     /// # Examples
     ///
     /// ```rust,ignore
-    /// use io_uring_sync::io_uring::FileOperations;
+    /// use arsync::io_uring::FileOperations;
     /// use std::path::Path;
     ///
     /// #[compio::main]
-    /// async fn main() -> io_uring_sync::Result<()> {
+    /// async fn main() -> arsync::Result<()> {
     ///     let file_ops = FileOperations::new(4096, 64 * 1024)?;
     ///     let metadata = file_ops.get_file_metadata(Path::new("test.txt")).await?;
     ///     println!("File size: {} bytes", metadata.size);
@@ -365,11 +365,11 @@ impl FileOperations {
     /// # Examples
     ///
     /// ```rust,ignore
-    /// use io_uring_sync::io_uring::FileOperations;
+    /// use arsync::io_uring::FileOperations;
     /// use std::path::Path;
     ///
     /// #[compio::main]
-    /// async fn main() -> io_uring_sync::Result<()> {
+    /// async fn main() -> arsync::Result<()> {
     ///     let mut file_ops = FileOperations::new(4096, 64 * 1024)?;
     ///     let src_path = Path::new("source.txt");
     ///     let dst_path = Path::new("destination.txt");
@@ -486,7 +486,7 @@ impl FileOperations {
 /// # Examples
 ///
 /// ```rust
-/// use io_uring_sync::io_uring::FileMetadata;
+/// use arsync::io_uring::FileMetadata;
 ///
 /// let metadata = FileMetadata {
 ///     size: 1024,

@@ -1,8 +1,8 @@
 //! Tests for directory extended attributes (xattr) preservation
 
+use arsync::directory::preserve_directory_xattr;
 use compio::fs;
 use compio_fs_extended::{ExtendedFile, XattrOps};
-use io_uring_sync::directory::preserve_directory_xattr;
 use tempfile::TempDir;
 
 /// Test basic directory extended attributes preservation

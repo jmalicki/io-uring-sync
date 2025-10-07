@@ -1,6 +1,6 @@
 # Phase 3.2: Core File Operations and End-to-End Integration
 
-This branch implements Phase 3.2 of the io-uring-sync project, focusing on:
+This branch implements Phase 3.2 of the arsync project, focusing on:
 
 ## Goals
 - End-to-end integration of compio-fs-extended

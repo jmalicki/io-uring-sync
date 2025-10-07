@@ -1,6 +1,6 @@
 # Developer Documentation
 
-This document outlines the development practices and guidelines for io-uring-sync.
+This document outlines the development practices and guidelines for arsync.
 
 ## Development Standards
 
@@ -107,8 +107,8 @@ cargo bench
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/io-uring-sync.git
-cd io-uring-sync
+git clone https://github.com/yourusername/arsync.git
+cd arsync
 
 # Install Rust toolchain
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -234,7 +234,7 @@ Use rustdoc for all public APIs:
 ///
 /// # Examples
 /// ```rust
-/// # use io_uring_sync::copy::copy_file;
+/// # use arsync::copy::copy_file;
 /// # use std::path::Path;
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let src = Path::new("source.txt");

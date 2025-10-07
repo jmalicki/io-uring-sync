@@ -1,4 +1,4 @@
-# Cargo-make configuration for io-uring-sync project
+# Cargo-make configuration for arsync project
 # Provides convenient tasks for development, testing, and documentation
 
 [config]

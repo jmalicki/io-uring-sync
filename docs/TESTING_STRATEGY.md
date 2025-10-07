@@ -1,6 +1,6 @@
 # Testing Strategy
 
-This document outlines the comprehensive testing strategy for io-uring-sync, ensuring reliability, performance, and data integrity.
+This document outlines the comprehensive testing strategy for arsync, ensuring reliability, performance, and data integrity.
 
 ## High-Level End-to-End Testing
 
@@ -337,4 +337,4 @@ cargo test --test performance_tests
 - **Memory**: Sufficient RAM for large file tests
 - **CPU**: Multi-core system for parallelism tests
 
-This comprehensive testing strategy ensures that io-uring-sync is reliable, performant, and handles all edge cases correctly while preserving data integrity and metadata.
+This comprehensive testing strategy ensures that arsync is reliable, performant, and handles all edge cases correctly while preserving data integrity and metadata.

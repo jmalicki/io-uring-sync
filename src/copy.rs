@@ -21,12 +21,12 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use io_uring_sync::copy::copy_file;
-//! use io_uring_sync::cli::CopyMethod;
+//! use arsync::copy::copy_file;
+//! use arsync::cli::CopyMethod;
 //! use std::path::Path;
 //!
 //! #[compio::main]
-//! async fn main() -> io_uring_sync::Result<()> {
+//! async fn main() -> arsync::Result<()> {
 //!     let src_path = Path::new("source.txt");
 //!     let dst_path = Path::new("destination.txt");
 //!     
@@ -95,11 +95,11 @@ pub async fn copy_file(src: &Path, dst: &Path, args: &Args) -> Result<()> {
 /// # Examples
 ///
 /// ```rust,ignore
-/// use io_uring_sync::copy::copy_read_write;
+/// use arsync::copy::copy_read_write;
 /// use std::path::Path;
 ///
 /// #[compio::main]
-/// async fn main() -> io_uring_sync::Result<()> {
+/// async fn main() -> arsync::Result<()> {
 ///     let src_path = Path::new("source.txt");
 ///     let dst_path = Path::new("destination.txt");
 ///     copy_read_write(src_path, dst_path).await?;

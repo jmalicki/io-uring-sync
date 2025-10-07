@@ -6,9 +6,9 @@
 //! 1. With flag enabled: metadata IS preserved
 //! 2. With flag disabled: metadata IS NOT preserved (uses default/umask)
 
-use io_uring_sync::cli::{Args, CopyMethod};
-use io_uring_sync::copy::copy_file;
-use io_uring_sync::directory::{preserve_directory_metadata, ExtendedMetadata};
+use arsync::cli::{Args, CopyMethod};
+use arsync::copy::copy_file;
+use arsync::directory::{preserve_directory_metadata, ExtendedMetadata};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;

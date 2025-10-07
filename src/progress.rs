@@ -15,8 +15,8 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use io_uring_sync::progress::ProgressTracker;
-//! use io_uring_sync::io_uring::CopyOperation;
+//! use arsync::progress::ProgressTracker;
+//! use arsync::io_uring::CopyOperation;
 //! use std::path::PathBuf;
 //!
 //! let mut tracker = ProgressTracker::new();
@@ -64,7 +64,7 @@ use std::time::Duration;
 ///
 /// Basic usage:
 /// ```rust
-/// use io_uring_sync::progress::ProgressTracker;
+/// use arsync::progress::ProgressTracker;
 ///
 /// let mut tracker = ProgressTracker::new();
 /// tracker.set_total(1024 * 1024); // Set 1MB target
@@ -74,8 +74,8 @@ use std::time::Duration;
 ///
 /// Tracking individual operations:
 /// ```rust
-/// use io_uring_sync::progress::ProgressTracker;
-/// use io_uring_sync::io_uring::CopyOperation;
+/// use arsync::progress::ProgressTracker;
+/// use arsync::io_uring::CopyOperation;
 /// use std::path::PathBuf;
 ///
 /// let mut tracker = ProgressTracker::new();
@@ -130,7 +130,7 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::progress::ProgressTracker;
+    /// use arsync::progress::ProgressTracker;
     ///
     /// let tracker = ProgressTracker::new();
     /// ```
@@ -179,7 +179,7 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::progress::ProgressTracker;
+    /// use arsync::progress::ProgressTracker;
     ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.track_discovery(1024); // Discovered a 1KB file
@@ -205,7 +205,7 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::progress::ProgressTracker;
+    /// use arsync::progress::ProgressTracker;
     ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.set_total(1024 * 1024); // Set 1MB target
@@ -233,7 +233,7 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::progress::ProgressTracker;
+    /// use arsync::progress::ProgressTracker;
     ///
     /// let mut tracker = ProgressTracker::new();
     /// tracker.set_total(1024 * 1024);
@@ -260,7 +260,7 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::progress::ProgressTracker;
+    /// use arsync::progress::ProgressTracker;
     ///
     /// let mut tracker = ProgressTracker::new();
     /// // ... perform operations ...
@@ -291,8 +291,8 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::progress::ProgressTracker;
-    /// use io_uring_sync::io_uring::CopyOperation;
+    /// use arsync::progress::ProgressTracker;
+    /// use arsync::io_uring::CopyOperation;
     /// use std::path::PathBuf;
     ///
     /// let mut tracker = ProgressTracker::new();
@@ -336,7 +336,7 @@ impl ProgressTracker {
     /// # Examples
     ///
     /// ```rust
-    /// use io_uring_sync::progress::ProgressTracker;
+    /// use arsync::progress::ProgressTracker;
     ///
     /// let mut tracker = ProgressTracker::new();
     /// // ... perform operations ...
@@ -377,7 +377,7 @@ impl ProgressTracker {
 ///
 /// Basic usage:
 /// ```rust
-/// use io_uring_sync::progress::ProgressStats;
+/// use arsync::progress::ProgressStats;
 /// use std::time::Duration;
 ///
 /// let stats = ProgressStats {
@@ -394,7 +394,7 @@ impl ProgressTracker {
 ///
 /// Performance analysis:
 /// ```rust
-/// use io_uring_sync::progress::ProgressTracker;
+/// use arsync::progress::ProgressTracker;
 ///
 /// let mut tracker = ProgressTracker::new();
 /// // ... perform operations ...

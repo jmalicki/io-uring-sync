@@ -34,20 +34,18 @@ pub fn run_rsync(source: &Path, dest: &Path, flags: &[&str]) -> Result<(), Strin
     Ok(())
 }
 
-/// Run io-uring-sync with given flags
-pub fn run_io_uring_sync(source: &Path, dest: &Path, flags: &[&str]) -> Result<(), String> {
-    let mut cmd = Command::cargo_bin("io-uring-sync").unwrap();
+/// Run arsync with given flags
+pub fn run_arsync(source: &Path, dest: &Path, flags: &[&str]) -> Result<(), String> {
+    let mut cmd = Command::cargo_bin("arsync").unwrap();
     cmd.arg("--source").arg(source);
     cmd.arg("--destination").arg(dest);
     cmd.args(flags);
 
-    let output = cmd
-        .output()
-        .map_err(|e| format!("io-uring-sync failed: {}", e))?;
+    let output = cmd.output().map_err(|e| format!("arsync failed: {}", e))?;
 
     if !output.status.success() {
         return Err(format!(
-            "io-uring-sync failed: {}",
+            "arsync failed: {}",
             String::from_utf8_lossy(&output.stderr)
         ));
     }

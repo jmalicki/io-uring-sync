@@ -1,6 +1,6 @@
 //! Main synchronization logic
 //!
-//! This module provides the core synchronization functionality for io-uring-sync,
+//! This module provides the core synchronization functionality for arsync,
 //! orchestrating file and directory copying operations with comprehensive error
 //! handling, progress tracking, and performance optimization.
 //!
@@ -23,12 +23,12 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use io_uring_sync::sync::sync_files;
-//! use io_uring_sync::cli::Args;
+//! use arsync::sync::sync_files;
+//! use arsync::cli::Args;
 //! use clap::Parser;
 //!
 //! #[compio::main]
-//! async fn main() -> io_uring_sync::Result<()> {
+//! async fn main() -> arsync::Result<()> {
 //!     let args = Args::parse();
 //!     let stats = sync_files(&args).await?;
 //!     println!("Copied {} files, {} bytes in {:?}",
@@ -75,7 +75,7 @@ use tracing::{error, info};
 /// # Examples
 ///
 /// ```rust
-/// use io_uring_sync::sync::SyncStats;
+/// use arsync::sync::SyncStats;
 /// use std::time::Duration;
 ///
 /// let stats = SyncStats {
@@ -135,12 +135,12 @@ pub struct SyncStats {
 ///
 /// Basic usage:
 /// ```rust,ignore
-/// use io_uring_sync::cli::Args;
-/// use io_uring_sync::sync::sync_files;
+/// use arsync::cli::Args;
+/// use arsync::sync::sync_files;
 /// use clap::Parser;
 ///
 /// #[compio::main]
-/// async fn main() -> io_uring_sync::Result<()> {
+/// async fn main() -> arsync::Result<()> {
 ///     let args = Args::parse();
 ///     let stats = sync_files(&args).await?;
 ///     println!("Operation completed: {} files, {} bytes, {:?}",
@@ -151,12 +151,12 @@ pub struct SyncStats {
 ///
 /// Error handling:
 /// ```rust,ignore
-/// use io_uring_sync::cli::Args;
-/// use io_uring_sync::sync::sync_files;
+/// use arsync::cli::Args;
+/// use arsync::sync::sync_files;
 /// use clap::Parser;
 ///
 /// #[compio::main]
-/// async fn main() -> io_uring_sync::Result<()> {
+/// async fn main() -> arsync::Result<()> {
 ///     let args = Args::parse();
 ///     match sync_files(&args).await {
 ///         Ok(stats) => {

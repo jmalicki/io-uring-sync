@@ -1,6 +1,6 @@
 //! rsync Compatibility Test Suite
 //!
-//! This test suite validates that io-uring-sync produces IDENTICAL results
+//! This test suite validates that arsync produces IDENTICAL results
 //! to rsync for all supported flags.
 //!
 //! ## Running Tests
@@ -20,7 +20,7 @@
 //! These tests are run in a separate CI phase that:
 //! 1. Installs rsync as a dependency
 //! 2. Runs the full compatibility test suite
-//! 3. Reports any differences between rsync and io-uring-sync behavior
+//! 3. Reports any differences between rsync and arsync behavior
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -29,7 +29,7 @@ mod utils;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
-use utils::{compare_directories, rsync_available, run_io_uring_sync, run_rsync};
+use utils::{compare_directories, rsync_available, run_arsync, run_rsync};
 
 /// Skip all tests if rsync is not available
 fn require_rsync() {
@@ -75,8 +75,8 @@ fn test_archive_mode_compatibility() {
     // Run rsync with -a
     run_rsync(&source, &rsync_dest, &["-a"]).unwrap();
 
-    // Run io-uring-sync with -a
-    run_io_uring_sync(&source, &iouring_dest, &["-a"]).unwrap();
+    // Run arsync with -a
+    run_arsync(&source, &iouring_dest, &["-a"]).unwrap();
 
     // Compare results
     compare_directories(&rsync_dest, &iouring_dest, true)
@@ -105,7 +105,7 @@ fn test_permissions_flag_compatibility() {
 
     // Run both with -rp (recursive + permissions)
     run_rsync(&source, &rsync_dest, &["-rp"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-rp"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-rp"]).unwrap();
 
     // Compare results (skip time check since we didn't use -t)
     compare_directories(&rsync_dest, &iouring_dest, false)
@@ -133,7 +133,7 @@ fn test_timestamps_flag_compatibility() {
 
     // Run both with -rt (recursive + times)
     run_rsync(&source, &rsync_dest, &["-rt"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-rt"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-rt"]).unwrap();
 
     // Compare results (including times)
     compare_directories(&rsync_dest, &iouring_dest, true)
@@ -162,7 +162,7 @@ fn test_default_behavior_compatibility() {
 
     // Run both with only -r (recursive, no metadata preservation)
     run_rsync(&source, &rsync_dest, &["-r"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-r"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-r"]).unwrap();
 
     // Compare content only (not metadata)
     let rsync_content = fs::read(rsync_dest.join("file.txt")).unwrap();
@@ -201,7 +201,7 @@ fn test_combined_flags_compatibility() {
 
     // Run both with -rpt (recursive, permissions, times)
     run_rsync(&source, &rsync_dest, &["-rpt"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-rpt"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-rpt"]).unwrap();
 
     // Compare results (including times and permissions)
     compare_directories(&rsync_dest, &iouring_dest, true)
@@ -234,7 +234,7 @@ fn test_symlinks_compatibility() {
 
     // Run both with -rl (recursive + links)
     run_rsync(&source, &rsync_dest, &["-rl"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-rl"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-rl"]).unwrap();
 
     // Verify symlinks are preserved in both
     let rsync_link = rsync_dest.join("link.txt");
@@ -246,7 +246,7 @@ fn test_symlinks_compatibility() {
     );
     assert!(
         fs::symlink_metadata(&iouring_link).unwrap().is_symlink(),
-        "io-uring-sync should preserve symlink"
+        "arsync should preserve symlink"
     );
 
     // Verify targets match
@@ -279,7 +279,7 @@ fn test_large_file_compatibility() {
 
     // Run both with -a
     run_rsync(&source, &rsync_dest, &["-a"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-a"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-a"]).unwrap();
 
     // Compare results
     compare_directories(&rsync_dest, &iouring_dest, true)
@@ -318,7 +318,7 @@ fn test_many_small_files_compatibility() {
 
     // Run both with -a
     run_rsync(&source, &rsync_dest, &["-a"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-a"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-a"]).unwrap();
 
     // Compare results
     compare_directories(&rsync_dest, &iouring_dest, true)
@@ -351,7 +351,7 @@ fn test_deep_hierarchy_compatibility() {
 
     // Run both with -a
     run_rsync(&source, &rsync_dest, &["-a"]).unwrap();
-    run_io_uring_sync(&source, &iouring_dest, &["-a"]).unwrap();
+    run_arsync(&source, &iouring_dest, &["-a"]).unwrap();
 
     // Compare results
     compare_directories(&rsync_dest, &iouring_dest, true)

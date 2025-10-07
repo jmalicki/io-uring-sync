@@ -1,6 +1,6 @@
 # Implementation Plan
 
-This document outlines the detailed implementation plan for io-uring-sync, including phases, deliverables, acceptance criteria, and testing requirements.
+This document outlines the detailed implementation plan for arsync, including phases, deliverables, acceptance criteria, and testing requirements.
 
 ## Table of Contents
 
@@ -41,7 +41,7 @@ This document outlines the detailed implementation plan for io-uring-sync, inclu
 
 ## Quality Tracking Framework
 
-### **Level 1: High-Level Application (io-uring-sync CLI)**
+### **Level 1: High-Level Application (arsync CLI)**
 - **Purpose**: Drop-in rsync replacement for simple use cases
 - **Focus**: End-to-end functionality, user experience, reliability
 - **Success Criteria**: 
@@ -211,7 +211,7 @@ This ensures incremental review and allows for easy rollback if needed.
 - **Code Quality**: All formatting, linting, and security checks passing
 
 ### ✅ **COMPLETED WORK (Phase 2)**
-- **Metadata Preservation**: Reliable permission + timestamp preservation (seconds-level). Nanosecond precision: see [#9](https://github.com/jmalicki/io-uring-sync/issues/9)
+- **Metadata Preservation**: Reliable permission + timestamp preservation (seconds-level). Nanosecond precision: see [#9](https://github.com/jmalicki/arsync/issues/9)
 - **Test Coverage**: Extensive unit tests and integration tests for metadata preservation
 - **Code Quality**: Easy clippy/documentation issues fixed
 - **Simplified Architecture**: Reliable read/write copy path only
@@ -221,7 +221,7 @@ This ensures incremental review and allows for easy rollback if needed.
 
 #### Step 1: End-to-End Integration (Week 8) 🔄 **IN PROGRESS**
 1. ✅ Complete compio-fs-extended library (Phase 3.1)
-2. [ ] **HIGH PRIORITY**: Integrate compio-fs-extended into main io-uring-sync CLI
+2. [ ] **HIGH PRIORITY**: Integrate compio-fs-extended into main arsync CLI
 3. [ ] **HIGH PRIORITY**: Replace all libc:: and std::fs:: usage with io_uring operations
 4. [ ] **HIGH PRIORITY**: Achieve basic drop-in rsync replacement functionality
 5. [ ] Validate end-to-end file copy operations
@@ -229,8 +229,8 @@ This ensures incremental review and allows for easy rollback if needed.
 7. [ ] Ensure all operations use io_uring where possible
 
 #### Step 2: Simple Use Case Validation (Week 9) 📋 **PLANNED**
-1. [ ] Test basic file copy: `io-uring-sync source.txt dest.txt`
-2. [ ] Test directory copy: `io-uring-sync source_dir/ dest_dir/`
+1. [ ] Test basic file copy: `arsync source.txt dest.txt`
+2. [ ] Test directory copy: `arsync source_dir/ dest_dir/`
 3. [ ] Test metadata preservation (permissions, timestamps)
 4. [ ] Test error handling and edge cases
 5. [ ] Compare behavior with rsync for simple cases
@@ -375,7 +375,7 @@ This ensures incremental review and allows for easy rollback if needed.
 - ✅ Cross-filesystem fallback tests
 - ✅ fadvise optimization verification tests
 - ✅ Internationalization tests (unicode filenames, special characters)
-- ℹ️ Nanosecond timestamp tests are temporarily ignored in CI (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
+- ℹ️ Nanosecond timestamp tests are temporarily ignored in CI (see [#9](https://github.com/jmalicki/arsync/issues/9))
   - Planned fix: replace libc::stat fallback with an async `io_uring` STATX operation submitted via `compio::runtime::submit` (custom OpCode), extract nsec fields, and re-enable nanos tests.
 
 **Phase Completion Workflow:**
@@ -495,7 +495,7 @@ This ensures incremental review and allows for easy rollback if needed.
 
 #### 3.2 End-to-End Integration and rsync Replacement (Week 8) 🔄 **IN PROGRESS**
 **Deliverables:**
-- Integration of compio-fs-extended into main io-uring-sync CLI
+- Integration of compio-fs-extended into main arsync CLI
 - Basic drop-in rsync replacement functionality
 - Elimination of libc:: and std::fs:: usage (with strong justification for exceptions)
 - End-to-end file and directory copy operations
@@ -503,8 +503,8 @@ This ensures incremental review and allows for easy rollback if needed.
 
 **Acceptance Criteria:**
 - [ ] **CRITICAL**: compio-fs-extended integrated into main CLI application
-- [ ] **CRITICAL**: Basic file copy works: `io-uring-sync source.txt dest.txt`
-- [ ] **CRITICAL**: Basic directory copy works: `io-uring-sync source_dir/ dest_dir/`
+- [ ] **CRITICAL**: Basic file copy works: `arsync source.txt dest.txt`
+- [ ] **CRITICAL**: Basic directory copy works: `arsync source_dir/ dest_dir/`
 - [ ] **CRITICAL**: All operations use io_uring where possible
 - [ ] **CRITICAL**: No libc:: or std::fs:: usage without strong justification
 - [ ] Metadata preservation works end-to-end
@@ -680,9 +680,9 @@ This ensures incremental review and allows for easy rollback if needed.
 
 ### Reliability Targets
 - **Data Integrity**: 100% file integrity verification ✅ **ACHIEVED**
-- **Timestamp Preservation**: Seconds-level preservation ✅ **ACHIEVED**; nanosecond precision ❗ **DEFERRED** (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
+- **Timestamp Preservation**: Seconds-level preservation ✅ **ACHIEVED**; nanosecond precision ❗ **DEFERRED** (see [#9](https://github.com/jmalicki/arsync/issues/9))
 
-### Application-Level Targets (io-uring-sync CLI)
+### Application-Level Targets (arsync CLI)
 - **Drop-in Replacement**: Basic rsync functionality for simple use cases ❗ **IN PROGRESS**
 - **io_uring-First**: All possible operations use io_uring (no libc:: or std::fs:: without justification) ❗ **IN PROGRESS**
 - **End-to-End Functionality**: Complete file and directory copy operations ❗ **IN PROGRESS**
@@ -698,7 +698,7 @@ This ensures incremental review and allows for easy rollback if needed.
 - **Documentation**: Production-ready docs with A+ grade ✅ **ACHIEVED**
 
 ### Advanced Features (New Targets)
-- **Nanosecond Timestamps**: Preserve sub-second timestamp precision ❗ **DEFERRED** (see [#9](https://github.com/jmalicki/io-uring-sync/issues/9))
+- **Nanosecond Timestamps**: Preserve sub-second timestamp precision ❗ **DEFERRED** (see [#9](https://github.com/jmalicki/arsync/issues/9))
 - **Complex Permissions**: Handle all permission scenarios including special bits ✅ **ACHIEVED**
 - **Directory Operations**: Parallel traversal with compio async patterns ✅ **ACHIEVED**
 

@@ -1,4 +1,4 @@
-//! io-uring-sync: High-performance file copying using `io_uring`
+//! arsync: High-performance file copying using `io_uring`
 //!
 //! This library provides efficient file copying capabilities using Linux's `io_uring`
 //! interface for asynchronous I/O operations, similar to rsync but optimized for
@@ -25,12 +25,12 @@
 //! ## Usage Example
 //!
 //! ```rust,ignore
-//! use io_uring_sync::directory::copy_directory;
-//! use io_uring_sync::io_uring::FileOperations;
-//! use io_uring_sync::cli::CopyMethod;
+//! use arsync::directory::copy_directory;
+//! use arsync::io_uring::FileOperations;
+//! use arsync::cli::CopyMethod;
 //!
 //! #[compio::main]
-//! async fn main() -> io_uring_sync::Result<()> {
+//! async fn main() -> arsync::Result<()> {
 //!     let file_ops = FileOperations::new(4096, 64 * 1024)?;
 //!     let stats = copy_directory(
 //!         &std::path::Path::new("/source"),

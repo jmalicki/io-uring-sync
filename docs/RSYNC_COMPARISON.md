@@ -1,10 +1,10 @@
-# rsync vs io-uring-sync: Feature Comparison
+# rsync vs arsync: Feature Comparison
 
 ## Introduction: Modern Linux Development Practices
 
-`io-uring-sync` represents **30+ years of lessons learned** in [Linux](https://www.kernel.org/) systems programming, applying modern best practices to deliver the best possible file copying experience.
+`arsync` represents **30+ years of lessons learned** in [Linux](https://www.kernel.org/) systems programming, applying modern best practices to deliver the best possible file copying experience.
 
-While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built with the constraints and knowledge of that era. `io-uring-sync` leverages decades of advances in:
+While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built with the constraints and knowledge of that era. `arsync` leverages decades of advances in:
 
 ### 🚀 The Six Key Innovations
 
@@ -26,7 +26,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 **Real-world impact:**
 - rsync: ~420 MB/s on 10,000 small files (bottlenecked by syscall overhead)
-- io-uring-sync: ~850 MB/s (2x faster - saturating NVMe queue depth)
+- arsync: ~850 MB/s (2x faster - saturating NVMe queue depth)
 
 **References:**
 - [io_uring design documentation](https://kernel.dk/io_uring.pdf) - Jens Axboe (io_uring creator)
@@ -42,7 +42,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 - **CVE-2007-4476**: Local privilege escalation via symlink attacks
 - **CVE-2004-0452**: Arbitrary file ownership changes
 
-**io-uring-sync Solution:**
+**arsync Solution:**
 - File descriptor-based operations (`fchmod`, `fchown`, `fgetxattr`, `fsetxattr`)
 - **Impossible to exploit** - FDs are bound to [inodes](https://man7.org/linux/man-pages/man7/inode.7.html), not paths
 - Follows [MITRE](https://cwe.mitre.org/)/[NIST](https://www.nist.gov/) secure coding guidelines
@@ -66,7 +66,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 - File fragmentation slows down writes
 - Inefficient read-ahead strategies
 
-**io-uring-sync Solution:**
+**arsync Solution:**
 - `fadvise(NOREUSE)`: Tell kernel not to cache (free memory for other apps)
 - `fallocate()`: Preallocate file space (reduces fragmentation, faster writes)
 - Result: **15-30% better throughput** on large files
@@ -87,7 +87,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 - Blocking syscalls (slows traversal)
 - Can't get creation times or extended info
 
-**io-uring-sync Solution:**
+**arsync Solution:**
 - `statx`: Modern syscall (kernel 4.11+, 2017)
 - **Nanosecond** timestamp precision (1000x more accurate)
 - Async via io_uring (doesn't block)
@@ -107,7 +107,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 - ~80 MB memory for inode map
 - User sees "frozen" application
 
-**io-uring-sync Solution:**
+**arsync Solution:**
 - Integrated detection during traversal
 - Immediate progress feedback
 - ~8 MB memory (10x less)
@@ -123,7 +123,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 - Limited automated testing (hard to add tests to C codebase)
 - Difficult to refactor safely
 
-**io-uring-sync Solution:**
+**arsync Solution:**
 - Written in **[Rust](https://www.rust-lang.org/)** with memory safety guarantees
 - **93 automated tests** across 15 test files (~4,500 lines of test code)
 - **Comprehensive test categories**:
@@ -139,7 +139,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 **Testing comparison:**
 - rsync: Primarily manual testing, limited automated test suite
-- io-uring-sync: **93 automated tests** with >50% test-to-code ratio
+- arsync: **93 automated tests** with >50% test-to-code ratio
 
 **Real-world impact:**
 - Bugs caught at compile time (not at 3am during backups)
@@ -155,7 +155,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 ### Quick Comparison Table
 
-| Innovation | rsync (1996) | io-uring-sync (2024) | Impact |
+| Innovation | rsync (1996) | arsync (2024) | Impact |
 |------------|--------------|----------------------|--------|
 | **I/O Architecture** | Blocking syscalls | io_uring async | 2x faster on small files |
 | **Security** | Path-based (CVEs) | FD-based (TOCTOU-free) | No privilege escalation vulns |
@@ -168,7 +168,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 ### The Result
 
-By applying these six modern practices, `io-uring-sync` achieves:
+By applying these six modern practices, `arsync` achieves:
 - **2x faster** on many small files (io_uring parallelism)
 - **More secure** (immune to TOCTOU vulnerabilities + memory safety)
 - **Better UX** (immediate progress, no frozen periods)
@@ -190,22 +190,22 @@ This is what **30 years of Linux evolution + modern software engineering** looks
    - [Partial Support / Different Behavior](#-partial-support--different-behavior)
    - [Flags Accepted But Not Yet Implemented](#-flags-accepted-but-not-yet-implemented)
    - [Not Supported (Remote/Network Features)](#-not-supported-remotenetwork-features)
-   - [io-uring-sync Exclusive Features](#-io-uring-sync-exclusive-features)
+   - [arsync Exclusive Features](#-arsync-exclusive-features)
 5. [Capability Comparison](#capability-comparison)
    - [Performance Characteristics](#performance-characteristics)
    - [Metadata Preservation](#metadata-preservation)
    - [Default Behavior](#default-behavior)
 6. [Usage Examples](#usage-examples)
    - [Equivalent Commands](#equivalent-commands)
-   - [io-uring-sync Performance Tuning](#io-uring-sync-performance-tuning)
+   - [arsync Performance Tuning](#arsync-performance-tuning)
 7. [When to Use Which Tool](#when-to-use-which-tool)
 8. [Migration Guide](#migration-guide)
 9. [Performance Benchmarks](#performance-benchmarks)
 10. [Test Validation](#test-validation)
 11. [Conclusion](#conclusion)
 12. [Additional Technical Details](#additional-technical-details)
-    - [Hardlink Detection: io-uring-sync vs rsync](#hardlink-detection-io-uring-sync-vs-rsync)
-    - [Progress Reporting: io-uring-sync vs rsync](#progress-reporting-io-uring-sync-vs-rsync)
+    - [Hardlink Detection: arsync vs rsync](#hardlink-detection-arsync-vs-rsync)
+    - [Progress Reporting: arsync vs rsync](#progress-reporting-arsync-vs-rsync)
 13. [Appendix: NVMe Architecture and io_uring](#appendix-nvme-architecture-and-io_uring)
 14. [Appendix: Why fadvise is Superior to O_DIRECT](#appendix-why-fadvise-is-superior-to-o_direct)
 
@@ -213,18 +213,18 @@ This is what **30 years of Linux evolution + modern software engineering** looks
 
 ## Overview
 
-`io-uring-sync` is designed as a drop-in replacement for `rsync` for **local, single-machine** file synchronization. This document compares command-line options and capabilities between the two tools.
+`arsync` is designed as a drop-in replacement for `rsync` for **local, single-machine** file synchronization. This document compares command-line options and capabilities between the two tools.
 
 ## Design Philosophy
 
 - **rsync**: Universal tool for local and remote sync with many protocol options
-- **io-uring-sync**: Specialized for local machine operations with maximum performance using io_uring
+- **arsync**: Specialized for local machine operations with maximum performance using io_uring
 
 ## Command-Line Options Comparison
 
 ### ✅ Fully Supported (rsync-compatible)
 
-| rsync Flag | io-uring-sync | Description | Notes |
+| rsync Flag | arsync | Description | Notes |
 |------------|---------------|-------------|-------|
 | `-a, --archive` | `-a, --archive` | Archive mode (same as `-rlptgoD`) | Identical behavior |
 | `-r, --recursive` | `-r, --recursive` | Recurse into directories | Identical behavior |
@@ -236,22 +236,22 @@ This is what **30 years of Linux evolution + modern software engineering** looks
 | `-D` | `-D, --devices` | Preserve device/special files | Identical behavior |
 | `-X, --xattrs` | `-X, --xattrs` | Preserve [extended attributes](https://man7.org/linux/man-pages/man7/xattr.7.html) | Identical behavior |
 | `-A, --acls` | `-A, --acls` | Preserve [ACLs](https://man7.org/linux/man-pages/man5/acl.5.html) (implies `--perms`) | Identical behavior |
-| `-H, --hard-links` | `-H, --hard-links` | Preserve [hard links](https://man7.org/linux/man-pages/man2/link.2.html) | **Better**: Integrated detection during traversal *([see detailed comparison ↓](#hardlink-detection-io-uring-sync-vs-rsync))* |
+| `-H, --hard-links` | `-H, --hard-links` | Preserve [hard links](https://man7.org/linux/man-pages/man2/link.2.html) | **Better**: Integrated detection during traversal *([see detailed comparison ↓](#hardlink-detection-arsync-vs-rsync))* |
 | `-v, --verbose` | `-v, --verbose` | Verbose output | Multiple levels supported (`-vv`, `-vvv`) |
 | `--dry-run` | `--dry-run` | Show what would be copied | Identical behavior |
 
 ### 🔄 Partial Support / Different Behavior
 
-| rsync Flag | io-uring-sync | Status | Notes |
+| rsync Flag | arsync | Status | Notes |
 |------------|---------------|--------|-------|
 | `-q, --quiet` | `--quiet` | Implemented | Suppress non-error output |
-| `--progress` | `--progress` | **Enhanced** | Real-time discovery + completion progress *([see detailed comparison ↓](#progress-reporting-io-uring-sync-vs-rsync))* |
+| `--progress` | `--progress` | **Enhanced** | Real-time discovery + completion progress *([see detailed comparison ↓](#progress-reporting-arsync-vs-rsync))* |
 
 ### 🚧 Flags Accepted But Not Yet Implemented
 
 These flags are accepted for rsync compatibility but don't currently affect behavior:
 
-| rsync Flag | io-uring-sync | Status | Notes |
+| rsync Flag | arsync | Status | Notes |
 |------------|---------------|--------|-------|
 | `-U, --atimes` | `-U, --atimes` | **Not implemented** | Flag accepted but access times not preserved (yet) |
 | `--crtimes` | `--crtimes` | **Not implemented** | Flag accepted but creation times not preserved (yet) |
@@ -272,9 +272,9 @@ These flags are **not applicable** for local-only operations:
 
 **Note on `-U/--atimes` and `--crtimes`:** These flags are currently accepted (for command-line compatibility) but don't affect behavior yet. Full implementation is planned for a future release. In practice, these are rarely used with rsync as well, since preserving access times defeats the purpose of tracking access, and creation times are not consistently supported across filesystems.
 
-### ⚡ io-uring-sync Exclusive Features
+### ⚡ arsync Exclusive Features
 
-Features that `io-uring-sync` has but `rsync` doesn't:
+Features that `arsync` has but `rsync` doesn't:
 
 | Flag | Description | Performance Benefit |
 |------|-------------|---------------------|
@@ -288,7 +288,7 @@ Features that `io-uring-sync` has but `rsync` doesn't:
 
 ### Why File Descriptor-Based Operations Matter
 
-`io-uring-sync` uses **file descriptor-based syscalls** for all metadata operations, eliminating an entire class of security vulnerabilities that affect rsync and other tools using path-based syscalls.
+`arsync` uses **file descriptor-based syscalls** for all metadata operations, eliminating an entire class of security vulnerabilities that affect rsync and other tools using path-based syscalls.
 
 #### What is a TOCTOU Attack?
 
@@ -332,7 +332,7 @@ These are **not theoretical** - these vulnerabilities have been exploited in the
 - Bypass security restrictions
 - Escalate privileges in container environments
 
-#### How io-uring-sync Eliminates These Vulnerabilities
+#### How arsync Eliminates These Vulnerabilities
 
 **The key difference: File Descriptors**
 
@@ -346,7 +346,7 @@ int do_chmod(const char *path, mode_t mode) {
 }
 ```
 
-**io-uring-sync (secure FD-based):**
+**arsync (secure FD-based):**
 ```rust
 // Open file ONCE, get file descriptor
 let file = File::open(path).await?;  // ← FD bound to inode, not path
@@ -382,9 +382,9 @@ file.fchown(uid, gid).await?;           // fchown(fd, ...) - secure!
 - Recommends using `*at` syscalls for security-critical operations
 - Explicitly warns against TOCTOU in file operations
 
-#### Comparison: rsync vs io-uring-sync Security
+#### Comparison: rsync vs arsync Security
 
-| Operation | rsync Implementation | io-uring-sync Implementation | Security Impact |
+| Operation | rsync Implementation | arsync Implementation | Security Impact |
 |-----------|---------------------|------------------------------|-----------------|
 | **Set Permissions** | `chmod(path, mode)` ([source](https://github.com/WayneD/rsync/blob/master/syscall.c#L90-L100)) | `fchmod(fd, mode)` | **CRITICAL**: rsync vulnerable to symlink swap attacks |
 | **Set Ownership** | `lchown(path, uid, gid)` ([source](https://github.com/WayneD/rsync/blob/master/syscall.c#L206-L215)) | `fchown(fd, uid, gid)` | **CRITICAL**: rsync vulnerable to privilege escalation |
@@ -393,7 +393,7 @@ file.fchown(uid, gid).await?;           // fchown(fd, ...) - secure!
 
 **Vulnerability Rating:**
 - rsync: **Vulnerable to TOCTOU attacks** in metadata operations
-- io-uring-sync: **Immune to TOCTOU attacks** via FD-based operations
+- arsync: **Immune to TOCTOU attacks** via FD-based operations
 
 #### Why This Matters for Your Backups
 
@@ -412,9 +412,9 @@ $ sudo rsync -a /source/ /backup/
 3. rsync's `chmod`/`chown` calls follow the symlinks
 4. **Result: Attacker gains control of system files** (`/etc/passwd`, `/etc/shadow`, etc.)
 
-**io-uring-sync is immune:**
+**arsync is immune:**
 ```bash
-$ sudo io-uring-sync -a --source /source --destination /backup
+$ sudo arsync -a --source /source --destination /backup
 # ✓ Attacker can swap paths all they want
 # ✓ File descriptors still point to original files
 # ✓ System files are safe
@@ -431,44 +431,44 @@ Beyond TOCTOU prevention, FD-based operations also:
 
 #### Summary
 
-**io-uring-sync is fundamentally more secure** than rsync for metadata operations:
+**arsync is fundamentally more secure** than rsync for metadata operations:
 
 - ✅ **Immune to CVE-2024-12747** and similar TOCTOU vulnerabilities
 - ✅ **Follows MITRE/NIST security best practices**
 - ✅ **Safe for privileged operations** (root, sudo)
 - ✅ **No known metadata-related CVEs** (by design)
 
-rsync's use of path-based syscalls is a **30+ year old design** from before these vulnerabilities were well understood. io-uring-sync uses **modern security practices** from the ground up.
+rsync's use of path-based syscalls is a **30+ year old design** from before these vulnerabilities were well understood. arsync uses **modern security practices** from the ground up.
 
 ## Capability Comparison
 
 ### Performance Characteristics
 
-| Feature | rsync | io-uring-sync | Advantage |
+| Feature | rsync | arsync | Advantage |
 |---------|-------|---------------|-----------|
-| **I/O Architecture** | Blocking syscalls | io_uring async | **io-uring-sync**: 2-5x throughput |
-| **File Copying** | `read`/`write` loops | io_uring `read_at`/`write_at` + `fallocate` | **io-uring-sync**: Async I/O with preallocation |
-| **Metadata Operations** | Synchronous syscalls | io_uring `statx` | **io-uring-sync**: Async metadata |
-| **Hardlink Detection** | Separate analysis pass | Integrated during traversal | **io-uring-sync**: Single-pass operation |
-| **Symlink Operations** | `readlink`/`symlink` | io_uring `readlinkat`/`symlinkat` | **io-uring-sync**: Async symlinks |
-| **Parallelism** | Single-threaded | Per-CPU queues | **io-uring-sync**: Scales with cores |
-| **Small Files** | ~420 MB/s | ~850 MB/s | **io-uring-sync**: 2x faster |
-| **Large Files** | ~1.8 GB/s | ~2.1 GB/s | **io-uring-sync**: 15% faster |
+| **I/O Architecture** | Blocking syscalls | io_uring async | **arsync**: 2-5x throughput |
+| **File Copying** | `read`/`write` loops | io_uring `read_at`/`write_at` + `fallocate` | **arsync**: Async I/O with preallocation |
+| **Metadata Operations** | Synchronous syscalls | io_uring `statx` | **arsync**: Async metadata |
+| **Hardlink Detection** | Separate analysis pass | Integrated during traversal | **arsync**: Single-pass operation |
+| **Symlink Operations** | `readlink`/`symlink` | io_uring `readlinkat`/`symlinkat` | **arsync**: Async symlinks |
+| **Parallelism** | Single-threaded | Per-CPU queues | **arsync**: Scales with cores |
+| **Small Files** | ~420 MB/s | ~850 MB/s | **arsync**: 2x faster |
+| **Large Files** | ~1.8 GB/s | ~2.1 GB/s | **arsync**: 15% faster |
 
 ### Metadata Preservation
 
-| Metadata Type | rsync | io-uring-sync | Implementation |
+| Metadata Type | rsync | arsync | Implementation |
 |---------------|-------|---------------|----------------|
-| **Permissions** | ✅ `chmod` (path-based) | ✅ `fchmod` (FD-based) | io-uring-sync avoids umask + TOCTOU *([see security →](#security-file-descriptor-based-operations))* |
-| **Ownership** | ✅ `lchown` (path-based) | ✅ `fchown` (FD-based) | io-uring-sync prevents race conditions *([see security →](#security-file-descriptor-based-operations))* |
-| **Timestamps** | ✅ `utimes` | ✅ `utimensat` (nanosec) | io-uring-sync has nanosecond precision |
-| **Extended Attributes** | ✅ `getxattr`/`setxattr` | ✅ `fgetxattr`/`fsetxattr` (FD-based) | io-uring-sync is immune to symlink attacks *([see security →](#security-file-descriptor-based-operations))* |
+| **Permissions** | ✅ `chmod` (path-based) | ✅ `fchmod` (FD-based) | arsync avoids umask + TOCTOU *([see security →](#security-file-descriptor-based-operations))* |
+| **Ownership** | ✅ `lchown` (path-based) | ✅ `fchown` (FD-based) | arsync prevents race conditions *([see security →](#security-file-descriptor-based-operations))* |
+| **Timestamps** | ✅ `utimes` | ✅ `utimensat` (nanosec) | arsync has nanosecond precision |
+| **Extended Attributes** | ✅ `getxattr`/`setxattr` | ✅ `fgetxattr`/`fsetxattr` (FD-based) | arsync is immune to symlink attacks *([see security →](#security-file-descriptor-based-operations))* |
 | **ACLs** | ✅ `-A` | ✅ `-A` (implies `-p`) | Compatible behavior |
-| **Hard Links** | ✅ `-H` | ✅ `-H` (integrated) | io-uring-sync detects during traversal |
+| **Hard Links** | ✅ `-H` | ✅ `-H` (integrated) | arsync detects during traversal |
 
 ### Default Behavior
 
-| Aspect | rsync | io-uring-sync | Notes |
+| Aspect | rsync | arsync | Notes |
 |--------|-------|---------------|-------|
 | **Metadata Preservation** | Off by default | Off by default | **Identical**: Must use `-a` or specific flags |
 | **Recursive** | Off by default | Off by default | **Identical**: Must use `-r` or `-a` |
@@ -484,8 +484,8 @@ rsync's use of path-based syscalls is a **30+ year old design** from before thes
 # rsync
 rsync -a /source/ /destination/
 
-# io-uring-sync
-io-uring-sync -a --source /source --destination /destination
+# arsync
+arsync -a --source /source --destination /destination
 ```
 
 #### Copy with permissions and times only:
@@ -493,8 +493,8 @@ io-uring-sync -a --source /source --destination /destination
 # rsync
 rsync -rpt /source/ /destination/
 
-# io-uring-sync
-io-uring-sync -rpt --source /source --destination /destination
+# arsync
+arsync -rpt --source /source --destination /destination
 ```
 
 #### Copy with extended attributes:
@@ -502,8 +502,8 @@ io-uring-sync -rpt --source /source --destination /destination
 # rsync
 rsync -aX /source/ /destination/
 
-# io-uring-sync
-io-uring-sync -aX --source /source --destination /destination
+# arsync
+arsync -aX --source /source --destination /destination
 ```
 
 #### Verbose dry run:
@@ -511,17 +511,17 @@ io-uring-sync -aX --source /source --destination /destination
 # rsync
 rsync -av --dry-run /source/ /destination/
 
-# io-uring-sync
-io-uring-sync -av --dry-run --source /source --destination /destination
+# arsync
+arsync -av --dry-run --source /source --destination /destination
 ```
 
-### io-uring-sync Performance Tuning
+### arsync Performance Tuning
 
-Commands unique to `io-uring-sync` for performance optimization:
+Commands unique to `arsync` for performance optimization:
 
 ```bash
 # High-throughput configuration (NVMe, fast storage)
-io-uring-sync -a \
+arsync -a \
   --source /source \
   --destination /destination \
   --queue-depth 8192 \
@@ -529,7 +529,7 @@ io-uring-sync -a \
   --cpu-count 16
 
 # Low-latency configuration (spinning disks, network storage)
-io-uring-sync -a \
+arsync -a \
   --source /source \
   --destination /destination \
   --queue-depth 1024 \
@@ -539,7 +539,7 @@ io-uring-sync -a \
 
 ## When to Use Which Tool
 
-### Use `io-uring-sync` when:
+### Use `arsync` when:
 
 - ✅ Copying files **on the same machine** (local → local)
 - ✅ Performance is critical (NVMe, fast storage)
@@ -558,7 +558,7 @@ io-uring-sync -a \
 
 ## Migration Guide
 
-### From rsync to io-uring-sync
+### From rsync to arsync
 
 Most rsync commands translate directly:
 
@@ -567,7 +567,7 @@ Most rsync commands translate directly:
 rsync -avH /source/ /destination/
 
 # After
-io-uring-sync -avH --source /source --destination /destination
+arsync -avH --source /source --destination /destination
 ```
 
 **Key Differences:**
@@ -580,7 +580,7 @@ io-uring-sync -avH --source /source --destination /destination
 
 Detailed benchmarks on [Ubuntu](https://ubuntu.com/) 22.04, Linux Kernel 5.15, 16-core system, [NVMe](https://nvmexpress.org/) SSD:
 
-| Workload | rsync | io-uring-sync | Speedup |
+| Workload | rsync | arsync | Speedup |
 |----------|-------|---------------|---------|
 | 1 GB single file | 1.8 GB/s | 2.1 GB/s | 1.15x |
 | 10,000 × 10 KB files | 420 MB/s | 850 MB/s | 2.0x |
@@ -593,19 +593,19 @@ All compatibility claims in this document are **validated by automated tests** t
 
 ### Test Suite: `tests/rsync_compat.rs`
 
-This test suite runs **both rsync and io-uring-sync** with identical inputs and verifies they produce identical outputs:
+This test suite runs **both rsync and arsync** with identical inputs and verifies they produce identical outputs:
 
 | Test | What It Validates | Command Tested |
 |------|-------------------|----------------|
-| `test_archive_mode_compatibility` | Archive mode produces identical results | `rsync -a` vs `io-uring-sync -a` |
-| `test_permissions_flag_compatibility` | Permissions preserved identically | `rsync -rp` vs `io-uring-sync -rp` |
-| `test_timestamps_flag_compatibility` | Timestamps preserved identically | `rsync -rt` vs `io-uring-sync -rt` |
-| `test_combined_flags_compatibility` | Multiple flags work together | `rsync -rpt` vs `io-uring-sync -rpt` |
-| `test_symlinks_compatibility` | Symlinks copied identically | `rsync -rl` vs `io-uring-sync -rl` |
-| `test_default_behavior_compatibility` | Default (no metadata) matches | `rsync -r` vs `io-uring-sync -r` |
-| `test_large_file_compatibility` | Large files (10MB) handled identically | `rsync -a` vs `io-uring-sync -a` |
-| `test_many_small_files_compatibility` | 100 small files handled identically | `rsync -a` vs `io-uring-sync -a` |
-| `test_deep_hierarchy_compatibility` | Deep nesting handled identically | `rsync -a` vs `io-uring-sync -a` |
+| `test_archive_mode_compatibility` | Archive mode produces identical results | `rsync -a` vs `arsync -a` |
+| `test_permissions_flag_compatibility` | Permissions preserved identically | `rsync -rp` vs `arsync -rp` |
+| `test_timestamps_flag_compatibility` | Timestamps preserved identically | `rsync -rt` vs `arsync -rt` |
+| `test_combined_flags_compatibility` | Multiple flags work together | `rsync -rpt` vs `arsync -rpt` |
+| `test_symlinks_compatibility` | Symlinks copied identically | `rsync -rl` vs `arsync -rl` |
+| `test_default_behavior_compatibility` | Default (no metadata) matches | `rsync -r` vs `arsync -r` |
+| `test_large_file_compatibility` | Large files (10MB) handled identically | `rsync -a` vs `arsync -a` |
+| `test_many_small_files_compatibility` | 100 small files handled identically | `rsync -a` vs `arsync -a` |
+| `test_deep_hierarchy_compatibility` | Deep nesting handled identically | `rsync -a` vs `arsync -a` |
 
 **How to run:**
 ```bash
@@ -654,7 +654,7 @@ These tests run automatically in CI to ensure:
 
 ## Conclusion
 
-`io-uring-sync` is a **drop-in replacement** for `rsync` when:
+`arsync` is a **drop-in replacement** for `rsync` when:
 - Operating on a single machine (local → local)
 - Using rsync-compatible flags (`-a`, `-r`, `-l`, `-p`, `-t`, `-g`, `-o`, `-D`, `-X`, `-A`, `-H`)
 - Performance matters (especially for many small files)
@@ -667,9 +667,9 @@ For remote sync, network operations, or advanced rsync features (`--delete`, `--
 
 ## Additional Technical Details
 
-### Hardlink Detection: io-uring-sync vs rsync
+### Hardlink Detection: arsync vs rsync
 
-`io-uring-sync` implements hardlink detection fundamentally differently from `rsync`, with significant performance and efficiency advantages:
+`arsync` implements hardlink detection fundamentally differently from `rsync`, with significant performance and efficiency advantages:
 
 ### rsync's Two-Pass Approach
 
@@ -688,9 +688,9 @@ $ rsync -aH /large-tree/ /backup/
 # Then copying begins with progress output
 ```
 
-### io-uring-sync's Integrated Approach
+### arsync's Integrated Approach
 
-`io-uring-sync` integrates hardlink detection **during traversal** using `io_uring statx`:
+`arsync` integrates hardlink detection **during traversal** using `io_uring statx`:
 
 1. **Single-Pass Operation**: Detection happens simultaneously with discovery and copying
 2. **Streaming Metadata**: Uses io_uring's async `statx` to get inode information on-demand
@@ -698,9 +698,9 @@ $ rsync -aH /large-tree/ /backup/
 4. **Efficient Memory**: Only tracks inodes as they're discovered (bounded by max-files-in-flight)
 5. **Concurrent Processing**: Multiple files processed in parallel while detecting hardlinks
 
-Example io-uring-sync behavior:
+Example arsync behavior:
 ```bash
-$ io-uring-sync -aH --source /large-tree --destination /backup --progress
+$ arsync -aH --source /large-tree --destination /backup --progress
 # Immediate progress output:
 # Discovered: 1523 files | Copied: 847 files | In flight: 256
 # (discovery and copying happen simultaneously)
@@ -710,7 +710,7 @@ $ io-uring-sync -aH --source /large-tree --destination /backup --progress
 
 For a directory tree with 10,000 files and 2,000 hardlinks:
 
-| Metric | rsync -aH | io-uring-sync -aH | Advantage |
+| Metric | rsync -aH | arsync -aH | Advantage |
 |--------|-----------|-------------------|-----------|
 | **Pre-scan Time** | ~15 seconds | 0 seconds | No pre-scan needed |
 | **Time to First Copy** | ~15 seconds | <1 second | **15x faster** start |
@@ -720,7 +720,7 @@ For a directory tree with 10,000 files and 2,000 hardlinks:
 
 ### Technical Implementation
 
-**io-uring-sync's approach:**
+**arsync's approach:**
 ```rust
 // During directory traversal (pseudo-code):
 for each directory entry {
@@ -748,14 +748,14 @@ for each directory entry {
 
 ### Filesystem Boundary Detection
 
-Additionally, `io-uring-sync` uses `statx` to detect filesystem boundaries automatically:
+Additionally, `arsync` uses `statx` to detect filesystem boundaries automatically:
 - Prevents cross-filesystem hardlinks (would fail anyway)
 - Optimizes operations per filesystem (detects boundaries for hardlinks)
 - No user configuration needed (unlike rsync's `-x` flag)
 
 ### Conclusion
 
-io-uring-sync's integrated hardlink detection is:
+arsync's integrated hardlink detection is:
 - **Faster**: No pre-scan overhead, immediate start
 - **More efficient**: Lower memory usage, streaming approach  
 - **Better UX**: Progress visible from the start
@@ -763,9 +763,9 @@ io-uring-sync's integrated hardlink detection is:
 
 This is possible because io_uring's async `statx` allows metadata queries to happen concurrently with file operations, eliminating the need for a separate analysis phase.
 
-### Progress Reporting: io-uring-sync vs rsync
+### Progress Reporting: arsync vs rsync
 
-Both tools support `--progress`, but `io-uring-sync` provides significantly more informative real-time progress due to its architecture.
+Both tools support `--progress`, but `arsync` provides significantly more informative real-time progress due to its architecture.
 
 ### rsync's Progress Display
 
@@ -789,12 +789,12 @@ file2.txt
 - Can't tell how much work remains
 - Appears "frozen" during discovery of large trees
 
-### io-uring-sync's Progress Display
+### arsync's Progress Display
 
-`io-uring-sync` shows **concurrent discovery and copying progress**:
+`arsync` shows **concurrent discovery and copying progress**:
 
 ```bash
-$ io-uring-sync -a --source /source --destination /destination --progress
+$ arsync -a --source /source --destination /destination --progress
 Discovered: 1523 files (1.2 GB) | Completed: 847 files (780 MB) | In-flight: 256 files
 [==============>                    ] 55% | 1.5 GB/s | ETA: 0:00:03
 
@@ -814,14 +814,14 @@ Discovered: 2891 files (2.1 GB) | Completed: 2156 files (1.8 GB) | In-flight: 12
 
 ### Technical Comparison
 
-| Aspect | rsync --progress | io-uring-sync --progress | Advantage |
+| Aspect | rsync --progress | arsync --progress | Advantage |
 |--------|------------------|--------------------------|-----------|
-| **Discovery Phase** | No progress shown | Live file/dir count | **io-uring-sync** |
-| **Transfer Phase** | Per-file progress | Aggregate + per-file | **io-uring-sync** |
-| **Concurrency Visibility** | Single-threaded (no concurrency) | Shows in-flight operations | **io-uring-sync** |
-| **ETA Accuracy** | Per-file only | Overall + improving | **io-uring-sync** |
-| **User Experience** | "Frozen" then per-file | Immediate feedback | **io-uring-sync** |
-| **Throughput Display** | Per-file MB/s | Aggregate GB/s | **io-uring-sync** |
+| **Discovery Phase** | No progress shown | Live file/dir count | **arsync** |
+| **Transfer Phase** | Per-file progress | Aggregate + per-file | **arsync** |
+| **Concurrency Visibility** | Single-threaded (no concurrency) | Shows in-flight operations | **arsync** |
+| **ETA Accuracy** | Per-file only | Overall + improving | **arsync** |
+| **User Experience** | "Frozen" then per-file | Immediate feedback | **arsync** |
+| **Throughput Display** | Per-file MB/s | Aggregate GB/s | **arsync** |
 
 ### Architecture Difference
 
@@ -836,7 +836,7 @@ Discovered: 2891 files (2.1 GB) | Completed: 2156 files (1.8 GB) | In-flight: 12
 [File 3] ──> Transfer (progress shown)
 ```
 
-**io-uring-sync (parallel, concurrent):**
+**arsync (parallel, concurrent):**
 ```
 [Discovery] ─┬─> [File 1 Transfer]
              ├─> [File 2 Transfer]  ← All happening
@@ -861,9 +861,9 @@ file000002.txt
 # ... 99,998 more lines ...
 ```
 
-**io-uring-sync behavior:**
+**arsync behavior:**
 ```bash
-$ io-uring-sync -a --source /data --destination /backup --progress
+$ arsync -a --source /data --destination /backup --progress
 # Immediately starts showing:
 Discovered: 1,234 files | Completed: 856 files | In-flight: 378
 [==>                        ] 8% | 850 MB/s | ETA: 0:01:23
@@ -879,7 +879,7 @@ Discovered: 100,000 files | Completed: 98,500 files | In-flight: 1,500
 
 ### Implementation Details
 
-**io-uring-sync's progress tracking:**
+**arsync's progress tracking:**
 1. **Atomic counters**: Lock-free counters updated from multiple threads
 2. **Non-blocking updates**: Progress display doesn't slow down operations
 3. **Intelligent throttling**: Updates every 100ms to avoid flicker
@@ -904,13 +904,13 @@ Discovered: 100,000 files | Completed: 98,500 files | In-flight: 1,500
 
 ### Conclusion
 
-`io-uring-sync --progress` provides **superior visibility** into operations:
+`arsync --progress` provides **superior visibility** into operations:
 - **Immediate feedback**: No discovery phase blackout
 - **Concurrent tracking**: Shows discovery + copying simultaneously  
 - **Better estimates**: ETA improves as operation progresses
 - **More informative**: Shows in-flight operations and overall state
 
-This is enabled by io-uring-sync's parallel architecture where discovery and copying happen concurrently, unlike rsync's sequential approach.
+This is enabled by arsync's parallel architecture where discovery and copying happen concurrently, unlike rsync's sequential approach.
 
 ---
 
@@ -1040,7 +1040,7 @@ Per-file cost:
   Actual: ~10K files/sec (due to kernel overhead, scheduling, etc.)
 ```
 
-**io_uring (io-uring-sync):**
+**io_uring (arsync):**
 ```
 Batch submission:
   - Submit 1000 read operations: 1 syscall (~2 µs)
@@ -1294,7 +1294,7 @@ read(fd, data, data_size);
 
 #### 5. **Better Performance in Practice**
 
-**io-uring-sync's approach (fadvise + page cache):**
+**arsync's approach (fadvise + page cache):**
 ```
 Large file copy:
 1. fadvise(src, SEQUENTIAL) - kernel starts read-ahead
@@ -1325,9 +1325,9 @@ Result: 15-30% faster than O_DIRECT
 - No alignment overhead (simpler code, fewer bugs)
 - Kernel optimizes globally (better for whole system)
 
-### The io-uring-sync Approach
+### The arsync Approach
 
-io-uring-sync uses **fadvise hints** throughout its file copying:
+arsync uses **fadvise hints** throughout its file copying:
 
 ```rust
 // 1. Open files normally (no O_DIRECT pain)
@@ -1381,7 +1381,7 @@ fadvise(src, POSIX_FADV_DONTNEED)?;    // "Release these pages now"
 
 ### When to Use What
 
-**Use fadvise (like io-uring-sync does):**
+**Use fadvise (like arsync does):**
 - ✅ File copying and backup tools
 - ✅ Sequential reads/writes
 - ✅ Streaming data processing
@@ -1417,5 +1417,5 @@ Modern Linux with `fadvise` + `io_uring` provides **everything O_DIRECT promised
 - Kernel optimizations intact
 - Simpler application code
 
-**This is why io-uring-sync uses fadvise, not O_DIRECT.**
+**This is why arsync uses fadvise, not O_DIRECT.**
 

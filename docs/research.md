@@ -715,7 +715,7 @@ impl ExtendedRio {
 
 **Proposed Options**:
 ```bash
-io_uring_sync [OPTIONS] <SOURCE> <DESTINATION>
+arsync [OPTIONS] <SOURCE> <DESTINATION>
 
 Options:
   --queue-depth <N>           # Submission queue depth (default: 4096)
@@ -817,7 +817,7 @@ impl CustomOp for CopyFileRangeOp {
 }
 ```
 
-### Recommended Approach for io_uring_sync
+### Recommended Approach for arsync
 
 #### Phase 1: Wrapper Extensions
 - Extend existing `compio::fs::File` with copy_file_range
