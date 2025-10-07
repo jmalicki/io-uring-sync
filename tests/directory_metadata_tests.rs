@@ -274,6 +274,46 @@ async fn test_directory_metadata_restrictive_permissions() {
     );
 }
 
+/// Test that metadata preservation fails gracefully for directories with no permissions
+#[compio::test]
+async fn test_directory_metadata_no_permissions_failure() {
+    let temp_dir = TempDir::new().unwrap();
+    let src_dir = temp_dir.path().join("src_dir");
+    let dst_dir = temp_dir.path().join("dst_dir");
+
+    // Create source directory with no permissions
+    fs::create_dir(&src_dir).unwrap();
+    let permissions = fs::Permissions::from_mode(0o000); // No permissions
+    fs::set_permissions(&src_dir, permissions).unwrap();
+
+    // Create destination directory
+    fs::create_dir(&dst_dir).unwrap();
+
+    // Get source metadata
+    let extended_metadata = ExtendedMetadata::new(&src_dir).await.unwrap();
+
+    // Attempt to preserve metadata - this should fail due to no permissions
+    let preservation_result =
+        preserve_directory_metadata(&src_dir, &dst_dir, &extended_metadata).await;
+
+    // Verify that the preservation fails as expected
+    assert!(
+        preservation_result.is_err(),
+        "Metadata preservation should fail for directories with no permissions"
+    );
+
+    // Verify the error is related to permission denied
+    let error = preservation_result.unwrap_err();
+    assert!(
+        error.to_string().contains("Permission denied")
+            || error
+                .to_string()
+                .contains("Failed to open source directory"),
+        "Error should indicate permission denied, got: {}",
+        error
+    );
+}
+
 /// Test directory metadata preservation with umask interaction
 #[compio::test]
 async fn test_directory_metadata_umask_interaction() {
