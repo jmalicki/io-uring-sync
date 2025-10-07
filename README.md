@@ -1,9 +1,9 @@
 # arsync
 
+**a**synchronous **rsync** - High-performance async file copying for Linux
+
 [![CI](https://github.com/jmalicki/arsync/workflows/CI/badge.svg)](https://github.com/jmalicki/arsync/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-
-**High-performance async file copying for Linux - a modern rsync alternative**
 
 📚 **Documentation**: [Developer Guide](docs/DEVELOPER.md) • [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) • [Testing Strategy](docs/TESTING_STRATEGY.md)
 
