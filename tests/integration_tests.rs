@@ -14,7 +14,7 @@ fn test_help_output() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "High-performance bulk file copying utility",
+            "High-performance async file copying utility",
         ));
 }
 
