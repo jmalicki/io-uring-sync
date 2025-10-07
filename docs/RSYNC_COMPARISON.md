@@ -8,7 +8,9 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 
 ### 🚀 The Six Key Innovations
 
-#### 1. **io_uring: Designed for Modern NVMe Storage**
+---
+
+### 1. io_uring: Designed for Modern NVMe Storage
 
 **The Problem:** Modern NVMe SSDs can handle **millions of IOPS** (I/O operations per second), but traditional blocking syscalls create a **bottleneck**:
 - Each `read()` or `write()` call blocks the thread
@@ -29,7 +31,9 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - [Linux io_uring man page](https://man7.org/linux/man-pages/man7/io_uring.7.html) - Official Linux documentation
 - [Efficient IO with io_uring](https://kernel.dk/io_uring-whatsnew.pdf) - Performance characteristics and design goals
 
-#### 2. **Security: TOCTOU-Free Metadata Operations**
+---
+
+### 2. Security: TOCTOU-Free Metadata Operations
 
 **The Problem:** rsync uses 1980s path-based syscalls (`chmod`, `lchown`) that are **vulnerable to race conditions**:
 - **CVE-2024-12747**: Symlink race condition allowing privilege escalation (Dec 2024, actively exploited)
@@ -51,7 +55,9 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - [fchmod(2) man page](https://man7.org/linux/man-pages/man2/fchmod.2.html) - "avoids race conditions"
 - [fchown(2) man page](https://man7.org/linux/man-pages/man2/fchown.2.html) - "avoids race conditions"
 
-#### 3. **I/O Optimization: fadvise and fallocate**
+---
+
+### 3. I/O Optimization: fadvise and fallocate
 
 **The Problem:** Without hints, the kernel doesn't know your I/O patterns:
 - Wastes memory caching data you won't reuse
@@ -70,7 +76,9 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - [posix_fadvise(2) man page](https://man7.org/linux/man-pages/man2/posix_fadvise.2.html) - POSIX_FADV_NOREUSE and other hints
 - [fallocate(2) man page](https://man7.org/linux/man-pages/man2/fallocate.2.html) - Preallocation to reduce fragmentation
 
-#### 4. **Modern Metadata: statx vs stat**
+---
+
+### 4. Modern Metadata: statx vs stat
 
 **The Problem:** rsync uses `stat`/`lstat` from the 1970s:
 - Microsecond timestamp precision (loses data)
@@ -88,7 +96,9 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - [LWN: The statx() system call](https://lwn.net/Articles/685791/) - Design rationale and advantages
 - [Linux kernel commit](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a528d35e8bfcc521d7cb70aaf03e1bd296c8493f) - statx implementation (kernel 4.11, 2017)
 
-#### 5. **Single-Pass Hardlink Detection**
+---
+
+### 5. Single-Pass Hardlink Detection
 
 **The Problem:** rsync's two-pass approach:
 - Pre-scan entire tree (15+ seconds for large trees, no progress shown)
@@ -101,7 +111,9 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - ~8 MB memory (10x less)
 - **15x faster time-to-first-copy**
 
-#### 6. **Modern Software Engineering: Rust + Comprehensive Testing**
+---
+
+### 6. Modern Software Engineering: Rust + Comprehensive Testing
 
 **The Problem:** rsync is written in C (1996) with limited test coverage:
 - Manual memory management (potential for bugs)
