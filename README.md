@@ -1,6 +1,8 @@
 # arsync
 
-**a**synchronous **rsync** - High-performance async file copying for Linux
+**arsync** = **a**synchronous **rsync** (the "a" stands for asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
+
+High-performance async file copying for Linux - a modern rsync alternative built on io_uring
 
 [![CI](https://github.com/jmalicki/arsync/workflows/CI/badge.svg)](https://github.com/jmalicki/arsync/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
