@@ -12,6 +12,8 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 ### 1. io_uring: Designed for Modern NVMe Storage
 
+**What is io_uring?** [io_uring](https://kernel.dk/io_uring.pdf) is a modern Linux kernel interface (introduced in kernel 5.1, 2019) that provides **asynchronous I/O** through shared ring buffers between userspace and the kernel. Unlike traditional blocking syscalls that require one system call per operation, io_uring lets you submit **batches of I/O operations** without blocking, and the kernel notifies you when they complete. Think of it as a high-speed conveyor belt for I/O requests.
+
 **The Problem:** Modern [NVMe](https://nvmexpress.org/) SSDs can handle **millions of IOPS** (I/O operations per second), but traditional blocking syscalls create a **bottleneck**:
 - Each `read()` or `write()` call blocks the thread
 - Single-threaded rsync can only issue ~10,000 operations/second
