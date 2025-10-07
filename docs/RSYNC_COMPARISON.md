@@ -2,9 +2,9 @@
 
 ## Introduction: Modern Linux Development Practices
 
-`io-uring-sync` represents **30+ years of lessons learned** in Linux systems programming, applying modern best practices to deliver the best possible file copying experience.
+`io-uring-sync` represents **30+ years of lessons learned** in [Linux](https://www.kernel.org/) systems programming, applying modern best practices to deliver the best possible file copying experience.
 
-While rsync was groundbreaking in 1996, it was built with the constraints and knowledge of that era. `io-uring-sync` leverages decades of advances in:
+While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built with the constraints and knowledge of that era. `io-uring-sync` leverages decades of advances in:
 
 ### 🚀 The Six Key Innovations
 
@@ -12,7 +12,7 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 
 ### 1. io_uring: Designed for Modern NVMe Storage
 
-**The Problem:** Modern NVMe SSDs can handle **millions of IOPS** (I/O operations per second), but traditional blocking syscalls create a **bottleneck**:
+**The Problem:** Modern [NVMe](https://nvmexpress.org/) SSDs can handle **millions of IOPS** (I/O operations per second), but traditional blocking syscalls create a **bottleneck**:
 - Each `read()` or `write()` call blocks the thread
 - Single-threaded rsync can only issue ~10,000 operations/second
 - **Result: Your $2000 NVMe SSD performs like a $50 USB stick**
@@ -42,8 +42,8 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 
 **io-uring-sync Solution:**
 - File descriptor-based operations (`fchmod`, `fchown`, `fgetxattr`, `fsetxattr`)
-- **Impossible to exploit** - FDs are bound to inodes, not paths
-- Follows MITRE/NIST secure coding guidelines
+- **Impossible to exploit** - FDs are bound to [inodes](https://man7.org/linux/man-pages/man7/inode.7.html), not paths
+- Follows [MITRE](https://cwe.mitre.org/)/[NIST](https://www.nist.gov/) secure coding guidelines
 
 **Real-world impact:** Safe to run as root without symlink attack vulnerabilities
 
@@ -115,14 +115,14 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 
 ### 6. Modern Software Engineering: Rust + Comprehensive Testing
 
-**The Problem:** rsync is written in C (1996) with limited test coverage:
+**The Problem:** rsync is written in [C](https://en.wikipedia.org/wiki/C_(programming_language)) (1996) with limited test coverage:
 - Manual memory management (potential for bugs)
 - No compile-time safety guarantees
 - Limited automated testing (hard to add tests to C codebase)
 - Difficult to refactor safely
 
 **io-uring-sync Solution:**
-- Written in **Rust** with memory safety guarantees
+- Written in **[Rust](https://www.rust-lang.org/)** with memory safety guarantees
 - **93 automated tests** across 15 test files (~4,500 lines of test code)
 - **Comprehensive test categories**:
   - Unit tests (permissions, timestamps, ownership, xattr)
@@ -131,7 +131,7 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
   - Performance tests (many files, large files, concurrent ops)
   - **rsync compatibility tests** (validates identical behavior against actual rsync)
   - **Flag behavior tests** (validates on/off semantics)
-- **CI/CD pipeline** with pre-commit hooks (rustfmt, clippy)
+- **CI/CD pipeline** with pre-commit hooks ([rustfmt](https://github.com/rust-lang/rustfmt), [clippy](https://github.com/rust-lang/rust-clippy))
 - **Type safety**: Impossible to mix up file descriptors, paths, or metadata
 - **Fearless refactoring**: Compiler catches errors before runtime
 
@@ -224,15 +224,15 @@ This is what **30 years of Linux evolution + modern software engineering** looks
 |------------|---------------|-------------|-------|
 | `-a, --archive` | `-a, --archive` | Archive mode (same as `-rlptgoD`) | Identical behavior |
 | `-r, --recursive` | `-r, --recursive` | Recurse into directories | Identical behavior |
-| `-l, --links` | `-l, --links` | Copy symlinks as symlinks | Identical behavior |
+| `-l, --links` | `-l, --links` | Copy [symlinks](https://man7.org/linux/man-pages/man7/symlink.7.html) as symlinks | Identical behavior |
 | `-p, --perms` | `-p, --perms` | Preserve permissions | Identical behavior |
 | `-t, --times` | `-t, --times` | Preserve modification times | Identical behavior |
 | `-g, --group` | `-g, --group` | Preserve group | Identical behavior |
 | `-o, --owner` | `-o, --owner` | Preserve owner (super-user only) | Identical behavior |
 | `-D` | `-D, --devices` | Preserve device/special files | Identical behavior |
-| `-X, --xattrs` | `-X, --xattrs` | Preserve extended attributes | Identical behavior |
-| `-A, --acls` | `-A, --acls` | Preserve ACLs (implies `--perms`) | Identical behavior |
-| `-H, --hard-links` | `-H, --hard-links` | Preserve hard links | **Better**: Integrated detection during traversal *([see detailed comparison ↓](#hardlink-detection-io-uring-sync-vs-rsync))* |
+| `-X, --xattrs` | `-X, --xattrs` | Preserve [extended attributes](https://man7.org/linux/man-pages/man7/xattr.7.html) | Identical behavior |
+| `-A, --acls` | `-A, --acls` | Preserve [ACLs](https://man7.org/linux/man-pages/man5/acl.5.html) (implies `--perms`) | Identical behavior |
+| `-H, --hard-links` | `-H, --hard-links` | Preserve [hard links](https://man7.org/linux/man-pages/man2/link.2.html) | **Better**: Integrated detection during traversal *([see detailed comparison ↓](#hardlink-detection-io-uring-sync-vs-rsync))* |
 | `-v, --verbose` | `-v, --verbose` | Verbose output | Multiple levels supported (`-vv`, `-vvv`) |
 | `--dry-run` | `--dry-run` | Show what would be copied | Identical behavior |
 
@@ -574,7 +574,7 @@ io-uring-sync -avH --source /source --destination /destination
 
 ## Performance Benchmarks
 
-Detailed benchmarks on Ubuntu 22.04, Kernel 5.15, 16-core system, NVMe SSD:
+Detailed benchmarks on [Ubuntu](https://ubuntu.com/) 22.04, Linux Kernel 5.15, 16-core system, [NVMe](https://nvmexpress.org/) SSD:
 
 | Workload | rsync | io-uring-sync | Speedup |
 |----------|-------|---------------|---------|
