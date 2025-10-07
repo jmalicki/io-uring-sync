@@ -356,7 +356,7 @@ async fn test_timestamp_preservation_nanosecond_edge_cases() {
         if result == 0 {
             // Copy the file
             let args = create_test_args_with_archive();
-        copy_file(&src_path, &dst_path, &args).await.unwrap();
+            copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Check that nanosecond precision was preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -487,7 +487,7 @@ async fn test_concurrent_metadata_preservation() {
         // Spawn concurrent copy task
         let handle = compio::runtime::spawn(async move {
             let args = create_test_args_with_archive();
-        copy_file(&src_path, &dst_path, &args).await.unwrap();
+            copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Verify permissions were preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();

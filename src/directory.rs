@@ -1462,7 +1462,7 @@ pub async fn preserve_directory_metadata(
             .map_err(|e| {
                 SyncError::FileSystem(format!("Failed to preserve directory permissions: {e}"))
             })?;
-        
+
         debug!(
             "Preserved directory permissions for {}: {:o}",
             dst_path.display(),
@@ -1486,7 +1486,7 @@ pub async fn preserve_directory_metadata(
         dst_dir.fchown(source_uid, source_gid).await.map_err(|e| {
             SyncError::FileSystem(format!("Failed to preserve directory ownership: {e}"))
         })?;
-        
+
         debug!(
             "Preserved directory ownership for {}: uid={}, gid={}",
             dst_path.display(),
@@ -1512,20 +1512,14 @@ pub async fn preserve_directory_metadata(
             .map_err(|e| {
                 SyncError::FileSystem(format!("Failed to preserve directory timestamps: {e}"))
             })?;
-        
-        debug!(
-            "Preserved directory timestamps for {}",
-            dst_path.display()
-        );
+
+        debug!("Preserved directory timestamps for {}", dst_path.display());
     }
 
     // Preserve directory extended attributes if requested
     if args.should_preserve_xattrs() {
         preserve_directory_xattr(src_path, dst_path).await?;
-        debug!(
-            "Preserved directory xattrs for {}",
-            dst_path.display()
-        );
+        debug!("Preserved directory xattrs for {}", dst_path.display());
     }
 
     Ok(())

@@ -116,7 +116,7 @@ async fn test_timestamp_preservation_very_recent() {
 
         // Copy the file
         let args = create_test_args_with_archive();
-    copy_file(&src_path, &dst_path, &args).await.unwrap();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that the recent timestamp was preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -242,7 +242,7 @@ async fn test_timestamp_preservation_identical_times() {
     if result == 0 {
         // Copy the file
         let args = create_test_args_with_archive();
-    copy_file(&src_path, &dst_path, &args).await.unwrap();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that identical timestamps were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -442,7 +442,7 @@ async fn test_metadata_preservation_special_characters() {
 
         // Copy the file
         let args = create_test_args_with_archive();
-    copy_file(&src_path, &dst_path, &args).await.unwrap();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -490,7 +490,7 @@ async fn test_metadata_preservation_unicode_filenames() {
 
         // Copy the file
         let args = create_test_args_with_archive();
-    copy_file(&src_path, &dst_path, &args).await.unwrap();
+        copy_file(&src_path, &dst_path, &args).await.unwrap();
 
         // Check that permissions were preserved
         let dst_metadata = fs::metadata(&dst_path).unwrap();

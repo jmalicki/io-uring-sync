@@ -249,7 +249,7 @@ async fn test_metadata_preservation_concurrent_operations() {
         // Spawn concurrent copy task
         let handle = compio::runtime::spawn(async move {
             let args = create_test_args_with_archive();
-        copy_file(&src_path, &dst_path, &args).await.unwrap();
+            copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Verify permissions were preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();
@@ -329,7 +329,7 @@ async fn test_metadata_preservation_specific_timestamps() {
         if result == 0 {
             // Copy the file
             let args = create_test_args_with_archive();
-        copy_file(&src_path, &dst_path, &args).await.unwrap();
+            copy_file(&src_path, &dst_path, &args).await.unwrap();
 
             // Check that the specific timestamp was preserved
             let dst_metadata = fs::metadata(&dst_path).unwrap();

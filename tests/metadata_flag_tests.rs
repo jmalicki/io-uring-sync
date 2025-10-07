@@ -24,15 +24,15 @@ fn create_args_no_metadata() -> Args {
         cpu_count: 1,
         buffer_size_kb: 64,
         copy_method: CopyMethod::Auto,
-        archive: false,      // No archive mode
+        archive: false, // No archive mode
         recursive: false,
         links: false,
-        perms: false,        // No permission preservation
-        times: false,        // No timestamp preservation
-        group: false,        // No group preservation
-        owner: false,        // No owner preservation
+        perms: false, // No permission preservation
+        times: false, // No timestamp preservation
+        group: false, // No group preservation
+        owner: false, // No owner preservation
         devices: false,
-        xattrs: false,       // No xattr preservation
+        xattrs: false, // No xattr preservation
         acls: false,
         hard_links: false,
         atimes: false,
@@ -418,4 +418,3 @@ async fn test_individual_flags_match_archive_components() {
 
     println!("✓ Verified --perms and --archive permission behavior matches");
 }
-
