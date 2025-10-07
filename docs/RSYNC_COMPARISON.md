@@ -1,5 +1,34 @@
 # rsync vs io-uring-sync: Feature Comparison
 
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Design Philosophy](#design-philosophy)
+3. [Command-Line Options Comparison](#command-line-options-comparison)
+   - [Fully Supported (rsync-compatible)](#-fully-supported-rsync-compatible)
+   - [Partial Support / Different Behavior](#-partial-support--different-behavior)
+   - [Flags Accepted But Not Yet Implemented](#-flags-accepted-but-not-yet-implemented)
+   - [Not Supported (Remote/Network Features)](#-not-supported-remotenetwork-features)
+   - [io-uring-sync Exclusive Features](#-io-uring-sync-exclusive-features)
+4. [Capability Comparison](#capability-comparison)
+   - [Performance Characteristics](#performance-characteristics)
+   - [Metadata Preservation](#metadata-preservation)
+   - [Default Behavior](#default-behavior)
+5. [Usage Examples](#usage-examples)
+   - [Equivalent Commands](#equivalent-commands)
+   - [io-uring-sync Performance Tuning](#io-uring-sync-performance-tuning)
+6. [When to Use Which Tool](#when-to-use-which-tool)
+7. [Migration Guide](#migration-guide)
+8. [Performance Benchmarks](#performance-benchmarks)
+9. [Test Validation](#test-validation)
+10. [Conclusion](#conclusion)
+11. [Detailed Comparisons](#detailed-comparisons)
+    - [Security: File Descriptor-Based Operations](#security-file-descriptor-based-operations)
+    - [Hardlink Detection: io-uring-sync vs rsync](#hardlink-detection-io-uring-sync-vs-rsync)
+    - [Progress Reporting: io-uring-sync vs rsync](#progress-reporting-io-uring-sync-vs-rsync)
+
+---
+
 ## Overview
 
 `io-uring-sync` is designed as a drop-in replacement for `rsync` for **local, single-machine** file synchronization. This document compares command-line options and capabilities between the two tools.
