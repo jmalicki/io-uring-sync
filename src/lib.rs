@@ -51,9 +51,11 @@ pub mod directory;
 pub mod error;
 pub mod io_uring;
 pub mod progress;
+pub mod semaphore;
 pub mod sync;
 
 // Re-export commonly used types
 pub use directory::FilesystemTracker;
 pub use error::{Result, SyncError};
 pub use progress::ProgressTracker;
+pub use semaphore::Semaphore;
