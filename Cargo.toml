@@ -46,7 +46,7 @@ libc = "0.2"
 # nix removed - using io_uring operations instead
 
 # Extended io_uring operations
-compio-fs-extended = { path = "crates/compio-fs-extended" }
+compio-fs-extended = { path = "crates/compio-fs-extended", features = ["xattr"] }
 
 # Build dependencies
 [build-dependencies]

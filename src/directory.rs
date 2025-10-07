@@ -12,7 +12,7 @@ use crate::io_uring::FileOperations;
 use compio::dispatcher::Dispatcher;
 #[allow(clippy::disallowed_types)]
 use std::collections::HashMap;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
@@ -509,7 +509,11 @@ pub async fn copy_directory(
     );
 
     // Create destination directory if it doesn't exist
-    if !dst.exists() {
+    if dst.exists() {
+        // Set source filesystem from root directory (destination already exists)
+        let root_metadata = ExtendedMetadata::new(src).await?;
+        hardlink_tracker.set_source_filesystem(root_metadata.device_id());
+    } else {
         std::fs::create_dir_all(dst).map_err(|e| {
             SyncError::FileSystem(format!(
                 "Failed to create destination directory {}: {}",
@@ -519,11 +523,14 @@ pub async fn copy_directory(
         })?;
         stats.directories_created += 1;
         debug!("Created destination directory: {}", dst.display());
-    }
 
-    // Set source filesystem from root directory
-    let root_metadata = ExtendedMetadata::new(src).await?;
-    hardlink_tracker.set_source_filesystem(root_metadata.device_id());
+        // Preserve root directory metadata (permissions, ownership, timestamps)
+        let root_metadata = ExtendedMetadata::new(src).await?;
+        preserve_directory_metadata(src, dst, &root_metadata).await?;
+
+        // Set source filesystem from root directory
+        hardlink_tracker.set_source_filesystem(root_metadata.device_id());
+    }
 
     // Traverse source directory iteratively using compio's dispatcher
     traverse_and_copy_directory_iterative(
@@ -707,6 +714,9 @@ async fn process_directory_entry_with_compio(
                 ))
             })?;
             stats.increment_directories_created()?;
+
+            // Preserve directory metadata (permissions, ownership, timestamps)
+            preserve_directory_metadata(&src_path, &dst_path, &extended_metadata).await?;
         }
 
         // Read directory entries using std::fs::read_dir
@@ -1321,6 +1331,165 @@ pub struct FilesystemStats {
     /// Source filesystem device ID
     #[allow(dead_code)]
     pub source_filesystem: Option<u64>,
+}
+
+/// Preserve directory extended attributes from source to destination
+///
+/// This function preserves all extended attributes from the source directory to the destination directory
+/// using file descriptor-based operations for maximum efficiency and security.
+///
+/// # Arguments
+///
+/// * `src_path` - Source directory path
+/// * `dst_path` - Destination directory path
+///
+/// # Returns
+///
+/// `Ok(())` if all extended attributes were preserved successfully
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Extended attributes cannot be read from source
+/// - Extended attributes cannot be written to destination
+/// - Permission is denied for xattr operations
+#[allow(clippy::future_not_send)]
+pub async fn preserve_directory_xattr(src_path: &Path, dst_path: &Path) -> Result<()> {
+    use compio_fs_extended::{ExtendedFile, XattrOps};
+
+    // Open source and destination directories for xattr operations
+    let src_dir = compio::fs::File::open(src_path).await.map_err(|e| {
+        SyncError::FileSystem(format!("Failed to open source directory for xattr: {e}"))
+    })?;
+    let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
+        SyncError::FileSystem(format!(
+            "Failed to open destination directory for xattr: {e}"
+        ))
+    })?;
+
+    // Convert to ExtendedFile to access xattr operations
+    let extended_src = ExtendedFile::from_ref(&src_dir);
+    let extended_dst = ExtendedFile::from_ref(&dst_dir);
+
+    // Get all extended attribute names from source directory
+    let Ok(xattr_names) = extended_src.list_xattr().await else {
+        // If xattr is not supported or no xattrs exist, that's fine
+        return Ok(());
+    };
+
+    // Copy each extended attribute
+    for name in xattr_names {
+        match extended_src.get_xattr(&name).await {
+            Ok(value) => {
+                if let Err(e) = extended_dst.set_xattr(&name, &value).await {
+                    // Log warning but continue with other xattrs
+                    tracing::warn!(
+                        "Failed to preserve directory extended attribute '{}': {}",
+                        name,
+                        e
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to read directory extended attribute '{}': {}",
+                    name,
+                    e
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Preserve directory metadata (permissions, ownership, timestamps) from source to destination
+///
+/// This function preserves all directory metadata including permissions, ownership,
+/// and timestamps using file descriptor-based operations for maximum efficiency and security.
+///
+/// # Arguments
+///
+/// * `src_path` - Source directory path
+/// * `dst_path` - Destination directory path  
+/// * `extended_metadata` - Pre-captured source directory metadata
+///
+/// # Returns
+///
+/// `Ok(())` if all metadata was preserved successfully
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Permission preservation fails
+/// - Ownership preservation fails
+/// - Timestamp preservation fails
+#[allow(clippy::future_not_send, clippy::similar_names)]
+pub async fn preserve_directory_metadata(
+    src_path: &Path,
+    dst_path: &Path,
+    extended_metadata: &ExtendedMetadata,
+) -> Result<()> {
+    use compio_fs_extended::{metadata, OwnershipOps};
+
+    // Preserve directory permissions using file descriptor-based approach
+    let src_permissions = extended_metadata.metadata.permissions();
+    let mode = src_permissions.mode();
+    let compio_permissions = compio::fs::Permissions::from_mode(mode);
+
+    // Open destination directory for permission operations
+    let dst_dir = compio::fs::File::open(dst_path).await.map_err(|e| {
+        SyncError::FileSystem(format!(
+            "Failed to open destination directory for permissions: {e}"
+        ))
+    })?;
+
+    // Use file descriptor-based set_permissions to avoid umask interference
+    dst_dir
+        .set_permissions(compio_permissions)
+        .await
+        .map_err(|e| {
+            SyncError::FileSystem(format!("Failed to preserve directory permissions: {e}"))
+        })?;
+
+    // Preserve directory ownership using compio-fs-extended
+    let source_uid = extended_metadata.metadata.uid();
+    let source_gid = extended_metadata.metadata.gid();
+
+    // Set ownership using fchown (reuse the same file descriptor)
+    dst_dir.fchown(source_uid, source_gid).await.map_err(|e| {
+        SyncError::FileSystem(format!("Failed to preserve directory ownership: {e}"))
+    })?;
+
+    // Preserve directory timestamps using filetime
+    let src_accessed = extended_metadata.metadata.accessed().map_err(|e| {
+        SyncError::FileSystem(format!("Failed to get source directory access time: {e}"))
+    })?;
+    let src_modified = extended_metadata.metadata.modified().map_err(|e| {
+        SyncError::FileSystem(format!(
+            "Failed to get source directory modification time: {e}"
+        ))
+    })?;
+
+    // Use compio-fs-extended for timestamp preservation
+    metadata::futimesat(dst_path, src_accessed, src_modified)
+        .await
+        .map_err(|e| {
+            SyncError::FileSystem(format!("Failed to preserve directory timestamps: {e}"))
+        })?;
+
+    // Preserve directory extended attributes using compio-fs-extended
+    preserve_directory_xattr(src_path, dst_path).await?;
+
+    debug!(
+        "Preserved directory metadata for {}: permissions={:o}, uid={}, gid={}",
+        dst_path.display(),
+        mode,
+        source_uid,
+        source_gid
+    );
+
+    Ok(())
 }
 
 #[cfg(test)]
