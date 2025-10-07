@@ -106,7 +106,7 @@ pub async fn copy_file(src: &Path, dst: &Path, args: &Args) -> Result<()> {
 ///     Ok(())
 /// }
 /// ```
-#[allow(clippy::future_not_send)]
+#[allow(clippy::future_not_send, clippy::too_many_lines)]
 async fn copy_read_write(src: &Path, dst: &Path, args: &Args) -> Result<()> {
     // Capture source timestamps BEFORE any reads to avoid atime/mtime drift
     let (src_accessed, src_modified) = get_precise_timestamps(src).await?;
@@ -239,15 +239,15 @@ async fn copy_read_write(src: &Path, dst: &Path, args: &Args) -> Result<()> {
     if args.should_preserve_permissions() {
         preserve_permissions_from_fd(&src_file, &dst_file).await?;
     }
-    
+
     if args.should_preserve_ownership() {
         preserve_ownership_from_fd(&src_file, &dst_file).await?;
     }
-    
+
     if args.should_preserve_xattrs() {
         preserve_xattr_from_fd(&src_file, &dst_file).await?;
     }
-    
+
     if args.should_preserve_timestamps() {
         set_dst_timestamps(dst, src_accessed, src_modified).await?;
     }

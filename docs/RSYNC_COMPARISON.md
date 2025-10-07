@@ -6,7 +6,7 @@
 
 While rsync was groundbreaking in 1996, it was built with the constraints and knowledge of that era. `io-uring-sync` leverages decades of advances in:
 
-### 🚀 The Five Key Innovations
+### 🚀 The Six Key Innovations
 
 #### 1. **io_uring: Designed for Modern NVMe Storage**
 
@@ -24,6 +24,11 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - rsync: ~420 MB/s on 10,000 small files (bottlenecked by syscall overhead)
 - io-uring-sync: ~850 MB/s (2x faster - saturating NVMe queue depth)
 
+**References:**
+- [io_uring design documentation](https://kernel.dk/io_uring.pdf) - Jens Axboe (io_uring creator)
+- [Linux io_uring man page](https://man7.org/linux/man-pages/man7/io_uring.7.html) - Official Linux documentation
+- [Efficient IO with io_uring](https://kernel.dk/io_uring-whatsnew.pdf) - Performance characteristics and design goals
+
 #### 2. **Security: TOCTOU-Free Metadata Operations**
 
 **The Problem:** rsync uses 1980s path-based syscalls (`chmod`, `lchown`) that are **vulnerable to race conditions**:
@@ -38,6 +43,14 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 
 **Real-world impact:** Safe to run as root without symlink attack vulnerabilities
 
+**References:**
+- [CVE-2024-12747](https://www.cve.org/CVERecord?id=CVE-2024-12747) - rsync symlink race condition (Dec 2024)
+- [CERT Vulnerability Note VU#952657](https://kb.cert.org/vuls/id/952657) - rsync TOCTOU vulnerability
+- [MITRE CWE-362](https://cwe.mitre.org/data/definitions/362.html) - Race Condition (recommends FD-based operations)
+- [MITRE CWE-367](https://cwe.mitre.org/data/definitions/367.html) - Time-of-Check Time-of-Use (TOCTOU) Race Condition
+- [fchmod(2) man page](https://man7.org/linux/man-pages/man2/fchmod.2.html) - "avoids race conditions"
+- [fchown(2) man page](https://man7.org/linux/man-pages/man2/fchown.2.html) - "avoids race conditions"
+
 #### 3. **I/O Optimization: fadvise and fallocate**
 
 **The Problem:** Without hints, the kernel doesn't know your I/O patterns:
@@ -49,6 +62,13 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - `fadvise(NOREUSE)`: Tell kernel not to cache (free memory for other apps)
 - `fallocate()`: Preallocate file space (reduces fragmentation, faster writes)
 - Result: **15-30% better throughput** on large files
+
+**References:**
+- [LKML: fadvise reduces memory pressure](https://lkml.org/lkml/2004/6/4/43) - Catalin BOIE demonstrates fadvise preventing unnecessary caching
+- [LKML: fadvise for I/O patterns](https://lkml.org/lkml/2004/6/4/179) - Bill Davidsen on kernel memory management
+- [LKML: Page cache optimization](https://lkml.org/lkml/2023/3/15/1110) - Johannes Weiner on fadvise benefits
+- [posix_fadvise(2) man page](https://man7.org/linux/man-pages/man2/posix_fadvise.2.html) - POSIX_FADV_NOREUSE and other hints
+- [fallocate(2) man page](https://man7.org/linux/man-pages/man2/fallocate.2.html) - Preallocation to reduce fragmentation
 
 #### 4. **Modern Metadata: statx vs stat**
 
@@ -62,6 +82,11 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - **Nanosecond** timestamp precision (1000x more accurate)
 - Async via io_uring (doesn't block)
 - Extensible (can request specific fields, supports future additions)
+
+**References:**
+- [statx(2) man page](https://man7.org/linux/man-pages/man2/statx.2.html) - Modern stat with nanosecond timestamps
+- [LWN: The statx() system call](https://lwn.net/Articles/685791/) - Design rationale and advantages
+- [Linux kernel commit](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a528d35e8bfcc521d7cb70aaf03e1bd296c8493f) - statx implementation (kernel 4.11, 2017)
 
 #### 5. **Single-Pass Hardlink Detection**
 
@@ -106,6 +131,13 @@ While rsync was groundbreaking in 1996, it was built with the constraints and kn
 - Bugs caught at compile time (not at 3am during backups)
 - Safe to add features without breaking existing behavior
 - Confidence that rsync compatibility is maintained across changes
+
+**References:**
+- [The Rust Programming Language](https://doc.rust-lang.org/book/) - Memory safety without garbage collection
+- [Rust's Ownership System](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html) - Prevents use-after-free and buffer overflows
+- [Fearless Concurrency](https://doc.rust-lang.org/book/ch16-00-concurrency.html) - Data race prevention at compile time
+- [NSA Software Memory Safety Report (2022)](https://media.defense.gov/2022/Nov/10/2003112742/-1/-1/0/CSI_SOFTWARE_MEMORY_SAFETY.PDF) - Recommends memory-safe languages like Rust
+- [Microsoft Security Response Center](https://msrc.microsoft.com/blog/2019/07/a-proactive-approach-to-more-secure-code/) - 70% of vulnerabilities are memory safety issues
 
 ### Quick Comparison Table
 
