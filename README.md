@@ -1,4 +1,4 @@
-# arsync
+# ![arsync](arsync.png "arsync")
 
 **arsync** = **a**synchronous **rsync** (the "a" stands for asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
 
@@ -992,3 +992,4 @@ This project is licensed under the MIT license (see [LICENSE](LICENSE) or http:/
 - [io_uring](https://kernel.dk/io_uring.pdf) - Linux kernel asynchronous I/O interface by Jens Axboe
 - [compio](https://github.com/compio-rs/compio) - Completion-based async runtime for Rust
 - [Rust](https://www.rust-lang.org/) - Memory-safe systems programming language
+- [krbaker](https://github.com/krbaker) - Project icon
