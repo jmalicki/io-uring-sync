@@ -225,17 +225,31 @@ fn test_readme_structure_matches() {
         pirate_structure.images.len()
     );
 
-    // Verify same image URLs (badges, etc.)
+    // Verify same images (allowing for different relative paths)
     for (eng_img, pir_img) in readme_structure
         .images
         .iter()
         .zip(pirate_structure.images.iter())
     {
-        assert_eq!(
-            eng_img, pir_img,
-            "Image URLs should match. English: {}, Pirate: {}",
-            eng_img, pir_img
-        );
+        // Extract filename from path
+        let eng_filename = eng_img.rsplit('/').next().unwrap_or(eng_img);
+        let pir_filename = pir_img.rsplit('/').next().unwrap_or(pir_img);
+
+        // For local images, just check filename matches
+        // For external URLs (badges), check full URL
+        if eng_img.starts_with("http") || pir_img.starts_with("http") {
+            assert_eq!(
+                eng_img, pir_img,
+                "External image URLs (badges) should match exactly. English: {}, Pirate: {}",
+                eng_img, pir_img
+            );
+        } else {
+            assert_eq!(
+                eng_filename, pir_filename,
+                "Local image filenames should match. English: {}, Pirate: {}",
+                eng_img, pir_img
+            );
+        }
     }
 
     // Additional check: Verify specific key sections exist in both

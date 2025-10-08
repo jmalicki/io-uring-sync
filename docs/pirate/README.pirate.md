@@ -2,7 +2,7 @@
 
 ---
 
-# arsync (Pirate Edition)
+# ![arsync](../arsync.png "arsync") (Pirate Edition)
 
 **arsync** = **a**rrrr-synchronous **rsync** (the "a" be standin' fer asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
 
@@ -1001,9 +1001,10 @@ This project be licensed under the MIT license (see [LICENSE](LICENSE) or http:/
 
 ## Acknowledgments (Thanks to These Fine Sailors)
 
-- [io_uring](https://kernel.dk/io_uring.pdf) - Linux kernel asynchronous I/O interface by Jens Axboe
-- [compio](https://github.com/compio-rs/compio) - Completion-based async runtime fer Rust
-- [Rust](https://www.rust-lang.org/) - Memory-safe systems programmin' language
+- [io_uring](https://kernel.dk/io_uring.pdf) - Linux kernel asynchronous I/O interface by Jens Axboe (the master shipwright!)
+- [compio](https://github.com/compio-rs/compio) - Completion-based async runtime fer Rust (keeps the ship sailin' smooth!)
+- [Rust](https://www.rust-lang.org/) - Memory-safe systems programmin' language (prevents the ship from sinkin'!)
+- [krbaker](https://github.com/krbaker) - Painted our ship's magnificent colors and flew our Jolly Roger proud! Fine work on the icon, matey!
 
 ---
 
