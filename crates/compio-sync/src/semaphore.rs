@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use arsync::semaphore::Semaphore;
+//! use compio_sync::Semaphore;
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,7 +49,7 @@ use std::task::{Context, Poll, Waker};
 /// # Example
 ///
 /// ```rust,no_run
-/// use arsync::semaphore::Semaphore;
+/// use compio_sync::Semaphore;
 /// use std::sync::Arc;
 ///
 /// # async fn example() {
@@ -94,7 +94,7 @@ impl Semaphore {
     /// # Example
     ///
     /// ```rust
-    /// use arsync::semaphore::Semaphore;
+    /// use compio_sync::Semaphore;
     ///
     /// let sem = Semaphore::new(1024);
     /// assert_eq!(sem.available_permits(), 1024);
@@ -119,7 +119,7 @@ impl Semaphore {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use arsync::semaphore::Semaphore;
+    /// use compio_sync::Semaphore;
     ///
     /// # async fn example() {
     /// let sem = Semaphore::new(10);
@@ -144,7 +144,7 @@ impl Semaphore {
     /// # Example
     ///
     /// ```rust
-    /// use arsync::semaphore::Semaphore;
+    /// use compio_sync::Semaphore;
     ///
     /// let sem = Semaphore::new(1);
     ///
@@ -189,7 +189,7 @@ impl Semaphore {
     /// # Example
     ///
     /// ```rust
-    /// use arsync::semaphore::Semaphore;
+    /// use compio_sync::Semaphore;
     ///
     /// let sem = Semaphore::new(100);
     /// assert_eq!(sem.available_permits(), 100);
@@ -207,7 +207,7 @@ impl Semaphore {
     /// # Example
     ///
     /// ```rust
-    /// use arsync::semaphore::Semaphore;
+    /// use compio_sync::Semaphore;
     ///
     /// let sem = Semaphore::new(1024);
     /// assert_eq!(sem.max_permits(), 1024);
@@ -222,7 +222,7 @@ impl Semaphore {
     /// # Example
     ///
     /// ```rust
-    /// use arsync::semaphore::Semaphore;
+    /// use compio_sync::Semaphore;
     ///
     /// let sem = Semaphore::new(100);
     /// let _permit = sem.try_acquire().unwrap();
@@ -263,7 +263,7 @@ impl Semaphore {
 /// # Example
 ///
 /// ```rust,no_run
-/// use arsync::semaphore::Semaphore;
+/// use compio_sync::Semaphore;
 ///
 /// # async fn example() {
 /// let sem = Semaphore::new(10);

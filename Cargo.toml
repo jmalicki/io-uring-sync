@@ -19,7 +19,7 @@ name = "arsync"
 path = "src/main.rs"
 
 [workspace]
-members = ["crates/compio-fs-extended"]
+members = ["crates/compio-fs-extended", "crates/compio-sync"]
 
 [dependencies]
 # Core async runtime
@@ -47,6 +47,9 @@ libc = "0.2"
 
 # Extended io_uring operations
 compio-fs-extended = { path = "crates/compio-fs-extended", features = ["xattr"] }
+
+# Async synchronization primitives
+compio-sync = { path = "crates/compio-sync" }
 
 # Build dependencies
 [build-dependencies]
