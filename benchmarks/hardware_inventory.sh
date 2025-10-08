@@ -236,14 +236,58 @@ if [ -f /proc/mdstat ]; then
                 echo "  Layout: $(cat /sys/block/$md_name/md/layout)"
             fi
             
-            # Component devices
+            # Component devices - trace to actual NVMe drives
             echo "  Component devices:"
             for dev in /sys/block/$md_name/md/dev-*; do
                 if [ -d "$dev" ]; then
                     dev_name=$(basename "$dev" | sed 's/dev-//')
-                    block_dev=$(cat "$dev/block/dev" 2>/dev/null || echo "unknown")
                     state=$(cat "$dev/state" 2>/dev/null || echo "unknown")
-                    echo "    - $dev_name: $block_dev (state: $state)"
+                    
+                    # Find the actual device name
+                    actual_dev=""
+                    if [ -L "$dev/block" ]; then
+                        actual_dev=$(readlink "$dev/block" | sed 's/.*\///')
+                    fi
+                    
+                    if [ -n "$actual_dev" ]; then
+                        # Trace to parent NVMe device
+                        parent_dev=""
+                        if [[ "$actual_dev" =~ nvme[0-9]+n[0-9]+p[0-9]+ ]]; then
+                            # This is a partition, get the parent NVMe device
+                            parent_dev=$(echo "$actual_dev" | sed 's/p[0-9]*$//')
+                        elif [[ "$actual_dev" =~ nvme[0-9]+n[0-9]+ ]]; then
+                            # This is the NVMe device itself
+                            parent_dev="$actual_dev"
+                        fi
+                        
+                        # Get NVMe device details
+                        if [ -n "$parent_dev" ]; then
+                            model=$(cat /sys/block/$parent_dev/device/model 2>/dev/null | xargs || echo "unknown")
+                            size=$(blockdev --getsize64 /dev/$parent_dev 2>/dev/null | awk '{printf "%.0f GB", $1/1024/1024/1024}' || echo "unknown")
+                            
+                            # PCIe info
+                            pci_addr=""
+                            if [ -L "/sys/block/$parent_dev/device" ]; then
+                                pci_addr=$(readlink /sys/block/$parent_dev/device | grep -o '[0-9a-f]\{4\}:[0-9a-f]\{2\}:[0-9a-f]\{2\}\.[0-9]' || echo "")
+                            fi
+                            
+                            pcie_info=""
+                            if [ -n "$pci_addr" ]; then
+                                # Get PCIe generation and lanes
+                                pcie_speed=$(lspci -s "$pci_addr" -vv 2>/dev/null | grep "LnkSta:" | grep -o "Speed [^,]*" | head -1 || echo "")
+                                pcie_width=$(lspci -s "$pci_addr" -vv 2>/dev/null | grep "LnkSta:" | grep -o "Width x[0-9]*" | head -1 || echo "")
+                                if [ -n "$pcie_speed" ] || [ -n "$pcie_width" ]; then
+                                    pcie_info=" (PCIe $pcie_speed $pcie_width)"
+                                fi
+                            fi
+                            
+                            echo "    - $actual_dev → $parent_dev: $model, $size$pcie_info (state: $state)"
+                        else
+                            echo "    - $actual_dev (state: $state)"
+                        fi
+                    else
+                        echo "    - $dev_name (state: $state)"
+                    fi
                 fi
             done
             
