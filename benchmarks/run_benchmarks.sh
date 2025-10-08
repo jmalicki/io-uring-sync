@@ -52,16 +52,20 @@ echo "arsync: $ARSYNC_BIN"
 echo ""
 
 # System info
-echo "=== System Information ===" | tee system_info.txt
-uname -a | tee -a system_info.txt
-cat /proc/cpuinfo | grep "model name" | head -1 | tee -a system_info.txt
-free -h | tee -a system_info.txt
-echo ""
-
-# Storage info
-echo "=== Storage Information ===" | tee -a system_info.txt
-lsblk | tee -a system_info.txt
-cat /proc/mdstat | tee -a system_info.txt || echo "No MD RAID found"
+echo "=== Comprehensive Hardware Inventory ===" | tee system_info.txt
+if [ -f "$(dirname "$0")/hardware_inventory.sh" ]; then
+    echo "Running hardware detection..." | tee -a system_info.txt
+    bash "$(dirname "$0")/hardware_inventory.sh" hardware_detailed.txt
+    cat hardware_detailed.txt >> system_info.txt
+    echo "✓ Hardware inventory complete (see hardware_detailed.txt)"
+else
+    echo "Basic system info:" | tee -a system_info.txt
+    uname -a | tee -a system_info.txt
+    cat /proc/cpuinfo | grep "model name" | head -1 | tee -a system_info.txt
+    free -h | tee -a system_info.txt
+    lsblk | tee -a system_info.txt
+    cat /proc/mdstat | tee -a system_info.txt || echo "No MD RAID found"
+fi
 echo ""
 
 # Drop caches and prepare destination

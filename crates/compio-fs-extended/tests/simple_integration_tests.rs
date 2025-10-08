@@ -157,6 +157,14 @@ async fn test_metadata_basic() {
 /// Test device file operations
 #[compio::test]
 async fn test_device_basic() {
+    // Device creation requires root - skip entire test if not root
+    let is_root = unsafe { libc::geteuid() } == 0;
+
+    if !is_root {
+        eprintln!("test_device_basic: SKIPPED (requires root privileges)");
+        return;
+    }
+
     let temp_dir = TempDir::new().unwrap();
     let base_path = temp_dir.path();
 
@@ -166,6 +174,13 @@ async fn test_device_basic() {
         .await
         .unwrap();
     assert!(pipe_path.exists());
+
+    // Test socket creation
+    let socket_path = base_path.join("test_socket");
+    device::create_socket_at_path(&socket_path, 0o644)
+        .await
+        .unwrap();
+    assert!(socket_path.exists());
 
     // Test character device creation (use valid device numbers)
     let char_dev_path = base_path.join("test_char_dev");
@@ -180,13 +195,6 @@ async fn test_device_basic() {
         .await
         .unwrap();
     assert!(block_dev_path.exists());
-
-    // Test socket creation
-    let socket_path = base_path.join("test_socket");
-    device::create_socket_at_path(&socket_path, 0o644)
-        .await
-        .unwrap();
-    assert!(socket_path.exists());
 }
 
 /// Test parallel operations
