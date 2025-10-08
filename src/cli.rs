@@ -21,7 +21,15 @@ pub struct Args {
     #[arg(long, default_value = "4096")]
     pub queue_depth: usize,
 
-    /// Maximum files in flight per CPU core
+    /// Maximum total files in flight (across all CPU cores)
+    ///
+    /// Controls memory usage and system load by limiting the total number of
+    /// files being copied simultaneously. Higher values increase throughput
+    /// but consume more memory and file descriptors.
+    ///
+    /// Default: 1024
+    /// High-performance (`NVMe`, 32GB+ RAM): 2048-4096
+    /// Conservative (`HDD`, limited RAM): 256-512
     #[arg(long, default_value = "1024")]
     pub max_files_in_flight: usize,
 
