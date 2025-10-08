@@ -1,3 +1,7 @@
+*Read this in other languages: [English](README.md) | [Pirate 🏴‍☠️](docs/pirate/README.pirate.md)*
+
+---
+
 # compio-fs-extended
 
 Extended filesystem operations for compio with support for copy_file_range, fadvise, symlinks, hardlinks, and extended attributes.

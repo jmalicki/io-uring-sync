@@ -11,16 +11,23 @@ mod cli;
 mod copy;
 mod directory;
 mod error;
+mod i18n;
 mod io_uring;
 mod progress;
 mod sync;
 
 use cli::Args;
+use i18n::{set_language, Language, TranslationKey};
 
 #[compio::main]
 async fn main() -> Result<()> {
     // Parse command line arguments
     let args = Args::parse();
+
+    // Set language based on --pirate flag
+    if args.pirate {
+        set_language(Language::Pirate);
+    }
 
     // Initialize logging based on verbosity and quiet mode
     if args.quiet {
@@ -47,9 +54,21 @@ async fn main() -> Result<()> {
 
     // Log startup information (unless in quiet mode)
     if !args.quiet {
-        info!("Starting arsync v{}", env!("CARGO_PKG_VERSION"));
-        info!("Source: {}", args.source.display());
-        info!("Destination: {}", args.destination.display());
+        info!(
+            "{}: arsync v{}",
+            TranslationKey::InfoStartingCopy.get(),
+            env!("CARGO_PKG_VERSION")
+        );
+        info!(
+            "{}: {}",
+            TranslationKey::HelpSource.get(),
+            args.source.display()
+        );
+        info!(
+            "{}: {}",
+            TranslationKey::HelpDestination.get(),
+            args.destination.display()
+        );
         info!("Copy method: {:?}", args.copy_method);
         info!("Queue depth: {}", args.queue_depth);
         info!("CPU count: {}", args.effective_cpu_count());
@@ -65,14 +84,24 @@ async fn main() -> Result<()> {
 
     match result {
         Ok(stats) => {
-            info!("Sync completed successfully");
-            info!("Files copied: {}", stats.files_copied);
-            info!("Bytes copied: {}", stats.bytes_copied);
+            info!("{}", TranslationKey::StatusComplete.get());
+            info!(
+                "{} {}: {}",
+                TranslationKey::ProgressFiles.get(),
+                TranslationKey::ProgressCompleted.get(),
+                stats.files_copied
+            );
+            info!(
+                "{} {}: {}",
+                TranslationKey::ProgressBytes.get(),
+                TranslationKey::ProgressCompleted.get(),
+                stats.bytes_copied
+            );
             info!("Duration: {:?}", stats.duration);
             Ok(())
         }
         Err(e) => {
-            eprintln!("Error: {e}");
+            eprintln!("{}: {e}", TranslationKey::StatusFailed.get());
             std::process::exit(1);
         }
     }

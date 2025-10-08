@@ -19,30 +19,8 @@ fn create_args_no_metadata() -> Args {
     Args {
         source: PathBuf::from("/test/source"),
         destination: PathBuf::from("/test/dest"),
-        queue_depth: 4096,
-        max_files_in_flight: 1024,
-        cpu_count: 1,
-        buffer_size_kb: 64,
-        copy_method: CopyMethod::Auto,
-        archive: false, // No archive mode
-        recursive: false,
-        links: false,
-        perms: false, // No permission preservation
-        times: false, // No timestamp preservation
-        group: false, // No group preservation
-        owner: false, // No owner preservation
-        devices: false,
-        xattrs: false, // No xattr preservation
-        acls: false,
-        hard_links: false,
-        atimes: false,
-        crtimes: false,
-        preserve_xattr: false,
-        preserve_acl: false,
-        dry_run: false,
-        progress: false,
-        verbose: 0,
-        quiet: false,
+        // All metadata flags default to false via Default::default()
+        ..Default::default()
     }
 }
 

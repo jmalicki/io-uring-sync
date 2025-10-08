@@ -115,6 +115,10 @@ pub struct Args {
     /// Quiet mode (suppress all output except errors)
     #[arg(short, long)]
     pub quiet: bool,
+
+    /// Enable pirate speak (arrr! 🏴‍☠️)
+    #[arg(long, default_value = "false")]
+    pub pirate: bool,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -127,6 +131,46 @@ pub enum CopyMethod {
     Splice,
     /// Use traditional read/write operations
     ReadWrite,
+}
+
+impl Default for CopyMethod {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl Default for Args {
+    fn default() -> Self {
+        Self {
+            source: std::path::PathBuf::from("/default/source"),
+            destination: std::path::PathBuf::from("/default/destination"),
+            queue_depth: 4096,
+            max_files_in_flight: 1024,
+            cpu_count: 0,
+            buffer_size_kb: 0,
+            copy_method: CopyMethod::Auto,
+            archive: false,
+            recursive: false,
+            links: false,
+            perms: false,
+            times: false,
+            group: false,
+            owner: false,
+            devices: false,
+            xattrs: false,
+            acls: false,
+            hard_links: false,
+            atimes: false,
+            crtimes: false,
+            preserve_xattr: false,
+            preserve_acl: false,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+            pirate: false,
+        }
+    }
 }
 
 impl Args {
@@ -383,6 +427,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            pirate: false,
         };
 
         assert!(args.validate().is_ok());
@@ -418,6 +463,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            pirate: false,
         };
 
         assert!(args.validate().is_ok());
@@ -452,6 +498,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            pirate: false,
         };
 
         assert!(args.validate().is_err());
