@@ -68,9 +68,14 @@ use std::task::{Context, Poll, Waker};
 /// ```
 #[derive(Clone)]
 pub struct Semaphore {
+    /// Shared state between all clones of this semaphore
     inner: Arc<SemaphoreInner>,
 }
 
+/// Internal shared state for the semaphore
+///
+/// This structure contains the atomic permit counter and the queue of waiting tasks.
+/// It is wrapped in an Arc to allow the Semaphore to be cloned cheaply.
 struct SemaphoreInner {
     /// Available permits (atomic for lock-free operations)
     permits: AtomicUsize,
@@ -277,6 +282,7 @@ impl Semaphore {
 /// # }
 /// ```
 pub struct SemaphorePermit {
+    /// Reference to the semaphore that issued this permit
     semaphore: Semaphore,
 }
 
@@ -293,6 +299,7 @@ impl Drop for SemaphorePermit {
 /// 2. If no permits, register the task's waker and return `Poll::Pending`
 /// 3. When a permit is released, the waker is called and the future retries
 struct AcquireFuture {
+    /// The semaphore from which to acquire a permit
     semaphore: Semaphore,
 }
 
