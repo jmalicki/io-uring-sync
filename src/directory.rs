@@ -10,6 +10,7 @@ use crate::error::{Result, SyncError};
 use crate::io_uring::FileOperations;
 // io_uring_extended removed - using compio directly
 use compio::dispatcher::Dispatcher;
+use compio_sync::Semaphore;
 #[allow(clippy::disallowed_types)]
 use std::collections::HashMap;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -370,6 +371,52 @@ impl SharedHardlinkTracker {
     }
 }
 
+/// Wrapper for shared semaphore to limit concurrent operations
+///
+/// This struct wraps a `Semaphore` in an `Arc` to allow shared access
+/// across multiple async tasks dispatched by compio's dispatcher. It provides
+/// concurrency control to prevent unbounded queue growth during BFS traversal.
+///
+/// # Thread Safety
+///
+/// The semaphore is thread-safe and can be used concurrently from different
+/// async tasks without additional synchronization.
+///
+/// # Usage
+///
+/// ```rust,ignore
+/// let semaphore = SharedSemaphore::new(100);
+/// let permit = semaphore.acquire().await;
+/// // ... perform bounded concurrent operation ...
+/// drop(permit); // Release permit
+/// ```
+#[derive(Clone)]
+pub struct SharedSemaphore {
+    /// Inner semaphore wrapped in Arc for shared access
+    inner: Arc<Semaphore>,
+}
+
+impl SharedSemaphore {
+    /// Create a new `SharedSemaphore` wrapper
+    ///
+    /// # Arguments
+    ///
+    /// * `permits` - The maximum number of concurrent permits
+    #[must_use]
+    pub fn new(permits: usize) -> Self {
+        Self {
+            inner: Arc::new(Semaphore::new(permits)),
+        }
+    }
+
+    /// Acquire a permit from the semaphore
+    ///
+    /// This will block until a permit is available.
+    pub async fn acquire(&self) -> compio_sync::SemaphorePermit {
+        self.inner.acquire().await
+    }
+}
+
 /// Extended metadata using `std::fs` metadata support
 #[derive(Debug)]
 pub struct ExtendedMetadata {
@@ -626,6 +673,10 @@ async fn traverse_and_copy_directory_iterative(
     let shared_stats = SharedStats::new(std::mem::take(stats));
     let shared_hardlink_tracker = SharedHardlinkTracker::new(std::mem::take(hardlink_tracker));
 
+    // Create semaphore for bounding concurrent operations
+    // This prevents unbounded queue growth during BFS directory traversal
+    let semaphore = SharedSemaphore::new(args.max_files_in_flight);
+
     // Process the directory
     let result = process_directory_entry_with_compio(
         dispatcher,
@@ -635,6 +686,7 @@ async fn traverse_and_copy_directory_iterative(
         _copy_method,
         shared_stats.clone(),
         shared_hardlink_tracker.clone(),
+        semaphore,
         args_static,
     )
     .await;
@@ -699,8 +751,14 @@ async fn process_directory_entry_with_compio(
     _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
+    semaphore: SharedSemaphore,
     args: &'static Args,
 ) -> Result<()> {
+    // Acquire semaphore permit to bound concurrent operations
+    // This prevents unbounded queue growth during BFS traversal
+    // The permit is held for the entire operation (directory, file, or symlink)
+    let _permit = semaphore.acquire().await;
+
     // Get comprehensive metadata using compio's async operations
     let extended_metadata = ExtendedMetadata::new(&src_path).await?;
 
@@ -765,6 +823,7 @@ async fn process_directory_entry_with_compio(
             let copy_method = copy_method.clone();
             let stats = stats.clone();
             let hardlink_tracker = hardlink_tracker.clone();
+            let semaphore = semaphore.clone();
             let receiver = dispatcher
                 .dispatch(move || {
                     process_directory_entry_with_compio(
@@ -775,6 +834,7 @@ async fn process_directory_entry_with_compio(
                         copy_method,
                         stats,
                         hardlink_tracker,
+                        semaphore,
                         args,
                     )
                 })
