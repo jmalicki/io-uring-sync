@@ -1,4 +1,4 @@
-# arsync
+# ![arsync](arsync.png "arsync")
 
 **arsync** = **a**synchronous **rsync** (the "a" stands for asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
 
