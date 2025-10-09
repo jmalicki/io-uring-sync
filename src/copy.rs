@@ -249,7 +249,7 @@ async fn copy_read_write(src: &Path, dst: &Path, args: &Args) -> Result<()> {
     }
 
     if args.should_preserve_timestamps() {
-        set_dst_timestamps(dst, src_accessed, src_modified).await?;
+        preserve_timestamps_from_fd(&dst_file, src_accessed, src_modified).await?;
     }
 
     tracing::debug!(
@@ -358,14 +358,9 @@ pub async fn preserve_xattr_from_fd(
     Ok(())
 }
 
-/// Set destination timestamps to the provided accessed/modified values
-async fn set_dst_timestamps(dst: &Path, accessed: SystemTime, modified: SystemTime) -> Result<()> {
-    preserve_timestamps_nanoseconds(dst, accessed, modified).await
-}
-
-/// Get precise timestamps using `statx` when available (fallback to `stat`) for nanosecond precision
+/// Get precise timestamps using `io_uring` `IORING_OP_STATX` with nanosecond precision
 ///
-/// This function uses the stat system call to get timestamps with full
+/// This function uses `io_uring` `IORING_OP_STATX` to get timestamps with full
 /// nanosecond precision, which is more accurate than `std::fs::metadata()`.
 ///
 /// # Arguments
@@ -375,160 +370,45 @@ async fn set_dst_timestamps(dst: &Path, accessed: SystemTime, modified: SystemTi
 /// # Returns
 ///
 /// Returns `Ok((accessed, modified))` if timestamps were read successfully, or `Err(SyncError)` if failed.
+#[allow(clippy::future_not_send)]
 async fn get_precise_timestamps(path: &Path) -> Result<(SystemTime, SystemTime)> {
-    use std::ffi::CString;
-    use std::os::unix::ffi::OsStrExt;
-
-    // Convert path to CString for syscall
-    let path_cstr = CString::new(path.as_os_str().as_bytes())
-        .map_err(|e| SyncError::FileSystem(format!("Invalid path for timestamp reading: {e}")))?;
-
-    // Prefer statx when available
-    let statx_result: Result<(SystemTime, SystemTime)> = compio::runtime::spawn_blocking({
-        let path_cstr = path_cstr.clone();
-        move || {
-            let path_ptr = path_cstr.as_ptr();
-            // statx flags: AT_FDCWD, path, AT_SYMLINK_NOFOLLOW (0), STATX_BASIC_STATS
-            let mut buf: libc::statx = unsafe { std::mem::zeroed() };
-            let rc = unsafe {
-                libc::statx(
-                    libc::AT_FDCWD,
-                    path_ptr,
-                    0,
-                    0x0000_07ffu32 as libc::c_uint,
-                    &raw mut buf,
-                )
-            };
-            if rc == 0 {
-                // Use stx_atime and stx_mtime with nanoseconds
-                let atime_secs = u64::try_from(buf.stx_atime.tv_sec).unwrap_or(0);
-                let atime_nanos = buf.stx_atime.tv_nsec;
-                let mtime_secs = u64::try_from(buf.stx_mtime.tv_sec).unwrap_or(0);
-                let mtime_nanos = buf.stx_mtime.tv_nsec;
-                let atime =
-                    SystemTime::UNIX_EPOCH + std::time::Duration::new(atime_secs, atime_nanos);
-                let mtime =
-                    SystemTime::UNIX_EPOCH + std::time::Duration::new(mtime_secs, mtime_nanos);
-                Ok((atime, mtime))
-            } else {
-                let errno = std::io::Error::last_os_error();
-                Err(SyncError::FileSystem(format!(
-                    "statx failed: {errno} (errno: {})",
-                    errno.raw_os_error().unwrap_or(-1)
-                )))
-            }
-        }
-    })
-    .await
-    .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?;
-
-    match statx_result {
-        Ok(r) => Ok(r),
-        Err(_) => {
-            // Fallback to stat
-            compio::runtime::spawn_blocking(move || {
-                let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
-                let result = unsafe { libc::stat(path_cstr.as_ptr(), &raw mut stat_buf) };
-
-                if result == -1 {
-                    let errno = std::io::Error::last_os_error();
-                    Err(SyncError::FileSystem(format!(
-                        "stat failed: {errno} (errno: {})",
-                        errno.raw_os_error().unwrap_or(-1)
-                    )))
-                } else {
-                    // Convert timespec to SystemTime
-                    let accessed_nanos: u32 = u32::try_from(stat_buf.st_atime_nsec).unwrap_or(0);
-                    let modified_nanos: u32 = u32::try_from(stat_buf.st_mtime_nsec).unwrap_or(0);
-                    #[allow(clippy::cast_sign_loss)]
-                    let accessed = SystemTime::UNIX_EPOCH
-                        + std::time::Duration::new(stat_buf.st_atime as u64, accessed_nanos);
-                    #[allow(clippy::cast_sign_loss)]
-                    let modified = SystemTime::UNIX_EPOCH
-                        + std::time::Duration::new(stat_buf.st_mtime as u64, modified_nanos);
-                    Ok((accessed, modified))
-                }
-            })
-            .await
-            .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?
-        }
-    }
+    // Use io_uring STATX from compio-fs-extended for nanosecond precision
+    compio_fs_extended::metadata::statx_at(path)
+        .await
+        .map_err(|e| SyncError::FileSystem(format!("Failed to get precise timestamps: {e}")))
 }
 
-/// Preserve timestamps with nanosecond precision using utimensat
+/// Preserve timestamps using file descriptor with nanosecond precision
 ///
-/// This function uses the `utimensat` system call to preserve timestamps with
-/// nanosecond precision, which is more accurate than the standard `utimes`.
+/// This function uses FD-based `futimens` to preserve timestamps with
+/// nanosecond precision. Using file descriptors avoids TOCTOU race conditions
+/// and is more efficient than path-based operations.
+///
+/// NOTE: Kernel doesn't have `IORING_OP_FUTIMENS` - using safe nix wrapper.
 ///
 /// # Arguments
 ///
-/// * `path` - File path to set timestamps on
+/// * `dst_file` - Destination file descriptor
 /// * `accessed` - Access time
 /// * `modified` - Modification time
 ///
 /// # Returns
 ///
 /// Returns `Ok(())` if timestamps were set successfully, or `Err(SyncError)` if failed.
-async fn preserve_timestamps_nanoseconds(
-    path: &Path,
+#[allow(clippy::future_not_send)]
+async fn preserve_timestamps_from_fd(
+    dst_file: &compio::fs::File,
     accessed: SystemTime,
     modified: SystemTime,
 ) -> Result<()> {
-    use std::ffi::CString;
-    use std::os::unix::ffi::OsStrExt;
+    use std::os::fd::AsRawFd;
 
-    // Convert path to CString for syscall
-    let path_cstr = CString::new(path.as_os_str().as_bytes()).map_err(|e| {
-        SyncError::FileSystem(format!("Invalid path for timestamp preservation: {e}"))
-    })?;
+    let fd = dst_file.as_raw_fd();
 
-    // Convert SystemTime to timespec with nanosecond precision
-    let accessed_timespec = system_time_to_timespec(accessed);
-    let modified_timespec = system_time_to_timespec(modified);
-
-    // Create timespec array for utimensat
-    let times = [accessed_timespec, modified_timespec];
-
-    // Use spawn_blocking for the syscall since compio doesn't have utimensat support
-    compio::runtime::spawn_blocking(move || {
-        let result = unsafe {
-            libc::utimensat(
-                libc::AT_FDCWD,
-                path_cstr.as_ptr(),
-                times.as_ptr(),
-                0, // flags
-            )
-        };
-
-        if result == -1 {
-            let errno = std::io::Error::last_os_error();
-            Err(SyncError::FileSystem(format!(
-                "utimensat failed: {errno} (errno: {})",
-                errno.raw_os_error().unwrap_or(-1)
-            )))
-        } else {
-            Ok(())
-        }
-    })
-    .await
-    .map_err(|e| SyncError::FileSystem(format!("spawn_blocking failed: {e:?}")))?
-}
-
-/// Convert `SystemTime` to `libc::timespec` with nanosecond precision
-///
-/// This function extracts the nanosecond component from `SystemTime` and creates
-/// a timespec structure suitable for `utimensat`.
-fn system_time_to_timespec(time: SystemTime) -> libc::timespec {
-    let duration = time
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-
-    #[allow(clippy::cast_possible_wrap)]
-    let tv_sec = duration.as_secs() as libc::time_t;
-    libc::timespec {
-        tv_sec,
-        tv_nsec: libc::c_long::from(duration.subsec_nanos()),
-    }
+    // Use FD-based futimens from compio-fs-extended (uses nix wrapper, more secure than path-based)
+    compio_fs_extended::metadata::futimens_fd(fd, accessed, modified)
+        .await
+        .map_err(|e| SyncError::FileSystem(format!("Failed to preserve timestamps: {e}")))
 }
 
 #[cfg(test)]
@@ -537,7 +417,7 @@ mod tests {
     use crate::cli::CopyMethod;
     use std::fs;
     use std::path::PathBuf;
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
     use tempfile::TempDir;
 
     /// Create a default Args struct for testing with archive mode enabled
@@ -838,36 +718,6 @@ mod tests {
         // Verify file is empty
         let copied_content = fs::read_to_string(&dst_path).unwrap();
         assert_eq!(copied_content, "", "Empty file should remain empty");
-    }
-
-    #[test]
-    fn test_system_time_to_timespec() {
-        let now = SystemTime::now();
-        let timespec = system_time_to_timespec(now);
-
-        // Verify that the conversion produces reasonable values
-        assert!(timespec.tv_sec > 0, "Seconds should be positive");
-        assert!(timespec.tv_nsec >= 0, "Nanoseconds should be non-negative");
-        assert!(
-            timespec.tv_nsec < 1_000_000_000,
-            "Nanoseconds should be less than 1 billion"
-        );
-    }
-
-    #[test]
-    fn test_system_time_to_timespec_precision() {
-        let now = SystemTime::now();
-        let timespec = system_time_to_timespec(now);
-
-        // Test that we can reconstruct the original time with high precision
-        let reconstructed =
-            SystemTime::UNIX_EPOCH + Duration::new(timespec.tv_sec as u64, timespec.tv_nsec as u32);
-
-        let diff = now.duration_since(reconstructed).unwrap_or_default();
-        assert!(
-            diff.as_micros() < 1000,
-            "Reconstruction should be accurate within 1ms"
-        );
     }
 
     #[compio::test]

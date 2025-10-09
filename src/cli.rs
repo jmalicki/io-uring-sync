@@ -10,11 +10,11 @@ use std::path::PathBuf;
 #[allow(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Source directory or file
-    #[arg(short, long)]
+    #[arg(value_name = "SOURCE")]
     pub source: PathBuf,
 
     /// Destination directory or file
-    #[arg(short, long)]
+    #[arg(value_name = "DESTINATION")]
     pub destination: PathBuf,
 
     /// Queue depth for `io_uring` operations
