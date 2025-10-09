@@ -4,6 +4,7 @@
 //! with rsync processes. rsync uses a multiplexed I/O protocol with message tags.
 
 use crate::protocol::transport::{self, Transport};
+use crate::protocol::varint;
 use anyhow::Result;
 use tracing::{debug, warn};
 
@@ -153,6 +154,130 @@ pub async fn read_data<T: Transport>(transport: &mut T, buffer: &mut [u8]) -> Re
 /// Write data with multiplexed protocol
 pub async fn write_data<T: Transport>(transport: &mut T, data: &[u8]) -> Result<()> {
     write_mplex_message(transport, MessageTag::Data, data).await
+}
+
+/// Multiplexed reader with buffering
+pub struct MultiplexReader<T: Transport> {
+    transport: T,
+    buffer: Vec<u8>,
+    buffer_pos: usize,
+}
+
+impl<T: Transport> MultiplexReader<T> {
+    pub fn new(transport: T) -> Self {
+        Self {
+            transport,
+            buffer: Vec::new(),
+            buffer_pos: 0,
+        }
+    }
+
+    /// Read next multiplexed message
+    pub async fn read_message(&mut self) -> Result<MultiplexMessage> {
+        read_mplex_message(&mut self.transport).await
+    }
+
+    /// Read data message, skipping INFO/LOG messages
+    pub async fn read_data(&mut self, buf: &mut [u8]) -> Result<usize> {
+        loop {
+            let msg = self.read_message().await?;
+
+            match msg.tag {
+                MessageTag::Data => {
+                    let copy_len = msg.data.len().min(buf.len());
+                    buf[..copy_len].copy_from_slice(&msg.data[..copy_len]);
+                    return Ok(copy_len);
+                }
+                MessageTag::Info | MessageTag::Log => {
+                    if let Ok(text) = String::from_utf8(msg.data) {
+                        debug!("rsync: {}", text.trim());
+                    }
+                }
+                MessageTag::Error | MessageTag::ErrorXfer => {
+                    let error_msg = String::from_utf8_lossy(&msg.data);
+                    anyhow::bail!("rsync error: {}", error_msg);
+                }
+                MessageTag::Warning => {
+                    let warn_msg = String::from_utf8_lossy(&msg.data);
+                    warn!("rsync warning: {}", warn_msg);
+                }
+                _ => {
+                    debug!("Ignoring rsync message tag: {:?}", msg.tag);
+                }
+            }
+        }
+    }
+
+    /// Expect a specific message tag
+    pub async fn expect_tag(&mut self, expected: MessageTag) -> Result<Vec<u8>> {
+        let msg = self.read_message().await?;
+
+        if msg.tag == expected {
+            Ok(msg.data)
+        } else {
+            anyhow::bail!("Expected tag {:?}, got {:?}", expected, msg.tag);
+        }
+    }
+
+    /// Read multiple messages until end marker
+    pub async fn read_until_empty(&mut self, expected_tag: MessageTag) -> Result<Vec<Vec<u8>>> {
+        let mut messages = Vec::new();
+
+        loop {
+            let msg = self.read_message().await?;
+
+            if msg.tag != expected_tag {
+                anyhow::bail!("Expected tag {:?}, got {:?}", expected_tag, msg.tag);
+            }
+
+            if msg.data.is_empty() {
+                // Empty message = end marker
+                break;
+            }
+
+            messages.push(msg.data);
+        }
+
+        Ok(messages)
+    }
+}
+
+/// Multiplexed writer
+pub struct MultiplexWriter<T: Transport> {
+    transport: T,
+}
+
+impl<T: Transport> MultiplexWriter<T> {
+    pub fn new(transport: T) -> Self {
+        Self { transport }
+    }
+
+    /// Write a tagged message
+    pub async fn write_message(&mut self, tag: MessageTag, data: &[u8]) -> Result<()> {
+        write_mplex_message(&mut self.transport, tag, data).await
+    }
+
+    /// Write data message
+    pub async fn write_data(&mut self, data: &[u8]) -> Result<()> {
+        self.write_message(MessageTag::Data, data).await
+    }
+
+    /// Write info message
+    pub async fn write_info(&mut self, message: &str) -> Result<()> {
+        self.write_message(MessageTag::Info, message.as_bytes())
+            .await
+    }
+
+    /// Write error message
+    pub async fn write_error(&mut self, message: &str) -> Result<()> {
+        self.write_message(MessageTag::Error, message.as_bytes())
+            .await
+    }
+
+    /// Flush underlying transport
+    pub async fn flush(&mut self) -> Result<()> {
+        self.transport.flush().await
+    }
 }
 
 #[cfg(test)]
