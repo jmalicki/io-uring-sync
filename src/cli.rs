@@ -178,6 +178,13 @@ pub struct Args {
     /// Pipe role: sender or receiver
     #[arg(long, requires = "pipe", value_enum)]
     pub pipe_role: Option<PipeRole>,
+
+    /// Use rsync wire protocol format (for testing compatibility with rsync)
+    ///
+    /// When set, uses rsync's multiplexed I/O, varint encoding, and message tags.
+    /// Without this flag, uses arsync's simpler native protocol.
+    #[arg(long, requires = "pipe")]
+    pub rsync_compat: bool,
 }
 
 /// Role in pipe mode
@@ -576,6 +583,7 @@ impl Args {
             daemon: false,
             pipe: false,
             pipe_role: None,
+            rsync_compat: false,
         }
     }
 }

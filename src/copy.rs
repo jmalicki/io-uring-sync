@@ -577,6 +577,7 @@ mod tests {
             daemon: false,
             pipe: false,
             pipe_role: None,
+            rsync_compat: false,
         }
     }
 

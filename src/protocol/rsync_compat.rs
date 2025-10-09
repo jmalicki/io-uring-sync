@@ -3,12 +3,19 @@
 //! This module implements the actual rsync wire protocol for interoperability
 //! with rsync processes. rsync uses a multiplexed I/O protocol with message tags.
 
+use crate::cli::Args;
+use crate::protocol::pipe::PipeTransport;
 use crate::protocol::rsync::FileEntry;
 use crate::protocol::transport::{self, Transport};
 use crate::protocol::varint::{self, encode_varint, encode_varint_into};
+use crate::sync::SyncStats;
 use anyhow::Result;
+use std::fs;
 use std::io::Cursor;
-use tracing::{debug, warn};
+use std::path::Path;
+use std::time::Instant;
+use tracing::{debug, info, warn};
+use walkdir;
 
 /// rsync protocol uses multiplexed I/O with tags
 /// Tag values from rsync source code (io.c)
@@ -476,6 +483,277 @@ fn decode_varint_sync(reader: &mut Cursor<&[u8]>) -> Result<u64> {
     }
 
     Ok(result)
+}
+
+// ============================================================================
+// rsync-Compatible Pipe Mode (File List Exchange Only - Minimal)
+// ============================================================================
+
+/// Receive files from rsync sender (file list only - minimal implementation)
+pub async fn rsync_receive_via_pipe(
+    _args: &Args,
+    transport: PipeTransport,
+    dest_path: &Path,
+) -> Result<SyncStats> {
+    let start = Instant::now();
+    info!("rsync-compat receiver: Starting (file list only)");
+
+    // Wrap transport in multiplex reader
+    let mut reader = MultiplexReader::new(transport);
+
+    // Phase 1: Handshake (simplified - just version, no seed yet)
+    debug!("rsync-compat: Reading version from rsync sender");
+    // rsync sends version as raw byte (NOT tagged)
+    // We need to read it directly from transport, not via multiplex
+    // TODO: This is a challenge - need access to raw transport
+
+    // Phase 2: Receive file list
+    info!("rsync-compat: Receiving file list from rsync");
+    let files = decode_file_list_rsync(&mut reader).await?;
+    info!("rsync-compat: Received {} files from rsync", files.len());
+
+    // Print file list for validation
+    for file in &files {
+        info!(
+            "  File: {} ({} bytes, mode {:o})",
+            file.path, file.size, file.mode
+        );
+    }
+
+    // Phase 3: For now, just create empty files (no actual transfer yet)
+    info!("rsync-compat: Creating file structure (no content yet)");
+    for file in &files {
+        let file_path = dest_path.join(&file.path);
+
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        if file.is_symlink {
+            if let Some(ref target) = file.symlink_target {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs as unix_fs;
+                    unix_fs::symlink(target, &file_path)?;
+                }
+            }
+        } else {
+            // Create empty placeholder
+            fs::write(&file_path, b"")?;
+        }
+    }
+
+    info!("rsync-compat: File list exchange complete (content transfer not implemented)");
+
+    Ok(SyncStats {
+        files_copied: files.len() as u64,
+        bytes_copied: 0, // No actual content transferred yet
+        duration: start.elapsed(),
+    })
+}
+
+/// Send files to rsync receiver (file list only - minimal implementation)
+pub async fn rsync_send_via_pipe(
+    args: &Args,
+    source_path: &Path,
+    mut transport: PipeTransport,
+) -> Result<SyncStats> {
+    let start = Instant::now();
+    info!("rsync-compat sender: Starting (file list only)");
+
+    // Wrap transport in multiplex writer
+    let mut writer = MultiplexWriter::new(transport);
+
+    // Phase 1: Handshake (simplified)
+    // TODO: Send version byte (untagged)
+    debug!("rsync-compat: Sending handshake");
+
+    // Phase 2: Generate and send file list
+    info!(
+        "rsync-compat: Generating file list from {}",
+        source_path.display()
+    );
+    let files = generate_file_list_simple(source_path, args)?;
+    info!("rsync-compat: Sending {} files to rsync", files.len());
+
+    encode_file_list_rsync(&mut writer, &files).await?;
+
+    info!("rsync-compat: File list sent");
+
+    // Phase 3: For now, no actual file transfer
+    info!("rsync-compat: File list exchange complete (content transfer not implemented)");
+
+    Ok(SyncStats {
+        files_copied: files.len() as u64,
+        bytes_copied: 0, // No actual content transferred yet
+        duration: start.elapsed(),
+    })
+}
+
+/// Generate file list (reuse from rsync.rs)
+fn generate_file_list_simple(path: &Path, args: &Args) -> Result<Vec<FileEntry>> {
+    let mut files = Vec::new();
+
+    if path.is_file() {
+        let metadata = fs::metadata(path)?;
+        files.push(FileEntry {
+            path: path
+                .file_name()
+                .ok_or_else(|| anyhow::anyhow!("No filename"))?
+                .to_string_lossy()
+                .to_string(),
+            size: metadata.len(),
+            mtime: metadata
+                .modified()?
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs() as i64,
+            mode: {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    metadata.permissions().mode()
+                }
+                #[cfg(not(unix))]
+                {
+                    0o644
+                }
+            },
+            uid: {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::MetadataExt;
+                    metadata.uid()
+                }
+                #[cfg(not(unix))]
+                {
+                    0
+                }
+            },
+            gid: {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::MetadataExt;
+                    metadata.gid()
+                }
+                #[cfg(not(unix))]
+                {
+                    0
+                }
+            },
+            is_symlink: false,
+            symlink_target: None,
+        });
+    } else if path.is_dir() && args.should_recurse() {
+        for entry in walkdir::WalkDir::new(path) {
+            let entry = entry?;
+            let metadata = entry.metadata()?;
+
+            if metadata.is_file() {
+                let rel_path = entry
+                    .path()
+                    .strip_prefix(path)?
+                    .to_string_lossy()
+                    .to_string();
+
+                files.push(FileEntry {
+                    path: rel_path,
+                    size: metadata.len(),
+                    mtime: metadata
+                        .modified()?
+                        .duration_since(std::time::UNIX_EPOCH)?
+                        .as_secs() as i64,
+                    mode: {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            metadata.permissions().mode()
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            0o644
+                        }
+                    },
+                    uid: {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::MetadataExt;
+                            metadata.uid()
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            0
+                        }
+                    },
+                    gid: {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::MetadataExt;
+                            metadata.gid()
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            0
+                        }
+                    },
+                    is_symlink: false,
+                    symlink_target: None,
+                });
+            } else if metadata.is_symlink() {
+                let symlink_target = fs::read_link(entry.path())?.to_string_lossy().to_string();
+                let rel_path = entry
+                    .path()
+                    .strip_prefix(path)?
+                    .to_string_lossy()
+                    .to_string();
+
+                files.push(FileEntry {
+                    path: rel_path,
+                    size: 0,
+                    mtime: metadata
+                        .modified()?
+                        .duration_since(std::time::UNIX_EPOCH)?
+                        .as_secs() as i64,
+                    mode: {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            metadata.permissions().mode()
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            0o120777
+                        }
+                    },
+                    uid: {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::MetadataExt;
+                            metadata.uid()
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            0
+                        }
+                    },
+                    gid: {
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::MetadataExt;
+                            metadata.gid()
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            0
+                        }
+                    },
+                    is_symlink: true,
+                    symlink_target: Some(symlink_target),
+                });
+            }
+        }
+    }
+
+    Ok(files)
 }
 
 #[cfg(test)]

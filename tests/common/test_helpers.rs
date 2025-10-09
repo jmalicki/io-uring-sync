@@ -40,6 +40,7 @@ pub fn create_test_args(source: PathBuf, destination: PathBuf) -> Args {
         daemon: false,
         pipe: false,
         pipe_role: None,
+        rsync_compat: false,
     }
 }
 

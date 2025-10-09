@@ -111,8 +111,14 @@ pub async fn pipe_sender(args: &Args, source: &Location) -> Result<SyncStats> {
     // Create pipe transport from stdin/stdout
     let transport = pipe::PipeTransport::from_stdio()?;
 
-    // Send via rsync protocol
-    rsync::send_via_pipe(args, source_path, transport).await
+    // Choose protocol based on --rsync-compat flag
+    if args.rsync_compat {
+        // Use rsync wire protocol
+        rsync_compat::rsync_send_via_pipe(args, source_path, transport).await
+    } else {
+        // Use arsync native protocol
+        rsync::send_via_pipe(args, source_path, transport).await
+    }
 }
 
 /// Pipe receiver mode (for protocol testing)
@@ -127,6 +133,12 @@ pub async fn pipe_receiver(args: &Args, destination: &Location) -> Result<SyncSt
     // Create pipe transport from stdin/stdout
     let transport = pipe::PipeTransport::from_stdio()?;
 
-    // Receive via rsync protocol
-    rsync::receive_via_pipe(args, transport, dest_path).await
+    // Choose protocol based on --rsync-compat flag
+    if args.rsync_compat {
+        // Use rsync wire protocol
+        rsync_compat::rsync_receive_via_pipe(args, transport, dest_path).await
+    } else {
+        // Use arsync native protocol
+        rsync::receive_via_pipe(args, transport, dest_path).await
+    }
 }
