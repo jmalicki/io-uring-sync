@@ -621,7 +621,7 @@ async fn receive_file_list_simple<T: Transport>(transport: &mut T) -> Result<Vec
 // ============================================================================
 
 /// Generate block checksums for a file (receiver side)
-fn generate_block_checksums(data: &[u8], block_size: usize) -> Result<Vec<BlockChecksum>> {
+pub fn generate_block_checksums(data: &[u8], block_size: usize) -> Result<Vec<BlockChecksum>> {
     let mut checksums = Vec::new();
     let mut offset = 0;
     let mut block_index = 0;
@@ -645,7 +645,7 @@ fn generate_block_checksums(data: &[u8], block_size: usize) -> Result<Vec<BlockC
 }
 
 /// Generate delta by finding matching blocks (sender side)
-fn generate_delta(data: &[u8], checksums: &[BlockChecksum]) -> Result<Vec<DeltaInstruction>> {
+pub fn generate_delta(data: &[u8], checksums: &[BlockChecksum]) -> Result<Vec<DeltaInstruction>> {
     if checksums.is_empty() {
         // No basis, send everything
         return Ok(vec![DeltaInstruction::Literal(data.to_vec())]);
@@ -719,7 +719,7 @@ fn generate_delta(data: &[u8], checksums: &[BlockChecksum]) -> Result<Vec<DeltaI
 }
 
 /// Apply delta to reconstruct file (receiver side)
-fn apply_delta(
+pub fn apply_delta(
     basis: Option<&[u8]>,
     delta: &[DeltaInstruction],
     checksums: &[BlockChecksum],

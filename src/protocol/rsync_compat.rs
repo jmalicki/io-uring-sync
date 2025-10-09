@@ -263,6 +263,45 @@ impl<T: Transport> MultiplexWriter<T> {
         Self { transport }
     }
 
+    /// Get mutable reference to underlying transport
+    pub fn transport_mut(&mut self) -> &mut T {
+        &mut self.transport
+    }
+}
+
+/// Bidirectional multiplex wrapper (can both read and write)
+pub struct Multiplex<T: Transport> {
+    transport: T,
+    read_buffer: Vec<u8>,
+    read_buffer_pos: usize,
+}
+
+impl<T: Transport> Multiplex<T> {
+    pub fn new(transport: T) -> Self {
+        Self {
+            transport,
+            read_buffer: Vec::new(),
+            read_buffer_pos: 0,
+        }
+    }
+
+    /// Read a multiplexed message
+    pub async fn read_message(&mut self) -> Result<MultiplexMessage> {
+        read_mplex_message(&mut self.transport).await
+    }
+
+    /// Write a multiplexed message
+    pub async fn write_message(&mut self, tag: MessageTag, data: &[u8]) -> Result<()> {
+        write_mplex_message(&mut self.transport, tag, data).await
+    }
+
+    /// Get mutable reference to underlying transport
+    pub fn transport_mut(&mut self) -> &mut T {
+        &mut self.transport
+    }
+}
+
+impl<T: Transport> MultiplexWriter<T> {
     /// Write a tagged message
     pub async fn write_message(&mut self, tag: MessageTag, data: &[u8]) -> Result<()> {
         write_mplex_message(&mut self.transport, tag, data).await
