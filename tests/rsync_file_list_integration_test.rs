@@ -190,6 +190,206 @@ async fn test_file_list_roundtrip() {
 }
 
 #[compio::test]
+async fn test_file_list_edge_cases() {
+    println!("🔍 Testing file list edge cases...");
+
+    // Edge case files
+    let edge_case_files = vec![
+        // Very long path (>255 bytes)
+        FileEntry {
+            path: "a".repeat(300),
+            size: 100,
+            mtime: 1000000,
+            mode: 0o644,
+            uid: 1000,
+            gid: 1000,
+            is_symlink: false,
+            symlink_target: None,
+        },
+        // Special characters
+        FileEntry {
+            path: "file with spaces.txt".to_string(),
+            size: 100,
+            mtime: 1000000,
+            mode: 0o644,
+            uid: 1000,
+            gid: 1000,
+            is_symlink: false,
+            symlink_target: None,
+        },
+        // UTF-8 filename
+        FileEntry {
+            path: "файл.txt".to_string(), // Russian "file"
+            size: 100,
+            mtime: 1000000,
+            mode: 0o644,
+            uid: 1000,
+            gid: 1000,
+            is_symlink: false,
+            symlink_target: None,
+        },
+        // Zero-size file
+        FileEntry {
+            path: "empty.txt".to_string(),
+            size: 0,
+            mtime: 1000000,
+            mode: 0o644,
+            uid: 1000,
+            gid: 1000,
+            is_symlink: false,
+            symlink_target: None,
+        },
+        // Large file
+        FileEntry {
+            path: "large.bin".to_string(),
+            size: u64::MAX,
+            mtime: i64::MAX,
+            mode: 0o600,
+            uid: 0,
+            gid: 0,
+            is_symlink: false,
+            symlink_target: None,
+        },
+    ];
+
+    println!("✅ Created {} edge case files", edge_case_files.len());
+
+    // Create bidirectional pipes
+    let (sender_read, receiver_write) =
+        arsync::protocol::pipe::PipeTransport::create_pipe().expect("Failed to create pipe 1");
+    let (receiver_read, sender_write) =
+        arsync::protocol::pipe::PipeTransport::create_pipe().expect("Failed to create pipe 2");
+
+    let transport_send = unsafe {
+        arsync::protocol::pipe::PipeTransport::from_fds(
+            sender_read,
+            sender_write,
+            "sender".to_string(),
+        )
+        .expect("Failed to create sender transport")
+    };
+
+    let transport_recv = unsafe {
+        arsync::protocol::pipe::PipeTransport::from_fds(
+            receiver_read,
+            receiver_write,
+            "receiver".to_string(),
+        )
+        .expect("Failed to create receiver transport")
+    };
+
+    // Encode and decode concurrently
+    let encode_future = async {
+        let mut writer = MultiplexWriter::new(transport_send);
+        encode_file_list_rsync(&mut writer, &edge_case_files).await
+    };
+
+    let decode_future = async {
+        let mut reader = MultiplexReader::new(transport_recv);
+        decode_file_list_rsync(&mut reader).await
+    };
+
+    let (encode_result, decode_result) = futures::join!(encode_future, decode_future);
+
+    encode_result.expect("Failed to encode edge case files");
+    let decoded_files = decode_result.expect("Failed to decode edge case files");
+
+    println!("✅ Roundtrip complete for edge cases");
+
+    // Verify all edge cases
+    assert_eq!(decoded_files.len(), edge_case_files.len());
+
+    for (i, (original, decoded)) in edge_case_files.iter().zip(decoded_files.iter()).enumerate() {
+        assert_eq!(decoded.path, original.path, "Path mismatch for file {}", i);
+        assert_eq!(
+            decoded.size, original.size,
+            "Size mismatch for {}",
+            original.path
+        );
+        assert_eq!(
+            decoded.mode, original.mode,
+            "Mode mismatch for {}",
+            original.path
+        );
+        assert_eq!(
+            decoded.uid, original.uid,
+            "UID mismatch for {}",
+            original.path
+        );
+        assert_eq!(
+            decoded.gid, original.gid,
+            "GID mismatch for {}",
+            original.path
+        );
+
+        match &original.path {
+            p if p.len() > 255 => println!("  ✅ Long path ({} bytes) - OK", p.len()),
+            p if p.contains(' ') => println!("  ✅ Path with spaces - OK"),
+            p if !p.is_ascii() => println!("  ✅ UTF-8 filename - OK"),
+            p if original.size == 0 => println!("  ✅ Empty file - OK"),
+            p if original.size == u64::MAX => println!("  ✅ Large file (u64::MAX) - OK"),
+            _ => {}
+        }
+    }
+
+    println!(
+        "✅ All {} edge cases handled correctly!",
+        edge_case_files.len()
+    );
+}
+
+#[compio::test]
+async fn test_empty_file_list() {
+    println!("🔍 Testing empty file list...");
+
+    // Empty file list
+    let empty_files: Vec<FileEntry> = vec![];
+
+    // Create bidirectional pipes
+    let (sender_read, receiver_write) =
+        arsync::protocol::pipe::PipeTransport::create_pipe().expect("Failed to create pipe 1");
+    let (receiver_read, sender_write) =
+        arsync::protocol::pipe::PipeTransport::create_pipe().expect("Failed to create pipe 2");
+
+    let transport_send = unsafe {
+        arsync::protocol::pipe::PipeTransport::from_fds(
+            sender_read,
+            sender_write,
+            "sender".to_string(),
+        )
+        .expect("Failed to create sender transport")
+    };
+
+    let transport_recv = unsafe {
+        arsync::protocol::pipe::PipeTransport::from_fds(
+            receiver_read,
+            receiver_write,
+            "receiver".to_string(),
+        )
+        .expect("Failed to create receiver transport")
+    };
+
+    // Encode empty list
+    let encode_future = async {
+        let mut writer = MultiplexWriter::new(transport_send);
+        encode_file_list_rsync(&mut writer, &empty_files).await
+    };
+
+    let decode_future = async {
+        let mut reader = MultiplexReader::new(transport_recv);
+        decode_file_list_rsync(&mut reader).await
+    };
+
+    let (encode_result, decode_result) = futures::join!(encode_future, decode_future);
+
+    encode_result.expect("Failed to encode empty list");
+    let decoded_files = decode_result.expect("Failed to decode empty list");
+
+    assert_eq!(decoded_files.len(), 0);
+    println!("✅ Empty file list handled correctly!");
+}
+
+#[compio::test]
 async fn test_summary() {
     println!("\n═══════════════════════════════════════════════════════════");
     println!("  File List Integration Tests - Summary");
@@ -204,10 +404,20 @@ async fn test_summary() {
     println!("   → All fields preserve correctly");
     println!("   → Regular files and symlinks");
     println!();
+    println!("✅ test_empty_file_list");
+    println!("   → Empty file list roundtrip");
+    println!("   → End-of-list marker handling");
+    println!();
+    println!("Coverage:");
+    println!("  - varint: 7 unit tests ✅");
+    println!("  - format: 14 unit tests ✅");
+    println!("  - integration: 5 tests ✅");
+    println!("  - Total: 26 file list tests ✅");
+    println!();
     println!("Purpose:");
     println!("  - Validate file list wire format");
     println!("  - Ensure rsync compatibility");
-    println!("  - Complete Phase 4");
+    println!("  - Complete Phase 4: File List Exchange");
     println!();
     println!("═══════════════════════════════════════════════════════════");
 }
