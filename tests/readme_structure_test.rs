@@ -9,7 +9,7 @@
 /// so users can navigate both versions consistently.
 ///
 /// Uses pulldown-cmark for proper markdown parsing.
-use pulldown_cmark::{Event, Parser, Tag};
+use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use std::fs;
 use std::path::Path;
 
@@ -34,12 +34,12 @@ fn extract_structure(content: &str) -> DocumentStructure {
 
     for event in parser {
         match event {
-            Event::Start(Tag::Heading(level, _, _)) => {
+            Event::Start(Tag::Heading { level, .. }) => {
                 in_heading = true;
                 current_heading_level = level as usize;
                 current_heading_text.clear();
             }
-            Event::End(Tag::Heading(_, _, _)) => {
+            Event::End(TagEnd::Heading(_)) => {
                 if in_heading && !current_heading_text.is_empty() {
                     // Skip language selector lines
                     if !current_heading_text.contains("Read this in other languages") {
@@ -53,8 +53,8 @@ fn extract_structure(content: &str) -> DocumentStructure {
                     current_heading_text.push_str(&text);
                 }
             }
-            Event::Start(Tag::Link(_, url, _)) => {
-                let url_str = url.to_string();
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                let url_str = dest_url.to_string();
                 if url_str.starts_with('#') {
                     // Internal anchor link
                     internal_links.push(url_str);
@@ -66,9 +66,9 @@ fn extract_structure(content: &str) -> DocumentStructure {
                     internal_links.push(url_str);
                 }
             }
-            Event::Start(Tag::Image(_, url, _)) => {
+            Event::Start(Tag::Image { dest_url, .. }) => {
                 // Track images (badges, diagrams, etc.)
-                images.push(url.to_string());
+                images.push(dest_url.to_string());
             }
             _ => {}
         }
@@ -279,6 +279,7 @@ fn test_readme_structure_matches() {
 }
 
 #[test]
+#[allow(clippy::panic)] // panic! is the correct way to fail tests
 fn test_internal_links_valid() {
     // Test that all internal anchor links point to valid headings
     // This ensures the table of contents and cross-references work correctly
