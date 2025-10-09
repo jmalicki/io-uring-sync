@@ -1,6 +1,7 @@
 #!/bin/bash
 # Quick 30-minute benchmark suite with power monitoring
 # Usage: sudo ./run_benchmarks_quick.sh [source] [dest] [results]
+#    or: ALLOW_NO_ROOT=1 ./run_benchmarks_quick.sh [source] [dest] [results] (testing only)
 
 set -euo pipefail
 
@@ -8,19 +9,39 @@ set -euo pipefail
 SOURCE_DIR="${1:-/mnt/source-nvme/benchmark-data-quick}"
 DEST_DIR="${2:-/mnt/dest-nvme/benchmark-output-quick}"
 RESULTS_DIR="${3:-./benchmark-results-quick-$(date +%Y%m%d_%H%M%S)}"
+# Convert to absolute path to avoid issues when changing directories
+RESULTS_DIR="$(readlink -f "$RESULTS_DIR" 2>/dev/null || (mkdir -p "$RESULTS_DIR" && cd "$RESULTS_DIR" && pwd))"
 NUM_RUNS=3  # Quick benchmark: only 3 runs instead of 5
 CPUS=$(nproc)
 ENABLE_POWER_MONITORING="${ENABLE_POWER_MONITORING:-yes}"  # ENABLED BY DEFAULT for quick test!
 
-# Paths to binaries
+# Paths to binaries (use absolute paths!)
 RSYNC_BIN=$(which rsync)
-ARSYNC_BIN="${ARSYNC_BIN:-./target/release/arsync}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ARSYNC_BIN="${ARSYNC_BIN:-$PROJECT_ROOT/target/release/arsync}"
 
-# Check root
+# Check root (can be bypassed with ALLOW_NO_ROOT=1 for testing)
 if [ "$EUID" -ne 0 ]; then
-    echo "ERROR: This script requires root (for dropping caches)"
-    echo "Usage: sudo $0 [source] [dest] [results]"
-    exit 1
+    if [ "${ALLOW_NO_ROOT}" != "1" ]; then
+        echo "ERROR: This script requires root (for dropping caches)"
+        echo "Usage: sudo $0 [source] [dest] [results]"
+        echo ""
+        echo "For testing only (results won't be accurate):"
+        echo "  ALLOW_NO_ROOT=1 $0 [source] [dest] [results]"
+        exit 1
+    else
+        echo "========================================"
+        echo "⚠️  WARNING: RUNNING WITHOUT ROOT"
+        echo "========================================"
+        echo ""
+        echo "Cache dropping DISABLED - results will NOT be accurate!"
+        echo "This mode is for TESTING ONLY, not real benchmarks."
+        echo ""
+        echo "For accurate results, run with sudo."
+        echo ""
+        sleep 3
+    fi
 fi
 
 # Validate
@@ -90,7 +111,13 @@ prepare_test() {
     sync
     
     # Drop caches (CRITICAL for fair comparison)
-    echo 3 > /proc/sys/vm/drop_caches
+    if [ "$EUID" -eq 0 ]; then
+        echo "  → Dropping caches (echo 3 > /proc/sys/vm/drop_caches)..."
+        echo 3 > /proc/sys/vm/drop_caches
+    else
+        echo "  → ⚠️  SKIPPING cache drop (not root - results INVALID)"
+    fi
+    echo "  → Caches dropped - testing COLD performance"
     
     # Wait for I/O to quiesce
     sleep 2
@@ -122,10 +149,11 @@ run_benchmark() {
         local power_pid=""
     fi
     
-    # Run benchmark with time measurement
+    # Run benchmark with time measurement AND TIMEOUT (hanging is never acceptable)
     local start_time=$(date +%s.%N)
     
-    /usr/bin/time -v bash -c "$command" \
+    # Timeout: 5 minutes for quick tests (should complete in <2 min normally)
+    timeout 300 /usr/bin/time -v bash -c "$command" \
         > "${output_prefix}_stdout.log" \
         2> "${output_prefix}_time.log"
     
@@ -141,15 +169,39 @@ run_benchmark() {
         wait $power_pid 2>/dev/null || true
     fi
     
+    # Verify completion and show errors immediately
+    if [ $exit_code -eq 124 ]; then
+        echo ""
+        echo "    ❌ TIMEOUT: Process hung for >5 minutes (CRITICAL BUG!)"
+        echo "    Command: $command"
+        echo ""
+        echo "    This is a DEADLOCK - arsync should NEVER hang!"
+        echo "    Check logs for 'Too many open files' or other errors before hang:"
+        tail -50 "${output_prefix}_stdout.log" | grep -E "WARN|ERROR|error|failed" | tail -10 | sed 's/^/      /'
+        echo ""
+        echo "    Full logs:"
+        echo "      stdout: ${output_prefix}_stdout.log"
+        echo "      stderr: ${output_prefix}_time.log"
+        echo ""
+        return 1
+    elif [ $exit_code -ne 0 ]; then
+        echo ""
+        echo "    ❌ ERROR: Command failed with exit code $exit_code"
+        echo "    Command: $command"
+        echo ""
+        echo "    Error details:"
+        tail -20 "${output_prefix}_time.log" | grep -E "error|Error|ERROR|No such|cannot|failed" | sed 's/^/      /'
+        echo ""
+        echo "    Full logs:"
+        echo "      stdout: ${output_prefix}_stdout.log"
+        echo "      stderr: ${output_prefix}_time.log"
+        echo ""
+        return 1
+    fi
+    
     # Calculate elapsed time
     local elapsed=$(echo "$end_time - $start_time" | bc)
     echo "$elapsed" > "${output_prefix}_elapsed.txt"
-    
-    # Verify completion
-    if [ $exit_code -ne 0 ]; then
-        echo "    ERROR: Command failed with exit code $exit_code"
-        return 1
-    fi
     
     # Count files and calculate throughput
     local file_count=$(find "$dest" -type f 2>/dev/null | wc -l)
@@ -215,11 +267,16 @@ EOF
 
 # Set CPU to performance mode
 echo "=== Setting CPU to performance mode ==="
-for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    if [ -f "$cpu" ]; then
-        echo performance > "$cpu"
-    fi
-done
+if [ "$EUID" -eq 0 ]; then
+    for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+        if [ -f "$cpu" ]; then
+            echo performance > "$cpu"
+        fi
+    done
+    echo "✓ CPU governor set to performance"
+else
+    echo "⚠️  SKIPPING CPU governor change (not root)"
+fi
 
 echo ""
 echo "========================================"
@@ -230,70 +287,71 @@ echo "This will run 6 key scenarios with 3 runs each"
 echo "Focus: Get preliminary numbers quickly"
 echo ""
 
-# Test 1: Large single file (10GB)
-echo "=== TEST 1: Large File (10GB) ==="
-run_test_suite "01_rsync_10gb" \
-    "$SOURCE_DIR/large-file/10GB.dat" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/large-file/10GB.dat' '$DEST_DIR/'"
+# Test 1: Multiple large files (5× 5GB = 25GB total)
+echo "=== TEST 1: Large Files (5× 5GB = 25GB) ==="
+# Run arsync first to catch bugs early
+run_test_suite "01_arsync_large_files" \
+    "$SOURCE_DIR/large-files/" \
+    "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-files/' --destination '$DEST_DIR/'"
 
-run_test_suite "02_arsync_10gb" \
-    "$SOURCE_DIR/large-file/10GB.dat" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-file/10GB.dat' --destination '$DEST_DIR/'"
+run_test_suite "02_rsync_large_files" \
+    "$SOURCE_DIR/large-files/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/large-files/' '$DEST_DIR/'"
 
 # Test 2: Many small files (1000 × 10KB)
 echo ""
 echo "=== TEST 2: Small Files (1000 × 10KB) ==="
-run_test_suite "03_rsync_1k_small" \
-    "$SOURCE_DIR/small-files-1k/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/small-files-1k/' '$DEST_DIR/'"
-
-run_test_suite "04_arsync_1k_small" \
+run_test_suite "03_arsync_1k_small" \
     "$SOURCE_DIR/small-files-1k/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/small-files-1k/' --destination '$DEST_DIR/'"
+
+run_test_suite "04_rsync_1k_small" \
+    "$SOURCE_DIR/small-files-1k/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/small-files-1k/' '$DEST_DIR/'"
 
 # Test 3: Tiny files (5000 × 1KB) - extreme syscall overhead
 echo ""
 echo "=== TEST 3: Tiny Files (5000 × 1KB) ==="
-run_test_suite "05_rsync_5k_tiny" \
-    "$SOURCE_DIR/tiny-files-5k/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/tiny-files-5k/' '$DEST_DIR/'"
-
-run_test_suite "06_arsync_5k_tiny" \
+run_test_suite "05_arsync_5k_tiny" \
     "$SOURCE_DIR/tiny-files-5k/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/tiny-files-5k/' --destination '$DEST_DIR/'"
+
+run_test_suite "06_rsync_5k_tiny" \
+    "$SOURCE_DIR/tiny-files-5k/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/tiny-files-5k/' '$DEST_DIR/'"
 
 # Test 4: Medium files (500 × 1MB)
 echo ""
 echo "=== TEST 4: Medium Files (500 × 1MB) ==="
-run_test_suite "07_rsync_500_medium" \
-    "$SOURCE_DIR/medium-files-500/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/medium-files-500/' '$DEST_DIR/'"
-
-run_test_suite "08_arsync_500_medium" \
+run_test_suite "07_arsync_500_medium" \
     "$SOURCE_DIR/medium-files-500/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/medium-files-500/' --destination '$DEST_DIR/'"
+
+run_test_suite "08_rsync_500_medium" \
+    "$SOURCE_DIR/medium-files-500/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/medium-files-500/' '$DEST_DIR/'"
 
 # Test 5: Mixed workload (photos)
 echo ""
 echo "=== TEST 5: Mixed Workload (Photos) ==="
-run_test_suite "09_rsync_photos" \
-    "$SOURCE_DIR/mixed-photos/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/mixed-photos/' '$DEST_DIR/'"
-
-run_test_suite "10_arsync_photos" \
+run_test_suite "09_arsync_photos" \
     "$SOURCE_DIR/mixed-photos/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/mixed-photos/' --destination '$DEST_DIR/'"
+
+run_test_suite "10_rsync_photos" \
+    "$SOURCE_DIR/mixed-photos/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/mixed-photos/' '$DEST_DIR/'"
 
 # Test 6: Directory tree
 echo ""
 echo "=== TEST 6: Directory Tree ==="
-run_test_suite "11_rsync_dirtree" \
-    "$SOURCE_DIR/dir-tree/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/dir-tree/' '$DEST_DIR/'"
-
-run_test_suite "12_arsync_dirtree" \
+run_test_suite "11_arsync_dirtree" \
     "$SOURCE_DIR/dir-tree/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/dir-tree/' --destination '$DEST_DIR/'"
+
+run_test_suite "12_rsync_dirtree" \
+    "$SOURCE_DIR/dir-tree/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/dir-tree/' '$DEST_DIR/'"
 
 echo ""
 echo "========================================"

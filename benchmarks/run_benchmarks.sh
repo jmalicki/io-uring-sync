@@ -10,13 +10,17 @@ set -euo pipefail
 SOURCE_DIR="${1:-/mnt/source-nvme/benchmark-data}"
 DEST_DIR="${2:-/mnt/dest-nvme/benchmark-output}"
 RESULTS_DIR="${3:-./benchmark-results-$(date +%Y%m%d_%H%M%S)}"
+# Convert to absolute path to avoid issues when changing directories
+RESULTS_DIR="$(readlink -f "$RESULTS_DIR" 2>/dev/null || (mkdir -p "$RESULTS_DIR" && cd "$RESULTS_DIR" && pwd))"
 NUM_RUNS=5  # Run each test 5 times, discard first (warm-up)
 CPUS=$(nproc)
 ENABLE_POWER_MONITORING="${ENABLE_POWER_MONITORING:-no}"  # Set to "yes" to enable power monitoring
 
-# Paths to binaries
+# Paths to binaries (use absolute paths!)
 RSYNC_BIN=$(which rsync)
-ARSYNC_BIN="${ARSYNC_BIN:-./target/release/arsync}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ARSYNC_BIN="${ARSYNC_BIN:-$PROJECT_ROOT/target/release/arsync}"
 
 # Check root
 if [ "$EUID" -ne 0 ]; then
@@ -83,14 +87,16 @@ prepare_test() {
     sync
     
     # Drop caches (CRITICAL for fair comparison)
+    echo "  → Dropping caches (echo 3 > /proc/sys/vm/drop_caches)..."
     echo 3 > /proc/sys/vm/drop_caches
+    echo "  → Caches dropped - testing COLD performance"
     
     # Wait for I/O to quiesce
     sleep 3
     
     # Verify no other I/O activity
     local io_wait=$(iostat -x 1 2 | tail -1 | awk '{print $NF}')
-    echo "  I/O wait: ${io_wait}%"
+    echo "  → I/O wait: ${io_wait}%"
 }
 
 # Run a single benchmark
@@ -138,15 +144,25 @@ run_benchmark() {
         wait $power_pid 2>/dev/null || true
     fi
     
+    # Verify completion and show errors immediately
+    if [ $exit_code -ne 0 ]; then
+        echo ""
+        echo "    ❌ ERROR: Command failed with exit code $exit_code"
+        echo "    Command: $command"
+        echo ""
+        echo "    Error details:"
+        tail -20 "${output_prefix}_time.log" | grep -E "error|Error|ERROR|No such|cannot|failed" | sed 's/^/      /'
+        echo ""
+        echo "    Full logs:"
+        echo "      stdout: ${output_prefix}_stdout.log"
+        echo "      stderr: ${output_prefix}_time.log"
+        echo ""
+        return 1
+    fi
+    
     # Calculate elapsed time
     local elapsed=$(echo "$end_time - $start_time" | bc)
     echo "$elapsed" > "${output_prefix}_elapsed.txt"
-    
-    # Verify completion
-    if [ $exit_code -ne 0 ]; then
-        echo "    ERROR: Command failed with exit code $exit_code"
-        return 1
-    fi
     
     # Count files
     local file_count=$(find "$dest" -type f 2>/dev/null | wc -l)
