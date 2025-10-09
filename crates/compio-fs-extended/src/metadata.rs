@@ -78,6 +78,7 @@ impl StatxOp {
     /// * `pathname` - Path to the file
     /// * `flags` - Flags like AT_SYMLINK_NOFOLLOW
     /// * `mask` - Mask for which fields to retrieve (e.g., STATX_BASIC_STATS)
+    #[must_use]
     pub fn new(dirfd: i32, pathname: CString, flags: i32, mask: u32) -> Self {
         Self {
             dirfd,

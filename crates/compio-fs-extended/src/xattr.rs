@@ -118,6 +118,7 @@ struct GetXattrOp {
 }
 
 impl GetXattrOp {
+    /// Create a new GetXattrOp for retrieving an extended attribute
     fn new(fd: std::os::unix::io::RawFd, name: CString, size: usize) -> Self {
         Self {
             fd,
@@ -152,6 +153,7 @@ struct SetXattrOp {
 }
 
 impl SetXattrOp {
+    /// Create a new SetXattrOp for setting an extended attribute
     fn new(fd: std::os::unix::io::RawFd, name: CString, value: Vec<u8>) -> Self {
         Self { fd, name, value }
     }
