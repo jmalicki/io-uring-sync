@@ -443,6 +443,7 @@ mod tests {
             hard_links: false,
             atimes: false,
             crtimes: false,
+            pirate: false,
             preserve_xattr: false,
             preserve_acl: false,
             dry_run: false,

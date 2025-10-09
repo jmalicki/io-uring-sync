@@ -3,7 +3,7 @@
 //! This module tests directory metadata preservation including permissions,
 //! ownership, and timestamps during directory copy operations.
 
-use arsync::cli::{Args, CopyMethod};
+use arsync::cli::Args;
 use arsync::directory::{preserve_directory_metadata, ExtendedMetadata};
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -16,31 +16,8 @@ fn create_test_args_with_archive() -> Args {
     Args {
         source: PathBuf::from("/test/source"),
         destination: PathBuf::from("/test/dest"),
-        queue_depth: 4096,
-        max_files_in_flight: 1024,
-        cpu_count: 1,
-        buffer_size_kb: 64,
-        copy_method: CopyMethod::Auto,
         archive: true, // Enable archive mode for full metadata preservation
-        recursive: false,
-        links: false,
-        perms: false,
-        times: false,
-        group: false,
-        owner: false,
-        devices: false,
-        xattrs: false,
-        acls: false,
-        hard_links: false,
-        atimes: false,
-        crtimes: false,
-        preserve_xattr: false,
-        preserve_acl: false,
-        dry_run: false,
-        progress: false,
-        verbose: 0,
-        quiet: false,
-        no_adaptive_concurrency: false,
+        ..Default::default()
     }
 }
 
