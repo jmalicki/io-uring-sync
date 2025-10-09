@@ -190,117 +190,39 @@
 
 ---
 
-# PHASE 2: compio/io_uring Migration (MOVED UP!)
+## Phase 2.2: Transport Trait Redesign ✅ COMPLETE
 
-**Goal**: Fix the async/blocking mismatch by migrating to compio  
-**Why Now**: This fixes the root cause that blocked Phase 1.5 pipe tests  
-**Duration Estimate**: 2-3 weeks
+**Commit**: 9fbf1fb
 
----
+### What Was Implemented
 
-## Phase 2.1: compio Capability Audit
+- [x] Removed async_trait from trait (not yet from Cargo.toml)
+- [x] Removed `use async_trait::async_trait;`
+- [x] Removed `#[async_trait]` attribute
+- [x] Redesigned trait as marker requiring:
+  - [x] `compio::io::AsyncRead`
+  - [x] `compio::io::AsyncWrite`
+  - [x] `Send + Unpin`
+- [x] Added comprehensive doc comments
+- [x] Explained Unpin requirement
+- [x] Added architecture diagram
+- [x] Added usage examples
 
-### Research compio Features
+### Helper Functions Updated
 
-- [ ] Check compio version: `grep "compio.*=" Cargo.toml` → Record version
-- [ ] Read compio docs: `https://docs.rs/compio/`
-- [ ] Check source: `~/.cargo/registry/src/*/compio-*/`
+- [x] `read_exact()`: Now uses `compio::io::AsyncRead + Unpin`
+- [x] `write_all()`: Uses `AsyncWriteExt::write_all()` + flush()
+- [x] Changed return type from `anyhow::Result` to `io::Result`
+- [x] Improved error messages
+- [x] Added doc comments with examples
 
-#### Investigate Available Modules
-- [ ] `compio::fs` - File operations
-  - [ ] Document what's available
-  - [ ] Check if `File::from_raw_fd()` exists
-  - [ ] Check AsyncRead/AsyncWrite traits
-- [ ] `compio::io` - Core I/O traits
-  - [ ] AsyncRead trait?
-  - [ ] AsyncWrite trait?
-  - [ ] Helper extensions?
-- [ ] `compio::net` - Network operations
-  - [ ] TcpStream?
-  - [ ] TcpListener?
-  - [ ] UnixStream?
-- [ ] `compio::process` - Process spawning ⚠️ **CRITICAL**
-  - [ ] Does it exist?
-  - [ ] If yes: Document API
-  - [ ] If no: Plan workaround
-- [ ] `compio::driver` - Low-level driver
-  - [ ] OwnedFd?
-  - [ ] op::Read?
-  - [ ] op::Write?
+### Expected Breakage (Will Fix Next)
 
-### Create `docs/COMPIO_AUDIT.md`
+- ❌ PipeTransport: Doesn't implement compio traits yet
+- ❌ SshConnection: Doesn't implement compio traits yet
+- ❌ Handshake module: Uses old anyhow::Result
 
-- [ ] Document compio version tested
-- [ ] Section: "Available Features"
-  - [ ] List all working modules
-  - [ ] API surface for each
-  - [ ] Platform: Linux kernel version, architecture
-- [ ] Section: "Missing Features"
-  - [ ] **Process spawning status**
-  - [ ] Any other gaps
-- [ ] Section: "Migration Strategy"
-  - [ ] If process exists: Pure compio approach
-  - [ ] If missing: Hybrid approach (recommended)
-    - [ ] Use stdlib for process spawning
-    - [ ] Use compio-driver for FD I/O
-    - [ ] Document why this is acceptable
-- [ ] Section: "Expected Performance Impact"
-  - [ ] Context switch reduction
-  - [ ] Batch I/O improvements
-  - [ ] Estimated speedup: 30-50%
-
-### Acceptance Criteria for Phase 2.1
-- [ ] Audit complete
-- [ ] Missing features identified
-- [ ] Strategy chosen with rationale
-- [ ] Code formatted
-- [ ] Commit message: "docs(compio): audit compio 0.16 capabilities and plan migration strategy"
-- [ ] **Commit**: TBD
-
----
-
-## Phase 2.2: Transport Trait Redesign
-
-**Goal**: Remove async_trait and design for compio
-
-### Update `src/protocol/transport.rs`
-
-#### Remove async_trait
-- [ ] Remove from `Cargo.toml`: `async-trait` from dependencies
-- [ ] Remove from imports: `use async_trait::async_trait;`
-- [ ] Remove `#[async_trait]` attribute from Transport trait
-
-#### Redesign for compio
-- [ ] Change trait definition:
-  ```rust
-  pub trait Transport: compio::io::AsyncRead + compio::io::AsyncWrite + Send + Unpin {
-      fn name(&self) -> &str { "unknown" }
-      fn supports_multiplexing(&self) -> bool { false }
-  }
-  ```
-- [ ] Add doc comment explaining compio integration
-- [ ] Add doc comment explaining `Unpin` requirement
-- [ ] Add example in doc comment
-
-#### Update Helper Functions
-- [ ] Update `read_exact()` signature:
-  ```rust
-  pub async fn read_exact<T>(transport: &mut T, buf: &mut [u8]) -> Result<()>
-  where T: compio::io::AsyncRead + Unpin
-  ```
-- [ ] Use `compio::io::AsyncReadExt::read_exact()` if available
-- [ ] Or implement manually with loop
-- [ ] Update `write_all()` similarly
-- [ ] Add error handling
-- [ ] Update doc comments
-
-### Acceptance Criteria for Phase 2.2
-- [ ] Trait compiles (will break implementors temporarily)
-- [ ] No async_trait dependency
-- [ ] Doc comments complete
-- [ ] Code formatted
-- [ ] Commit message: "refactor(transport): redesign trait for compio (breaks existing impls)"
-- [ ] **Commit**: TBD
+All expected and will be fixed in Phases 2.3-2.5.
 
 ---
 
