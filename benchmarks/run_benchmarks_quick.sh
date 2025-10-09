@@ -37,6 +37,12 @@ if [ ! -x "$ARSYNC_BIN" ]; then
 fi
 
 mkdir -p "$RESULTS_DIR"
+
+# Create documented results structure
+if [ -f "$(dirname "$0")/create_results_structure.sh" ]; then
+    bash "$(dirname "$0")/create_results_structure.sh" "$RESULTS_DIR" "$SOURCE_DIR" "$DEST_DIR"
+fi
+
 cd "$RESULTS_DIR"
 
 echo "=== Quick Benchmark Configuration ==="
