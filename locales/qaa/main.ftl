@@ -60,6 +60,7 @@ help-quiet = AVAST! Tell the crew to pipe down and work in SILENCE! Quiet as chu
 help-progress = Show me reports on the plunderin' progress throughout the voyage! Keep me informed, matey!
 help-dry-run = Just show me what WOULD be plundered without takin' any treasure! Reconnaissance mission only!
 help-pirate = AHOY! Ye found it, matey! This here enables FULL PIRATE SPEAK! Welcome aboard, ye salty sea dog! 🏴‍☠️
+help-no-adaptive-concurrency = ARRR! If the crew runs out o' hands, SCUTTLE THE SHIP immediate-like instead o' reducin' the workforce! No mercy fer resource troubles! Fail fast, ye scallywags!
 help-queue-depth = How much booty the ship's hold can carry at once (io_uring queue depth)! Bigger hold, more treasure, arrr!
 help-max-files-in-flight = How many treasure chests each crew member can juggle at once! Don't drop 'em, savvy?
 help-cpu-count = How many able-bodied crew members to put to work (0 means all hands on deck, everyone works)! Aye!

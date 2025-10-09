@@ -58,6 +58,7 @@ help-quiet = Suppress non-error messages
 help-progress = Show progress during transfer
 help-dry-run = Show what would be copied without copying
 help-pirate = Enable pirate speak (arrr! 🏴‍☠️)
+help-no-adaptive-concurrency = Disable adaptive concurrency (fail fast on resource limits)
 help-queue-depth = io_uring submission queue depth
 help-max-files-in-flight = Maximum concurrent files per CPU
 help-cpu-count = Number of CPUs to use (0 = auto)
