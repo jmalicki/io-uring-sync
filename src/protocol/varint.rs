@@ -21,7 +21,7 @@ use anyhow::Result;
 /// assert_eq!(encode_varint(300), vec![0xAC, 0x02]);
 /// ```
 #[must_use]
-pub fn encode_varint(mut value: u64) -> Vec<u8> {
+pub fn encode_varint(value: u64) -> Vec<u8> {
     let mut result = Vec::new();
     encode_varint_into(value, &mut result);
     result

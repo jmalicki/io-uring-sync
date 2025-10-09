@@ -10,12 +10,13 @@ use super::transport::Transport;
 use anyhow::Result;
 use async_trait::async_trait;
 use std::io::{Read, Write};
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::io::{FromRawFd, RawFd};
 
 /// Pipe-based transport for rsync protocol
 pub struct PipeTransport {
     reader: Box<dyn Read + Send>,
     writer: Box<dyn Write + Send>,
+    #[allow(dead_code)]
     name: String,
 }
 

@@ -10,10 +10,15 @@ use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
 /// SSH connection to remote host
 pub struct SshConnection {
+    #[allow(dead_code)]
     process: Child,
+    #[allow(dead_code)]
     stdin: ChildStdin,
+    #[allow(dead_code)]
     stdout: ChildStdout,
+    #[allow(dead_code)]
     host: String,
+    #[allow(dead_code)]
     user: String,
 }
 
@@ -59,6 +64,7 @@ impl SshConnection {
     }
 
     /// Send bytes over SSH channel
+    #[allow(dead_code)]
     pub async fn send(&mut self, data: &[u8]) -> Result<()> {
         self.stdin.write_all(data).await?;
         self.stdin.flush().await?;
@@ -66,12 +72,14 @@ impl SshConnection {
     }
 
     /// Receive bytes from SSH channel
+    #[allow(dead_code)]
     pub async fn receive(&mut self, buffer: &mut [u8]) -> Result<usize> {
         let n = self.stdout.read(buffer).await?;
         Ok(n)
     }
 
     /// Close the SSH connection
+    #[allow(dead_code)]
     pub async fn close(mut self) -> Result<()> {
         drop(self.stdin);
         drop(self.stdout);

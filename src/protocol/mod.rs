@@ -18,7 +18,6 @@ pub mod quic;
 use crate::cli::{Args, Location};
 use crate::sync::SyncStats;
 use anyhow::Result;
-use std::path::Path;
 
 /// Main entry point for remote sync operations
 pub async fn remote_sync(

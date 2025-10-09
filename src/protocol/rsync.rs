@@ -4,7 +4,7 @@
 //! Based on the rsync technical report and protocol specification.
 
 use crate::cli::Args;
-use crate::protocol::checksum::{rolling_checksum, rolling_checksum_update, strong_checksum};
+use crate::protocol::checksum::{rolling_checksum, strong_checksum};
 use crate::protocol::pipe::PipeTransport;
 use crate::protocol::ssh::SshConnection;
 use crate::protocol::transport::{self, Transport};
@@ -31,6 +31,7 @@ const DEFAULT_BLOCK_SIZE: usize = 700;
 const MIN_BLOCK_SIZE: usize = 128;
 
 /// Rolling checksum constants (Adler-32 style)
+#[allow(dead_code)]
 const ROLLING_MODULUS: u32 = 65521;
 
 /// Push files to remote using rsync protocol over SSH
@@ -141,7 +142,7 @@ fn calculate_block_size(file_size: u64) -> usize {
 
 /// Send files via pipe transport (for testing)
 pub async fn send_via_pipe(
-    args: &Args,
+    _args: &Args,
     source_path: &Path,
     mut transport: PipeTransport,
 ) -> Result<SyncStats> {
@@ -161,7 +162,7 @@ pub async fn send_via_pipe(
         "Sender: Generating file list from: {}",
         source_path.display()
     );
-    let files = generate_file_list_simple(source_path, args).await?;
+    let files = generate_file_list_simple(source_path, _args).await?;
     info!("Sender: Found {} files to send", files.len());
 
     send_file_list_simple(&mut transport, &files).await?;
@@ -483,7 +484,7 @@ fn apply_metadata(path: &Path, file: &FileEntry) -> Result<()> {
 
     // Set modification time
     if !file.is_symlink {
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::UNIX_EPOCH;
         let mtime = UNIX_EPOCH + Duration::from_secs(file.mtime as u64);
         if let Err(e) = filetime::set_file_mtime(path, filetime::FileTime::from_system_time(mtime))
         {

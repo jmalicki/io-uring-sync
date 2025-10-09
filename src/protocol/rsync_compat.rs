@@ -7,7 +7,7 @@ use crate::cli::Args;
 use crate::protocol::pipe::PipeTransport;
 use crate::protocol::rsync::FileEntry;
 use crate::protocol::transport::{self, Transport};
-use crate::protocol::varint::{self, encode_varint, encode_varint_into};
+use crate::protocol::varint::encode_varint_into;
 use crate::sync::SyncStats;
 use anyhow::Result;
 use std::fs;
@@ -168,7 +168,9 @@ pub async fn write_data<T: Transport>(transport: &mut T, data: &[u8]) -> Result<
 /// Multiplexed reader with buffering
 pub struct MultiplexReader<T: Transport> {
     transport: T,
+    #[allow(dead_code)]
     buffer: Vec<u8>,
+    #[allow(dead_code)]
     buffer_pos: usize,
 }
 
@@ -295,11 +297,17 @@ impl<T: Transport> MultiplexWriter<T> {
 
 /// rsync file list flags (from flist.c)
 mod file_flags {
+    #[allow(dead_code)]
     pub const XMIT_TOP_DIR: u8 = 0x01; // Top-level directory
+    #[allow(dead_code)]
     pub const XMIT_SAME_MODE: u8 = 0x02; // Mode unchanged
+    #[allow(dead_code)]
     pub const XMIT_EXTENDED_FLAGS: u8 = 0x04; // Extended flags follow
+    #[allow(dead_code)]
     pub const XMIT_SAME_UID: u8 = 0x10; // UID unchanged
+    #[allow(dead_code)]
     pub const XMIT_SAME_GID: u8 = 0x20; // GID unchanged
+    #[allow(dead_code)]
     pub const XMIT_SAME_NAME: u8 = 0x40; // Name matches previous (hardlink)
     pub const XMIT_LONG_NAME: u8 = 0x80; // Name > 255 bytes
 }
@@ -405,13 +413,13 @@ pub async fn decode_file_list_rsync<T: Transport>(
 }
 
 /// Decode a single file entry from bytes
-fn decode_file_entry(data: &[u8]) -> Result<FileEntry> {
+pub fn decode_file_entry(data: &[u8]) -> Result<FileEntry> {
     let mut cursor = Cursor::new(data);
 
     // Flags byte
     let mut flags_buf = [0u8; 1];
     std::io::Read::read_exact(&mut cursor, &mut flags_buf)?;
-    let flags = flags_buf[0];
+    let _flags = flags_buf[0];
 
     // Path length and path
     let path_len = decode_varint_sync(&mut cursor)? as usize;
