@@ -415,6 +415,35 @@ impl SharedSemaphore {
     pub async fn acquire(&self) -> compio_sync::SemaphorePermit {
         self.inner.acquire().await
     }
+
+    /// Get the number of available permits
+    #[must_use]
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn available_permits(&self) -> usize {
+        self.inner.available_permits()
+    }
+
+    /// Get the maximum number of permits
+    #[must_use]
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn max_permits(&self) -> usize {
+        self.inner.max_permits()
+    }
+
+    /// Reduce available permits (for adaptive concurrency control)
+    ///
+    /// Returns the actual number of permits reduced.
+    #[must_use]
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn reduce_permits(&self, count: usize) -> usize {
+        self.inner.reduce_permits(count)
+    }
+
+    /// Add permits back (for adaptive concurrency control)
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn add_permits(&self, count: usize) {
+        self.inner.add_permits(count);
+    }
 }
 
 /// Extended metadata using `std::fs` metadata support

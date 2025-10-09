@@ -45,6 +45,7 @@
 //! }
 //! ```
 
+pub mod adaptive_concurrency;
 pub mod cli;
 pub mod copy;
 pub mod directory;

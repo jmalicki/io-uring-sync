@@ -238,6 +238,90 @@ impl Semaphore {
         self.inner.max_permits - self.available_permits()
     }
 
+    /// Reduce the number of available permits (for adaptive concurrency control)
+    ///
+    /// This allows dynamically reducing concurrency in response to resource constraints
+    /// like file descriptor exhaustion. Only reduces permits that are currently available
+    /// (won't affect permits already in use).
+    ///
+    /// # Arguments
+    ///
+    /// * `count` - Number of permits to remove from the available pool
+    ///
+    /// # Returns
+    ///
+    /// The actual number of permits reduced (may be less than requested if not enough available)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use compio_sync::Semaphore;
+    ///
+    /// let sem = Semaphore::new(100);
+    /// let reduced = sem.reduce_permits(20);
+    /// assert_eq!(reduced, 20);
+    /// assert_eq!(sem.available_permits(), 80);
+    /// ```
+    pub fn reduce_permits(&self, count: usize) -> usize {
+        let mut reduced = 0;
+
+        loop {
+            let current = self.inner.permits.load(Ordering::Acquire);
+            if current == 0 || reduced >= count {
+                break;
+            }
+
+            let to_reduce = std::cmp::min(current, count - reduced);
+            let new_value = current - to_reduce;
+
+            if self
+                .inner
+                .permits
+                .compare_exchange(current, new_value, Ordering::Release, Ordering::Acquire)
+                .is_ok()
+            {
+                reduced += to_reduce;
+            }
+        }
+
+        reduced
+    }
+
+    /// Add permits back to the semaphore (for adaptive concurrency control)
+    ///
+    /// This allows dynamically increasing concurrency after resources become available.
+    ///
+    /// # Arguments
+    ///
+    /// * `count` - Number of permits to add to the available pool
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use compio_sync::Semaphore;
+    ///
+    /// let sem = Semaphore::new(100);
+    /// sem.reduce_permits(20);
+    /// assert_eq!(sem.available_permits(), 80);
+    ///
+    /// sem.add_permits(20);
+    /// assert_eq!(sem.available_permits(), 100);
+    /// ```
+    pub fn add_permits(&self, count: usize) {
+        self.inner.permits.fetch_add(count, Ordering::Release);
+
+        // Wake up waiters (up to count)
+        if let Ok(mut waiters) = self.inner.waiters.lock() {
+            for _ in 0..count {
+                if let Some(waker) = waiters.pop_front() {
+                    waker.wake();
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
     /// Release a permit (called internally by `SemaphorePermit::drop`)
     fn release(&self) {
         // Increment available permits
