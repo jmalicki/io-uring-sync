@@ -30,10 +30,13 @@ generate_files() {
     done
 }
 
-echo "=== 1. Large File Test ==="
-echo "  Creating 10GB file (for ~0.7s @ 15GB/s)..."
-mkdir -p "$TESTDATA_ROOT/large-file"
-dd if=/dev/urandom of="$TESTDATA_ROOT/large-file/10GB.dat" bs=1M count=10240 status=progress
+echo "=== 1. Large Files Test ==="
+echo "  Creating 5× 5GB files (25GB total, ~1.7s @ 15GB/s per file)..."
+mkdir -p "$TESTDATA_ROOT/large-files"
+for i in {1..5}; do
+    echo "  Creating file $i of 5 (5GB)..."
+    dd if=/dev/urandom of="$TESTDATA_ROOT/large-files/file_${i}_5GB.dat" bs=1M count=5120 status=progress
+done
 
 echo ""
 echo "=== 2. Small Files Test ==="

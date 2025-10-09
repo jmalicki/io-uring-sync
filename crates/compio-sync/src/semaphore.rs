@@ -262,6 +262,7 @@ impl Semaphore {
     /// assert_eq!(reduced, 20);
     /// assert_eq!(sem.available_permits(), 80);
     /// ```
+    #[must_use]
     pub fn reduce_permits(&self, count: usize) -> usize {
         let mut reduced = 0;
 
