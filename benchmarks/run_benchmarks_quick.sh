@@ -267,103 +267,105 @@ EOF
 
 # Set CPU to performance mode
 echo "=== Setting CPU to performance mode ==="
-for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    if [ -f "$cpu" ]; then
-        echo performance > "$cpu"
-    fi
-done
-
-echo ""
-echo "========================================"
-echo "===  QUICK BENCHMARK SUITE (30 min) ==="
-echo "========================================"
-echo ""
-echo "This will run 6 key scenarios with 3 runs each"
-echo "Focus: Get preliminary numbers quickly"
-echo ""
-
-# Test 1: Multiple large files (5× 5GB = 25GB total)
-echo "=== TEST 1: Large Files (5× 5GB = 25GB) ==="
-# Run arsync first to catch bugs early
-run_test_suite "01_arsync_large_files" \
-    "$SOURCE_DIR/large-files/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-files/' --destination '$DEST_DIR/'"
-
-run_test_suite "02_rsync_large_files" \
-    "$SOURCE_DIR/large-files/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/large-files/' '$DEST_DIR/'"
-
-# Test 2: Many small files (1000 × 10KB)
-echo ""
-echo "=== TEST 2: Small Files (1000 × 10KB) ==="
-run_test_suite "03_arsync_1k_small" \
-    "$SOURCE_DIR/small-files-1k/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/small-files-1k/' --destination '$DEST_DIR/'"
-
-run_test_suite "04_rsync_1k_small" \
-    "$SOURCE_DIR/small-files-1k/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/small-files-1k/' '$DEST_DIR/'"
-
-# Test 3: Tiny files (5000 × 1KB) - extreme syscall overhead
-echo ""
-echo "=== TEST 3: Tiny Files (5000 × 1KB) ==="
-run_test_suite "05_arsync_5k_tiny" \
-    "$SOURCE_DIR/tiny-files-5k/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/tiny-files-5k/' --destination '$DEST_DIR/'"
-
-run_test_suite "06_rsync_5k_tiny" \
-    "$SOURCE_DIR/tiny-files-5k/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/tiny-files-5k/' '$DEST_DIR/'"
-
-# Test 4: Medium files (500 × 1MB)
-echo ""
-echo "=== TEST 4: Medium Files (500 × 1MB) ==="
-run_test_suite "07_arsync_500_medium" \
-    "$SOURCE_DIR/medium-files-500/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/medium-files-500/' --destination '$DEST_DIR/'"
-
-run_test_suite "08_rsync_500_medium" \
-    "$SOURCE_DIR/medium-files-500/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/medium-files-500/' '$DEST_DIR/'"
-
-# Test 5: Mixed workload (photos)
-echo ""
-echo "=== TEST 5: Mixed Workload (Photos) ==="
-run_test_suite "09_arsync_photos" \
-    "$SOURCE_DIR/mixed-photos/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/mixed-photos/' --destination '$DEST_DIR/'"
-
-run_test_suite "10_rsync_photos" \
-    "$SOURCE_DIR/mixed-photos/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/mixed-photos/' '$DEST_DIR/'"
-
-# Test 6: Directory tree
-echo ""
-echo "=== TEST 6: Directory Tree ==="
-run_test_suite "11_arsync_dirtree" \
-    "$SOURCE_DIR/dir-tree/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/dir-tree/' --destination '$DEST_DIR/'"
-
-run_test_suite "12_rsync_dirtree" \
-    "$SOURCE_DIR/dir-tree/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/dir-tree/' '$DEST_DIR/'"
-
-echo ""
-echo "========================================"
-echo "===  QUICK BENCHMARK COMPLETE       ==="
-echo "========================================"
-echo ""
-echo "Results saved to: $RESULTS_DIR"
-echo ""
-echo "Next steps:"
-echo "1. Run: python3 ./benchmarks/analyze_results.py $RESULTS_DIR"
-echo "2. Review: cat $RESULTS_DIR/final_report.txt"
-echo ""
-if [ "$ENABLE_POWER_MONITORING" = "yes" ]; then
-    echo "✓ Power measurements included in results!"
-    echo "  Look for *_power.csv files in each test directory"
+if [ "$EUID" -eq 0 ]; then
+    echo "=== Setting CPU to performance mode ==="
+    for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+        if [ -f "$cpu" ]; then
+            echo performance > "$cpu"
+        fi
+    done
+    
     echo ""
-fi
-echo "Total runtime: ~30 minutes"
-echo "These are PRELIMINARY results - run full benchmark for publication quality!"
-
+    echo "========================================"
+    echo "===  QUICK BENCHMARK SUITE (30 min) ==="
+    echo "========================================"
+    echo ""
+    echo "This will run 6 key scenarios with 3 runs each"
+    echo "Focus: Get preliminary numbers quickly"
+    echo ""
+    
+    # Test 1: Multiple large files (5× 5GB = 25GB total)
+    echo "=== TEST 1: Large Files (5× 5GB = 25GB) ==="
+    # Run arsync first to catch bugs early
+    run_test_suite "01_arsync_large_files" \
+        "$SOURCE_DIR/large-files/" \
+        "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-files/' --destination '$DEST_DIR/'"
+    
+    run_test_suite "02_rsync_large_files" \
+        "$SOURCE_DIR/large-files/" \
+        "$RSYNC_BIN -a '$SOURCE_DIR/large-files/' '$DEST_DIR/'"
+    
+    # Test 2: Many small files (1000 × 10KB)
+    echo ""
+    echo "=== TEST 2: Small Files (1000 × 10KB) ==="
+    run_test_suite "03_arsync_1k_small" \
+        "$SOURCE_DIR/small-files-1k/" \
+        "$ARSYNC_BIN -a --source '$SOURCE_DIR/small-files-1k/' --destination '$DEST_DIR/'"
+    
+    run_test_suite "04_rsync_1k_small" \
+        "$SOURCE_DIR/small-files-1k/" \
+        "$RSYNC_BIN -a '$SOURCE_DIR/small-files-1k/' '$DEST_DIR/'"
+    
+    # Test 3: Tiny files (5000 × 1KB) - extreme syscall overhead
+    echo ""
+    echo "=== TEST 3: Tiny Files (5000 × 1KB) ==="
+    run_test_suite "05_arsync_5k_tiny" \
+        "$SOURCE_DIR/tiny-files-5k/" \
+        "$ARSYNC_BIN -a --source '$SOURCE_DIR/tiny-files-5k/' --destination '$DEST_DIR/'"
+    
+    run_test_suite "06_rsync_5k_tiny" \
+        "$SOURCE_DIR/tiny-files-5k/" \
+        "$RSYNC_BIN -a '$SOURCE_DIR/tiny-files-5k/' '$DEST_DIR/'"
+    
+    # Test 4: Medium files (500 × 1MB)
+    echo ""
+    echo "=== TEST 4: Medium Files (500 × 1MB) ==="
+    run_test_suite "07_arsync_500_medium" \
+        "$SOURCE_DIR/medium-files-500/" \
+        "$ARSYNC_BIN -a --source '$SOURCE_DIR/medium-files-500/' --destination '$DEST_DIR/'"
+    
+    run_test_suite "08_rsync_500_medium" \
+        "$SOURCE_DIR/medium-files-500/" \
+        "$RSYNC_BIN -a '$SOURCE_DIR/medium-files-500/' '$DEST_DIR/'"
+    
+    # Test 5: Mixed workload (photos)
+    echo ""
+    echo "=== TEST 5: Mixed Workload (Photos) ==="
+    run_test_suite "09_arsync_photos" \
+        "$SOURCE_DIR/mixed-photos/" \
+        "$ARSYNC_BIN -a --source '$SOURCE_DIR/mixed-photos/' --destination '$DEST_DIR/'"
+    
+    run_test_suite "10_rsync_photos" \
+        "$SOURCE_DIR/mixed-photos/" \
+        "$RSYNC_BIN -a '$SOURCE_DIR/mixed-photos/' '$DEST_DIR/'"
+    
+    # Test 6: Directory tree
+    echo ""
+    echo "=== TEST 6: Directory Tree ==="
+    run_test_suite "11_arsync_dirtree" \
+        "$SOURCE_DIR/dir-tree/" \
+        "$ARSYNC_BIN -a --source '$SOURCE_DIR/dir-tree/' --destination '$DEST_DIR/'"
+    
+    run_test_suite "12_rsync_dirtree" \
+        "$SOURCE_DIR/dir-tree/" \
+        "$RSYNC_BIN -a '$SOURCE_DIR/dir-tree/' '$DEST_DIR/'"
+    
+    echo ""
+    echo "========================================"
+    echo "===  QUICK BENCHMARK COMPLETE       ==="
+    echo "========================================"
+    echo ""
+    echo "Results saved to: $RESULTS_DIR"
+    echo ""
+    echo "Next steps:"
+    echo "1. Run: python3 ./benchmarks/analyze_results.py $RESULTS_DIR"
+    echo "2. Review: cat $RESULTS_DIR/final_report.txt"
+    echo ""
+    if [ "$ENABLE_POWER_MONITORING" = "yes" ]; then
+        echo "✓ Power measurements included in results!"
+        echo "  Look for *_power.csv files in each test directory"
+        echo ""
+    fi
+    echo "Total runtime: ~30 minutes"
+    echo "These are PRELIMINARY results - run full benchmark for publication quality!"
+    
