@@ -1,6 +1,7 @@
 #!/bin/bash
 # Quick 30-minute benchmark suite with power monitoring
 # Usage: sudo ./run_benchmarks_quick.sh [source] [dest] [results]
+#    or: ALLOW_NO_ROOT=1 ./run_benchmarks_quick.sh [source] [dest] [results] (testing only)
 
 set -euo pipefail
 
@@ -20,11 +21,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ARSYNC_BIN="${ARSYNC_BIN:-$PROJECT_ROOT/target/release/arsync}"
 
-# Check root
+# Check root (can be bypassed with ALLOW_NO_ROOT=1 for testing)
 if [ "$EUID" -ne 0 ]; then
-    echo "ERROR: This script requires root (for dropping caches)"
-    echo "Usage: sudo $0 [source] [dest] [results]"
-    exit 1
+    if [ "${ALLOW_NO_ROOT}" != "1" ]; then
+        echo "ERROR: This script requires root (for dropping caches)"
+        echo "Usage: sudo $0 [source] [dest] [results]"
+        echo ""
+        echo "For testing only (results won't be accurate):"
+        echo "  ALLOW_NO_ROOT=1 $0 [source] [dest] [results]"
+        exit 1
+    else
+        echo "========================================"
+        echo "⚠️  WARNING: RUNNING WITHOUT ROOT"
+        echo "========================================"
+        echo ""
+        echo "Cache dropping DISABLED - results will NOT be accurate!"
+        echo "This mode is for TESTING ONLY, not real benchmarks."
+        echo ""
+        echo "For accurate results, run with sudo."
+        echo ""
+        sleep 3
+    fi
 fi
 
 # Validate
@@ -94,8 +111,12 @@ prepare_test() {
     sync
     
     # Drop caches (CRITICAL for fair comparison)
-    echo "  → Dropping caches (echo 3 > /proc/sys/vm/drop_caches)..."
-    echo 3 > /proc/sys/vm/drop_caches
+    if [ "$EUID" -eq 0 ]; then
+        echo "  → Dropping caches (echo 3 > /proc/sys/vm/drop_caches)..."
+        echo 3 > /proc/sys/vm/drop_caches
+    else
+        echo "  → ⚠️  SKIPPING cache drop (not root - results INVALID)"
+    fi
     echo "  → Caches dropped - testing COLD performance"
     
     # Wait for I/O to quiesce
