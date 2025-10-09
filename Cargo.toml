@@ -42,6 +42,10 @@ async-recursion = "1.0"
 whoami = "1.0"
 walkdir = "2.0"
 
+# Checksums and hashing for rsync protocol
+md5 = "0.7"
+blake3 = "1.5"
+
 # io_uring libraries
 libc = "0.2"
 # rio removed - using compio instead

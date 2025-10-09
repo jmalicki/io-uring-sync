@@ -21,6 +21,15 @@ const PROTOCOL_VERSION: u8 = 31; // rsync 3.2+
 /// Minimum protocol version we accept
 const MIN_PROTOCOL_VERSION: u8 = 27; // rsync 3.0+
 
+/// Default block size for checksums (rsync default)
+const DEFAULT_BLOCK_SIZE: usize = 700;
+
+/// Minimum block size
+const MIN_BLOCK_SIZE: usize = 128;
+
+/// Rolling checksum constants (Adler-32 style)
+const ROLLING_MODULUS: u32 = 65521;
+
 /// Push files to remote using rsync protocol over SSH
 pub async fn push_via_rsync_protocol(
     _args: &Args,

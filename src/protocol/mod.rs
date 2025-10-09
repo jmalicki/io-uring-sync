@@ -4,6 +4,7 @@
 //! existing rsync servers, as well as modern extensions using QUIC and
 //! merkle trees.
 
+pub mod checksum;
 pub mod pipe;
 pub mod rsync;
 pub mod ssh;
