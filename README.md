@@ -4,7 +4,7 @@
 
 # ![arsync](docs/arsync.png "arsync")
 
-**arsync** = **a**synchronous **rsync** (the "a" stands for asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
+**arsync** = **a**synchronous **[rsync](https://github.com/WayneD/rsync)** (the "a" stands for asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
 
 High-performance async file copying for Linux - a modern rsync alternative built on io_uring
 
@@ -40,7 +40,7 @@ arsync -a --source /data --destination /backup --progress
 
 `arsync` represents **30+ years of lessons learned** in [Linux](https://www.kernel.org/) systems programming, applying modern best practices to deliver the best possible file copying experience.
 
-While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built with the constraints and knowledge of that era. `arsync` leverages decades of advances in:
+While [rsync](https://rsync.samba.org/) ([GitHub](https://github.com/WayneD/rsync)) was groundbreaking in 1996, it was built with the constraints and knowledge of that era. `arsync` leverages decades of advances in:
 
 ### 🚀 The Six Key Innovations
 
@@ -52,17 +52,17 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 **The Problem:** Modern [NVMe](https://nvmexpress.org/) SSDs were designed with **massively parallel command queues** (up to 64K commands per queue, 64K queues) to saturate PCIe bandwidth and exploit the inherent parallelism of flash memory. Traditional blocking syscalls (one thread = one I/O at a time) create a **bottleneck** that wastes this hardware capability *([see NVMe architecture deep-dive →](docs/NVME_ARCHITECTURE.md))*:
 - Each `read()` or `write()` call blocks the thread
-- Single-threaded rsync can only issue ~10,000 operations/second
-- **Result: Your $2000 NVMe SSD performs like a $50 USB stick**
+- Single-threaded blocking I/O is limited in operations/second (exact rsync measurement TBD)
+- **Result: Your expensive NVMe SSD underperforms due to I/O bottleneck**
 
 **io-uring Solution:**
 - Submit **thousands of I/O operations** without blocking
 - Kernel processes them in parallel, saturating NVMe hardware
-- **Result: 2-5x throughput** - your NVMe performs as designed
+- **Result: TBD throughput improvement** - your NVMe performs as designed
 
 **Real-world impact:**
-- rsync: ~420 MB/s on 10,000 small files (bottlenecked by syscall overhead)
-- arsync: ~850 MB/s (2x faster - saturating NVMe queue depth)
+- rsync: TBD on 10,000 small files (bottlenecked by syscall overhead)
+- arsync: TBD (benchmarks pending - saturating NVMe queue depth)
 
 **References:**
 - [io_uring design documentation](https://kernel.dk/io_uring.pdf) - Jens Axboe (io_uring creator)
@@ -105,7 +105,7 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 **arsync Solution:**
 - `fadvise(NOREUSE)`: Tell kernel not to cache (free memory for other apps)
 - `fallocate()`: Preallocate file space (reduces fragmentation, faster writes)
-- Result: **15-30% better throughput** on large files
+- Result: **TBD% better throughput** on large files (benchmarks pending)
 
 **References:**
 - [LKML: fadvise reduces memory pressure](https://lkml.org/lkml/2004/6/4/43) - Catalin BOIE demonstrates fadvise preventing unnecessary caching
@@ -139,30 +139,30 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 ### 5. Single-Pass Hardlink Detection
 
 **The Problem:** rsync's two-pass approach:
-- Pre-scan entire tree (15+ seconds for large trees, no progress shown)
-- ~80 MB memory for inode map
+- Pre-scan entire tree (timing TBD for large trees, no progress shown)
+- Significant memory for inode map (exact measurement TBD)
 - User sees "frozen" application
 
 **arsync Solution:**
 - Integrated detection during traversal
 - Immediate progress feedback
-- ~8 MB memory (10x less)
-- **15x faster time-to-first-copy**
+- Lower memory usage (exact comparison TBD)
+- **TBD faster time-to-first-copy** (benchmarks pending)
 
 ---
 
 ### 6. Modern Software Engineering: Rust + Comprehensive Testing
 
-**The Problem:** rsync is written in [C](https://en.wikipedia.org/wiki/C_(programming_language)) (1996) with limited test coverage:
-- Manual memory management (potential for bugs)
-- No compile-time safety guarantees
-- Limited automated testing (hard to add tests to C codebase)
-- Difficult to refactor safely
+**The Context:** rsync is written in [C](https://en.wikipedia.org/wiki/C_(programming_language)) (1996) and was well-tested for its time:
+- Manual memory management (common in 1996)
+- Testing methodologies were primarily manual and integration-focused in that era
+- C was the standard for systems programming
+- rsync's testing was appropriate for the tools and practices available in the 1990s-2000s
 
-**arsync Solution:**
+**arsync's Modern Approach:**
 - Written in **[Rust](https://www.rust-lang.org/)** with memory safety guarantees
 - **93 automated tests** across 15 test files (~4,500 lines of test code)
-- **Comprehensive test categories**:
+- **Comprehensive test categories** enabled by modern testing frameworks:
   - Unit tests (permissions, timestamps, ownership, xattr)
   - Integration tests (directory traversal, hardlinks, symlinks)
   - Edge case tests (special permissions, unicode, long filenames)
@@ -173,9 +173,11 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 - **Type safety**: Impossible to mix up file descriptors, paths, or metadata
 - **Fearless refactoring**: Compiler catches errors before runtime
 
-**Testing comparison:**
-- rsync: Primarily manual testing, limited automated test suite
-- arsync: **93 automated tests** with >50% test-to-code ratio
+**What's Different:**
+- Testing methodology has greatly improved since 1996
+- Modern test frameworks (cargo test, rstest, etc.) make comprehensive testing easier
+- CI/CD automation wasn't available in rsync's early days
+- Memory-safe languages eliminate entire classes of bugs at compile time
 
 **Real-world impact:**
 - Bugs caught at compile time (not at 3am during backups)
@@ -193,22 +195,21 @@ While [rsync](https://rsync.samba.org/) was groundbreaking in 1996, it was built
 
 | Innovation | rsync (1996) | arsync (2024) | Impact |
 |------------|--------------|----------------------|--------|
-| **I/O Architecture** | Blocking syscalls | io_uring async | 2x faster on small files |
+| **I/O Architecture** | Blocking syscalls | io_uring async | TBD faster on small files (benchmarks pending) |
 | **Security** | Path-based (CVEs) | FD-based (TOCTOU-free) | No privilege escalation vulns |
-| **I/O Hints** | None | fadvise + fallocate | 15-30% better throughput |
+| **I/O Hints** | None | fadvise + fallocate | TBD% better throughput (benchmarks pending) |
 | **Metadata Syscalls** | `stat` (1970s) | `statx` (2017) | Nanosecond precision |
-| **Hardlink Detection** | Two-pass | Single-pass integrated | 15x faster start, 10x less memory |
+| **Hardlink Detection** | Two-pass | Single-pass integrated | TBD faster start, lower memory (benchmarks pending) |
 | **Language** | C (manual memory) | Rust (memory safe) | No buffer overflows, use-after-free |
-| **Test Coverage** | Limited | 93 automated tests | Bugs caught before release |
-| **Test Code** | Minimal | 4,500 lines | >50% test-to-code ratio |
+| **Testing Approach** | Well-tested for its era | Modern test frameworks | 93 automated tests, CI/CD integration |
 
 ### The Result
 
 By applying these six modern practices, `arsync` achieves:
-- **2x faster** on many small files (io_uring parallelism)
+- **TBD faster** on many small files (io_uring parallelism - benchmarks pending)
 - **More secure** (immune to TOCTOU vulnerabilities + memory safety)
 - **Better UX** (immediate progress, no frozen periods)
-- **More efficient** (better memory usage, I/O hints)
+- **More efficient** (better memory usage, I/O hints - benchmarks pending)
 - **More accurate** (nanosecond timestamps)
 - **More reliable** (comprehensive testing, type safety)
 
@@ -317,7 +318,7 @@ Features that `arsync` has but `rsync` doesn't:
 
 | Flag | Description | Performance Benefit |
 |------|-------------|---------------------|
-| `--queue-depth` | io_uring submission queue depth (1024-65536) | 2-5x throughput on high-performance storage |
+| `--queue-depth` | io_uring submission queue depth (1024-65536) | TBD throughput improvement (benchmarks pending) |
 | `--max-files-in-flight` | Max concurrent files per CPU (1-10000) | Optimal parallelism tuning |
 | `--cpu-count` | Number of CPUs to use (0 = auto) | Per-CPU queue architecture for scaling |
 | `--buffer-size-kb` | Buffer size in KB (0 = auto) | Fine-tune memory vs throughput |
@@ -485,14 +486,14 @@ rsync's use of path-based syscalls is a **30+ year old design** from before thes
 
 | Feature | rsync | arsync | Advantage |
 |---------|-------|---------------|-----------|
-| **I/O Architecture** | Blocking syscalls | io_uring async | **arsync**: 2-5x throughput |
+| **I/O Architecture** | Blocking syscalls | io_uring async | **arsync**: TBD throughput (benchmarks pending) |
 | **File Copying** | `read`/`write` loops | io_uring `read_at`/`write_at` + `fallocate` | **arsync**: Async I/O with preallocation |
 | **Metadata Operations** | Synchronous syscalls | io_uring `statx` | **arsync**: Async metadata |
 | **Hardlink Detection** | Separate analysis pass | Integrated during traversal | **arsync**: Single-pass operation |
 | **Symlink Operations** | `readlink`/`symlink` | io_uring `readlinkat`/`symlinkat` | **arsync**: Async symlinks |
 | **Parallelism** | Single-threaded | Per-CPU queues | **arsync**: Scales with cores |
-| **Small Files** | ~420 MB/s | ~850 MB/s | **arsync**: 2x faster |
-| **Large Files** | ~1.8 GB/s | ~2.1 GB/s | **arsync**: 15% faster |
+| **Small Files** | TBD | TBD | **arsync**: TBD (benchmarks pending) |
+| **Large Files** | TBD | TBD | **arsync**: TBD (benchmarks pending) |
 
 ### Metadata Preservation
 
@@ -582,7 +583,7 @@ arsync -a \
 
 - ✅ Copying files **on the same machine** (local → local)
 - ✅ Performance is critical (NVMe, fast storage)
-- ✅ You have many small files (2x faster than rsync)
+- ✅ You have many small files (TBD faster than rsync - benchmarks pending)
 - ✅ You want integrated hardlink detection
 - ✅ You need modern kernel features (io_uring)
 
@@ -617,14 +618,16 @@ arsync -avH --source /source --destination /destination
 
 ## Performance Benchmarks
 
-Detailed benchmarks on [Ubuntu](https://ubuntu.com/) 22.04, Linux Kernel 5.15, 16-core system, [NVMe](https://nvmexpress.org/) SSD:
+Detailed benchmarks to be conducted on [Ubuntu](https://ubuntu.com/) 22.04, Linux Kernel 5.15, 16-core system, [NVMe](https://nvmexpress.org/) SSD:
 
 | Workload | rsync | arsync | Speedup |
 |----------|-------|---------------|---------|
-| 1 GB single file | 1.8 GB/s | 2.1 GB/s | 1.15x |
-| 10,000 × 10 KB files | 420 MB/s | 850 MB/s | 2.0x |
-| Deep directory tree | 650 MB/s | 1.2 GB/s | 1.85x |
-| Mixed workload | 580 MB/s | 1.1 GB/s | 1.9x |
+| 1 GB single file | TBD | TBD | TBD |
+| 10,000 × 10 KB files | TBD | TBD | TBD |
+| Deep directory tree | TBD | TBD | TBD |
+| Mixed workload | TBD | TBD | TBD |
+
+**Note:** Benchmarks are pending. These test scenarios will measure real-world performance once testing infrastructure is complete.
 
 ## Test Validation
 
@@ -700,7 +703,7 @@ These tests run automatically in CI to ensure:
 
 **Our compatibility is validated by 18 automated tests** that compare actual behavior against rsync.
 
-For remote sync, network operations, or advanced rsync features (`--delete`, `--checksum`, `--partial`), continue using `rsync`.
+For remote sync, network operations, or advanced rsync features (`--delete`, `--checksum`, `--partial`), continue using [rsync](https://github.com/WayneD/rsync).
 
 ---
 
@@ -747,15 +750,15 @@ $ arsync -aH --source /large-tree --destination /backup --progress
 
 ### Performance Comparison
 
-For a directory tree with 10,000 files and 2,000 hardlinks:
+For a directory tree with 10,000 files and 2,000 hardlinks (benchmarks pending):
 
 | Metric | rsync -aH | arsync -aH | Advantage |
 |--------|-----------|-------------------|-----------|
-| **Pre-scan Time** | ~15 seconds | 0 seconds | No pre-scan needed |
-| **Time to First Copy** | ~15 seconds | <1 second | **15x faster** start |
-| **Memory Usage** | ~80 MB (inode map) | ~8 MB (in-flight only) | **10x less** memory |
-| **Total Time** | ~45 seconds | ~28 seconds | **1.6x faster** overall |
-| **User Experience** | "Hanging" then progress | Immediate progress | **Better UX** |
+| **Pre-scan Time** | TBD | 0 seconds (by design) | No pre-scan needed |
+| **Time to First Copy** | TBD | TBD | **TBD faster** start (benchmarks pending) |
+| **Memory Usage** | TBD | TBD (in-flight only) | **TBD less** memory (benchmarks pending) |
+| **Total Time** | TBD | TBD | **TBD faster** overall (benchmarks pending) |
+| **User Experience** | "Hanging" then progress | Immediate progress | **Better UX** (by design) |
 
 ### Technical Implementation
 
@@ -961,9 +964,9 @@ For a comprehensive deep-dive into why NVMe was designed with massive parallelis
 
 **Key takeaways:**
 - NVMe: 64K queues × 64K commands = 4 billion outstanding operations
-- Traditional blocking I/O wastes 90% of NVMe performance
+- Traditional blocking I/O significantly underutilizes NVMe performance (exact measurement TBD)
 - io_uring's queue-pair model matches NVMe's native architecture
-- Result: 8.5x throughput improvement on small files
+- Result: TBD throughput improvement on small files (benchmarks pending)
 
 ### Why fadvise is Superior to O_DIRECT
 
@@ -973,7 +976,7 @@ For a detailed explanation of why arsync uses `fadvise` instead of `O_DIRECT`, i
 - O_DIRECT requires strict 4KB alignment (painful)
 - O_DIRECT is synchronous (blocks, can't hide latency)
 - fadvise retains kernel optimizations (read-ahead, write-behind)
-- Result: fadvise + io_uring is 15-30% faster than O_DIRECT
+- Result: fadvise + io_uring is TBD% faster than O_DIRECT (benchmarks pending)
 
 ---
 
@@ -993,6 +996,7 @@ This project is licensed under the MIT license (see [LICENSE](LICENSE) or http:/
 
 ## Acknowledgments
 
+- **[rsync](https://rsync.samba.org/)** ([GitHub](https://github.com/WayneD/rsync)) - Pioneering file synchronization tool created by Andrew Tridgell and Paul Mackerras in 1996. We are deeply grateful to Wayne Davison (current maintainer), and all the contributors who have developed and maintained rsync over nearly three decades. rsync revolutionized file synchronization and remains the gold standard. This project stands on the shoulders of their groundbreaking work.
 - [io_uring](https://kernel.dk/io_uring.pdf) - Linux kernel asynchronous I/O interface by Jens Axboe
 - [compio](https://github.com/compio-rs/compio) - Completion-based async runtime for Rust
 - [Rust](https://www.rust-lang.org/) - Memory-safe systems programming language

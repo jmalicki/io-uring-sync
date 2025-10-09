@@ -40,6 +40,10 @@ pub enum SyncError {
     #[error("File system error: {0}")]
     FileSystem(String),
 
+    /// File descriptor exhaustion (EMFILE)
+    #[error("File descriptor exhaustion: {0}")]
+    FdExhaustion(String),
+
     /// Internal application error
     #[error("Internal error: {0}")]
     #[allow(dead_code)]

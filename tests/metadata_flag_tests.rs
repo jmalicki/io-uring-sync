@@ -19,7 +19,6 @@ fn create_args_no_metadata() -> Args {
     Args {
         source: PathBuf::from("/test/source"),
         destination: PathBuf::from("/test/dest"),
-        // All metadata flags default to false via Default::default()
         ..Default::default()
     }
 }

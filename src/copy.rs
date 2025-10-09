@@ -570,6 +570,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            no_adaptive_concurrency: false,
         }
     }
 

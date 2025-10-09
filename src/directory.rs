@@ -4,12 +4,14 @@
 //! using `io_uring` operations where possible, with fallbacks to standard
 //! filesystem operations for unsupported operations.
 
+use crate::adaptive_concurrency::{check_fd_limits, AdaptiveConcurrencyController};
 use crate::cli::{Args, CopyMethod};
 use crate::copy::copy_file;
 use crate::error::{Result, SyncError};
 use crate::io_uring::FileOperations;
 // io_uring_extended removed - using compio directly
 use compio::dispatcher::Dispatcher;
+use compio_sync::Semaphore;
 #[allow(clippy::disallowed_types)]
 use std::collections::HashMap;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -370,6 +372,81 @@ impl SharedHardlinkTracker {
     }
 }
 
+/// Wrapper for shared semaphore to limit concurrent operations
+///
+/// This struct wraps a `Semaphore` in an `Arc` to allow shared access
+/// across multiple async tasks dispatched by compio's dispatcher. It provides
+/// concurrency control to prevent unbounded queue growth during BFS traversal.
+///
+/// # Thread Safety
+///
+/// The semaphore is thread-safe and can be used concurrently from different
+/// async tasks without additional synchronization.
+///
+/// # Usage
+///
+/// ```rust,ignore
+/// let semaphore = SharedSemaphore::new(100);
+/// let permit = semaphore.acquire().await;
+/// // ... perform bounded concurrent operation ...
+/// drop(permit); // Release permit
+/// ```
+#[derive(Clone)]
+pub struct SharedSemaphore {
+    /// Inner semaphore wrapped in Arc for shared access
+    inner: Arc<Semaphore>,
+}
+
+impl SharedSemaphore {
+    /// Create a new `SharedSemaphore` wrapper
+    ///
+    /// # Arguments
+    ///
+    /// * `permits` - The maximum number of concurrent permits
+    #[must_use]
+    pub fn new(permits: usize) -> Self {
+        Self {
+            inner: Arc::new(Semaphore::new(permits)),
+        }
+    }
+
+    /// Acquire a permit from the semaphore
+    ///
+    /// This will block until a permit is available.
+    pub async fn acquire(&self) -> compio_sync::SemaphorePermit {
+        self.inner.acquire().await
+    }
+
+    /// Get the number of available permits
+    #[must_use]
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn available_permits(&self) -> usize {
+        self.inner.available_permits()
+    }
+
+    /// Get the maximum number of permits
+    #[must_use]
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn max_permits(&self) -> usize {
+        self.inner.max_permits()
+    }
+
+    /// Reduce available permits (for adaptive concurrency control)
+    ///
+    /// Returns the actual number of permits reduced.
+    #[must_use]
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn reduce_permits(&self, count: usize) -> usize {
+        self.inner.reduce_permits(count)
+    }
+
+    /// Add permits back (for adaptive concurrency control)
+    #[allow(dead_code)] // Used by adaptive concurrency controller (not yet integrated)
+    pub fn add_permits(&self, count: usize) {
+        self.inner.add_permits(count);
+    }
+}
+
 /// Extended metadata using `std::fs` metadata support
 #[derive(Debug)]
 pub struct ExtendedMetadata {
@@ -626,6 +703,23 @@ async fn traverse_and_copy_directory_iterative(
     let shared_stats = SharedStats::new(std::mem::take(stats));
     let shared_hardlink_tracker = SharedHardlinkTracker::new(std::mem::take(hardlink_tracker));
 
+    // Check FD limits and warn if too low
+    if let Ok(fd_limit) = check_fd_limits() {
+        if fd_limit < args.max_files_in_flight as u64 {
+            warn!(
+                "FD limit ({}) is less than --max-files-in-flight ({}). Consider: ulimit -n {}",
+                fd_limit,
+                args.max_files_in_flight,
+                args.max_files_in_flight * 2
+            );
+        }
+    }
+
+    // Create adaptive concurrency controller for bounding concurrent operations
+    // This prevents unbounded queue growth and adapts to resource constraints
+    let concurrency_controller =
+        Arc::new(AdaptiveConcurrencyController::new(args.max_files_in_flight));
+
     // Process the directory
     let result = process_directory_entry_with_compio(
         dispatcher,
@@ -635,6 +729,7 @@ async fn traverse_and_copy_directory_iterative(
         _copy_method,
         shared_stats.clone(),
         shared_hardlink_tracker.clone(),
+        concurrency_controller,
         args_static,
     )
     .await;
@@ -699,8 +794,14 @@ async fn process_directory_entry_with_compio(
     _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
+    concurrency_controller: Arc<AdaptiveConcurrencyController>,
     args: &'static Args,
 ) -> Result<()> {
+    // Acquire permit from adaptive concurrency controller
+    // This prevents unbounded queue growth and adapts to resource constraints (e.g., FD exhaustion)
+    // The permit is held for the entire operation (directory, file, or symlink)
+    let _permit = concurrency_controller.acquire().await;
+
     // Get comprehensive metadata using compio's async operations
     let extended_metadata = ExtendedMetadata::new(&src_path).await?;
 
@@ -765,6 +866,7 @@ async fn process_directory_entry_with_compio(
             let copy_method = copy_method.clone();
             let stats = stats.clone();
             let hardlink_tracker = hardlink_tracker.clone();
+            let concurrency_controller = concurrency_controller.clone();
             let receiver = dispatcher
                 .dispatch(move || {
                     process_directory_entry_with_compio(
@@ -775,6 +877,7 @@ async fn process_directory_entry_with_compio(
                         copy_method,
                         stats,
                         hardlink_tracker,
+                        concurrency_controller.clone(),
                         args,
                     )
                 })
@@ -814,6 +917,7 @@ async fn process_directory_entry_with_compio(
             _copy_method,
             stats,
             hardlink_tracker,
+            concurrency_controller,
             args,
         )
         .await?;
@@ -858,6 +962,7 @@ async fn process_file(
     _copy_method: CopyMethod,
     stats: SharedStats,
     hardlink_tracker: SharedHardlinkTracker,
+    concurrency_controller: Arc<AdaptiveConcurrencyController>,
     args: &'static Args,
 ) -> Result<()> {
     debug!(
@@ -891,12 +996,39 @@ async fn process_file(
                 debug!("Copied file: {}", dst_path.display());
             }
             Err(e) => {
-                warn!(
-                    "Failed to copy file {} -> {}: {}",
-                    src_path.display(),
-                    dst_path.display(),
-                    e
-                );
+                // Check if this is FD exhaustion and handle accordingly
+                let adapted = concurrency_controller.handle_error(&e);
+
+                if adapted {
+                    // Adapted to FD exhaustion
+                    if args.no_adaptive_concurrency {
+                        // User disabled adaptive concurrency - fail hard
+                        return Err(SyncError::FdExhaustion(format!(
+                            "File descriptor exhaustion detected (--no-adaptive-concurrency is set). \
+                             Failed to copy {} -> {}: {}. \
+                             Either increase ulimit or remove --no-adaptive-concurrency flag.",
+                            src_path.display(),
+                            dst_path.display(),
+                            e
+                        )));
+                    }
+                    // Otherwise, log warning and continue with reduced concurrency
+                    warn!(
+                        "Adapted to FD exhaustion - continuing with reduced concurrency. \
+                         Failed to copy file {} -> {}: {}",
+                        src_path.display(),
+                        dst_path.display(),
+                        e
+                    );
+                } else {
+                    // Not FD exhaustion - just log warning
+                    warn!(
+                        "Failed to copy file {} -> {}: {}",
+                        src_path.display(),
+                        dst_path.display(),
+                        e
+                    );
+                }
                 stats.increment_errors()?;
             }
         }

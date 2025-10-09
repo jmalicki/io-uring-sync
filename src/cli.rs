@@ -21,7 +21,15 @@ pub struct Args {
     #[arg(long, default_value = "4096")]
     pub queue_depth: usize,
 
-    /// Maximum files in flight per CPU core
+    /// Maximum total files in flight (across all CPU cores)
+    ///
+    /// Controls memory usage and system load by limiting the total number of
+    /// files being copied simultaneously. Higher values increase throughput
+    /// but consume more memory and file descriptors.
+    ///
+    /// Default: 1024
+    /// High-performance (`NVMe`, 32GB+ RAM): 2048-4096
+    /// Conservative (`HDD`, limited RAM): 256-512
     #[arg(long, default_value = "1024")]
     pub max_files_in_flight: usize,
 
@@ -119,6 +127,18 @@ pub struct Args {
     /// Enable pirate speak (arrr! 🏴‍☠️)
     #[arg(long, default_value = "false")]
     pub pirate: bool,
+
+    // ========== Concurrency control flags ==========
+    /// Disable adaptive concurrency control (fail fast on resource exhaustion)
+    ///
+    /// By default, arsync automatically reduces concurrency when hitting resource
+    /// limits like "Too many open files" (EMFILE). This flag disables that behavior
+    /// and causes arsync to exit immediately on such errors instead.
+    ///
+    /// Use this if you want strict resource limit enforcement or in CI/CD environments
+    /// where you want to catch configuration issues early.
+    #[arg(long)]
+    pub no_adaptive_concurrency: bool,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -169,6 +189,7 @@ impl Default for Args {
             verbose: 0,
             quiet: false,
             pirate: false,
+            no_adaptive_concurrency: false,
         }
     }
 }
@@ -428,6 +449,7 @@ mod tests {
             verbose: 0,
             quiet: false,
             pirate: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_ok());
@@ -464,6 +486,7 @@ mod tests {
             verbose: 0,
             quiet: false,
             pirate: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_ok());
@@ -499,6 +522,7 @@ mod tests {
             verbose: 0,
             quiet: false,
             pirate: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_err());
