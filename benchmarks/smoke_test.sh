@@ -7,6 +7,9 @@
 #
 # Expected time: < 2 minutes
 # Focus: Correctness, not performance
+#
+# ⚠️  NO ROOT REQUIRED - runs in /tmp
+# (Unlike run_benchmarks_quick.sh which needs sudo for cache dropping)
 
 set -e
 
