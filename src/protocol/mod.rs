@@ -141,3 +141,4 @@ pub async fn pipe_receiver(args: &Args, destination: &Location) -> Result<SyncSt
         rsync::receive_via_pipe(args, transport, dest_path).await
     }
 }
+pub mod handshake;

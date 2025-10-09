@@ -65,6 +65,7 @@ tokio = { version = "1.0", features = ["process", "io-util", "rt", "fs", "macros
 async-trait = { version = "0.1", optional = true }
 quinn = { version = "0.11", optional = true }
 rustls = { version = "0.23", optional = true }
+rand = { version = "0.9.2", optional = true }
 
 # Build dependencies
 [build-dependencies]
@@ -97,8 +98,9 @@ cargo-audit = "0.21"
 [features]
 default = []
 benchmarks = ["criterion"]
-remote-sync = ["tokio", "async-trait"]
+remote-sync = ["tokio", "async-trait", "rand"]
 quic = ["remote-sync", "quinn", "rustls"]
+rand = ["dep:rand"]
 
 [profile.release]
 lto = true
