@@ -3,9 +3,11 @@
 //! This module implements the actual rsync wire protocol for interoperability
 //! with rsync processes. rsync uses a multiplexed I/O protocol with message tags.
 
+use crate::protocol::rsync::FileEntry;
 use crate::protocol::transport::{self, Transport};
-use crate::protocol::varint;
+use crate::protocol::varint::{self, encode_varint, encode_varint_into};
 use anyhow::Result;
+use std::io::Cursor;
 use tracing::{debug, warn};
 
 /// rsync protocol uses multiplexed I/O with tags
@@ -280,6 +282,202 @@ impl<T: Transport> MultiplexWriter<T> {
     }
 }
 
+// ============================================================================
+// File List Encoding/Decoding (rsync format)
+// ============================================================================
+
+/// rsync file list flags (from flist.c)
+mod file_flags {
+    pub const XMIT_TOP_DIR: u8 = 0x01; // Top-level directory
+    pub const XMIT_SAME_MODE: u8 = 0x02; // Mode unchanged
+    pub const XMIT_EXTENDED_FLAGS: u8 = 0x04; // Extended flags follow
+    pub const XMIT_SAME_UID: u8 = 0x10; // UID unchanged
+    pub const XMIT_SAME_GID: u8 = 0x20; // GID unchanged
+    pub const XMIT_SAME_NAME: u8 = 0x40; // Name matches previous (hardlink)
+    pub const XMIT_LONG_NAME: u8 = 0x80; // Name > 255 bytes
+}
+
+/// Encode file list in rsync wire format (simplified - no delta encoding yet)
+///
+/// This sends each file as MSG_FLIST tagged message with varint-encoded fields.
+/// Simplified version: no mtime deltas, no directory grouping.
+pub async fn encode_file_list_rsync<T: Transport>(
+    writer: &mut MultiplexWriter<T>,
+    files: &[FileEntry],
+) -> Result<()> {
+    debug!("Encoding {} files in rsync format", files.len());
+
+    for file in files {
+        let mut entry = Vec::new();
+
+        // Flags byte
+        let mut flags = 0u8;
+        if file.path.len() > 255 {
+            flags |= file_flags::XMIT_LONG_NAME;
+        }
+        // For now, no delta encoding, so no SAME_MODE/SAME_UID/SAME_GID flags
+
+        entry.push(flags);
+
+        // Path (varint length + bytes)
+        encode_varint_into(file.path.len() as u64, &mut entry);
+        entry.extend(file.path.as_bytes());
+
+        // File size (varint)
+        encode_varint_into(file.size, &mut entry);
+
+        // Mtime (varint, absolute - no delta encoding yet)
+        // rsync uses unsigned for mtime, we need to convert
+        let mtime_unsigned = if file.mtime < 0 {
+            0u64 // Clamp negative times to 0
+        } else {
+            file.mtime as u64
+        };
+        encode_varint_into(mtime_unsigned, &mut entry);
+
+        // Mode (varint)
+        encode_varint_into(file.mode as u64, &mut entry);
+
+        // uid/gid (varint)
+        encode_varint_into(file.uid as u64, &mut entry);
+        encode_varint_into(file.gid as u64, &mut entry);
+
+        // Symlink target if applicable
+        if file.is_symlink {
+            if let Some(ref target) = file.symlink_target {
+                encode_varint_into(target.len() as u64, &mut entry);
+                entry.extend(target.as_bytes());
+            }
+        }
+
+        // Send as MSG_FLIST tagged message
+        writer.write_message(MessageTag::FList, &entry).await?;
+
+        debug!("Encoded file: {} ({} bytes)", file.path, entry.len());
+    }
+
+    // End-of-list marker (empty MSG_FLIST)
+    writer.write_message(MessageTag::FList, &[]).await?;
+    debug!("Sent end-of-list marker");
+
+    Ok(())
+}
+
+/// Decode file list from rsync wire format
+///
+/// Reads MSG_FLIST tagged messages until empty message (end marker).
+pub async fn decode_file_list_rsync<T: Transport>(
+    reader: &mut MultiplexReader<T>,
+) -> Result<Vec<FileEntry>> {
+    debug!("Decoding file list in rsync format");
+
+    let mut files = Vec::new();
+
+    loop {
+        // Read next file list message
+        let msg = reader.read_message().await?;
+
+        if msg.tag != MessageTag::FList {
+            anyhow::bail!("Expected MSG_FLIST, got {:?}", msg.tag);
+        }
+
+        if msg.data.is_empty() {
+            // End of list marker
+            debug!("Received end-of-list marker");
+            break;
+        }
+
+        // Decode file entry from message data
+        let file = decode_file_entry(&msg.data)?;
+        debug!("Decoded file: {} ({} bytes)", file.path, file.size);
+        files.push(file);
+    }
+
+    debug!("Decoded {} files total", files.len());
+    Ok(files)
+}
+
+/// Decode a single file entry from bytes
+fn decode_file_entry(data: &[u8]) -> Result<FileEntry> {
+    let mut cursor = Cursor::new(data);
+
+    // Flags byte
+    let mut flags_buf = [0u8; 1];
+    std::io::Read::read_exact(&mut cursor, &mut flags_buf)?;
+    let flags = flags_buf[0];
+
+    // Path length and path
+    let path_len = decode_varint_sync(&mut cursor)? as usize;
+    let mut path_buf = vec![0u8; path_len];
+    std::io::Read::read_exact(&mut cursor, &mut path_buf)?;
+    let path = String::from_utf8(path_buf)?;
+
+    // File size
+    let size = decode_varint_sync(&mut cursor)?;
+
+    // Mtime
+    let mtime = decode_varint_sync(&mut cursor)? as i64;
+
+    // Mode
+    let mode = decode_varint_sync(&mut cursor)? as u32;
+
+    // uid/gid
+    let uid = decode_varint_sync(&mut cursor)? as u32;
+    let gid = decode_varint_sync(&mut cursor)? as u32;
+
+    // Check if symlink (we need to infer from mode bits)
+    let is_symlink = (mode & 0o170000) == 0o120000; // S_IFLNK
+
+    // Symlink target if applicable
+    let symlink_target = if is_symlink {
+        let target_len = decode_varint_sync(&mut cursor)? as usize;
+        let mut target_buf = vec![0u8; target_len];
+        std::io::Read::read_exact(&mut cursor, &mut target_buf)?;
+        Some(String::from_utf8(target_buf)?)
+    } else {
+        None
+    };
+
+    Ok(FileEntry {
+        path,
+        size,
+        mtime,
+        mode,
+        uid,
+        gid,
+        is_symlink,
+        symlink_target,
+    })
+}
+
+/// Decode varint from synchronous reader (for use with Cursor)
+fn decode_varint_sync(reader: &mut Cursor<&[u8]>) -> Result<u64> {
+    use std::io::Read;
+
+    let mut result = 0u64;
+    let mut shift = 0;
+
+    loop {
+        let mut byte_buf = [0u8; 1];
+        reader.read_exact(&mut byte_buf)?;
+        let byte = byte_buf[0];
+
+        result |= ((byte & 0x7F) as u64) << shift;
+
+        if (byte & 0x80) == 0 {
+            break;
+        }
+
+        shift += 7;
+
+        if shift > 63 {
+            anyhow::bail!("Varint overflow");
+        }
+    }
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,5 +499,75 @@ mod tests {
 
         let decoded = u32::from_le_bytes([encoded[0], encoded[1], encoded[2], 0]);
         assert_eq!(decoded, length);
+    }
+
+    #[test]
+    fn test_file_entry_roundtrip() {
+        // Create a test file entry
+        let original = FileEntry {
+            path: "test/file.txt".to_string(),
+            size: 12345,
+            mtime: 1696800000,
+            mode: 0o100644,
+            uid: 1000,
+            gid: 1000,
+            is_symlink: false,
+            symlink_target: None,
+        };
+
+        // Encode it manually (simulating what encode_file_list_rsync does)
+        let mut entry = Vec::new();
+        entry.push(0u8); // flags
+        encode_varint_into(original.path.len() as u64, &mut entry);
+        entry.extend(original.path.as_bytes());
+        encode_varint_into(original.size, &mut entry);
+        encode_varint_into(original.mtime as u64, &mut entry);
+        encode_varint_into(original.mode as u64, &mut entry);
+        encode_varint_into(original.uid as u64, &mut entry);
+        encode_varint_into(original.gid as u64, &mut entry);
+
+        // Decode it
+        let decoded = decode_file_entry(&entry).expect("Should decode");
+
+        assert_eq!(decoded.path, original.path);
+        assert_eq!(decoded.size, original.size);
+        assert_eq!(decoded.mtime, original.mtime);
+        assert_eq!(decoded.mode, original.mode);
+        assert_eq!(decoded.uid, original.uid);
+        assert_eq!(decoded.gid, original.gid);
+    }
+
+    #[test]
+    fn test_symlink_entry() {
+        let symlink = FileEntry {
+            path: "link".to_string(),
+            size: 0,
+            mtime: 1696800000,
+            mode: 0o120777, // S_IFLNK | 0777
+            uid: 1000,
+            gid: 1000,
+            is_symlink: true,
+            symlink_target: Some("target/path".to_string()),
+        };
+
+        // Encode manually
+        let mut entry = Vec::new();
+        entry.push(0u8);
+        encode_varint_into(symlink.path.len() as u64, &mut entry);
+        entry.extend(symlink.path.as_bytes());
+        encode_varint_into(symlink.size, &mut entry);
+        encode_varint_into(symlink.mtime as u64, &mut entry);
+        encode_varint_into(symlink.mode as u64, &mut entry);
+        encode_varint_into(symlink.uid as u64, &mut entry);
+        encode_varint_into(symlink.gid as u64, &mut entry);
+        let target = symlink.symlink_target.as_ref().unwrap();
+        encode_varint_into(target.len() as u64, &mut entry);
+        entry.extend(target.as_bytes());
+
+        // Decode
+        let decoded = decode_file_entry(&entry).expect("Should decode");
+
+        assert_eq!(decoded.is_symlink, true);
+        assert_eq!(decoded.symlink_target.as_ref().unwrap(), "target/path");
     }
 }
