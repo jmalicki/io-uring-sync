@@ -4,7 +4,7 @@
 
 # ![arsync](../arsync.png "arsync") (Pirate Edition)
 
-**arsync** = **a**rrrr-synchronous **rsync** (the "a" be standin' fer asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
+**arsync** = **a**rrrr-synchronous **[rsync](https://github.com/WayneD/rsync)** (the "a" be standin' fer asynchronous, i.e., [io_uring](https://kernel.dk/io_uring.pdf))
 
 High-performance async treasure plunderin' fer Linux - a modern rsync alternative built on io_uring, arrr!
 
@@ -42,7 +42,7 @@ arsync -a --source /data --destination /backup --progress
 
 Ahoy, mateys! `arsync` represents **30+ years o' hard-won lessons learned** sailin' the treacherous seas of [Linux](https://www.kernel.org/) systems programmin'. We be applyin' all the modern best practices to deliver ye the absolute finest treasure plunderin' experience a pirate could ask for, arrr!
 
-Now, don't get me wrong - [rsync](https://rsync.samba.org/) was a right groundbreakin' tool when it sailed forth in 1996, aye. But it be built with the constraints and knowledge of that bygone era, ye see. `arsync`, on the other hand, leverages decades worth o' advances in the art o' file plunderin':
+Now, don't get me wrong - [rsync](https://rsync.samba.org/) ([GitHub](https://github.com/WayneD/rsync)) was a right groundbreakin' tool when it sailed forth in 1996, aye. But it be built with the constraints and knowledge of that bygone era, ye see. `arsync`, on the other hand, leverages decades worth o' advances in the art o' file plunderin':
 
 ### 🚀 The Six Key Innovations (Arrr!)
 
@@ -704,7 +704,7 @@ These tests run automatically in CI to ensure:
 
 **Our compatibility be validated by 18 automated tests** that compare actual behavior against rsync.
 
-Fer remote sync, network operations, or advanced rsync features (`--delete`, `--checksum`, `--partial`), continue usin' `rsync`.
+Fer remote sync, network operations, or advanced rsync features (`--delete`, `--checksum`, `--partial`), continue usin' [rsync](https://github.com/WayneD/rsync).
 
 ---
 
@@ -1001,6 +1001,7 @@ This project be licensed under the MIT license (see [LICENSE](LICENSE) or http:/
 
 ## Acknowledgments (Thanks to These Fine Sailors)
 
+- **[rsync](https://rsync.samba.org/)** ([GitHub](https://github.com/WayneD/rsync)) - Pioneerin' treasure synchronization tool created by Andrew Tridgell and Paul Mackerras way back in 1996! We be deeply grateful to Wayne Davison (current cap'n maintainer), and all the contributors who've developed and maintained rsync over nearly three decades on the high seas! rsync revolutionized treasure plunderin' and remains the gold standard, aye! This project stands on the shoulders o' their groundbreakin' work, arrr!
 - [io_uring](https://kernel.dk/io_uring.pdf) - Linux kernel asynchronous I/O interface by Jens Axboe (the master shipwright!)
 - [compio](https://github.com/compio-rs/compio) - Completion-based async runtime fer Rust (keeps the ship sailin' smooth!)
 - [Rust](https://www.rust-lang.org/) - Memory-safe systems programmin' language (prevents the ship from sinkin'!)
