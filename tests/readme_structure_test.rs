@@ -192,11 +192,7 @@ fn test_readme_structure_matches() {
     // Test: Similar number of internal links (allow small variance for language selector)
     let readme_internal_count = readme_structure.internal_links.len();
     let pirate_internal_count = pirate_structure.internal_links.len();
-    let diff = if readme_internal_count > pirate_internal_count {
-        readme_internal_count - pirate_internal_count
-    } else {
-        pirate_internal_count - readme_internal_count
-    };
+    let diff = readme_internal_count.abs_diff(pirate_internal_count);
 
     assert!(
         diff <= 5,
@@ -339,6 +335,7 @@ fn test_internal_links_valid() {
     }
 
     // Simple Levenshtein distance for fuzzy matching
+    #[allow(clippy::needless_range_loop)]
     fn levenshtein_distance(s1: &str, s2: &str) -> usize {
         let len1 = s1.len();
         let len2 = s2.len();
@@ -386,8 +383,7 @@ fn test_internal_links_valid() {
                     }
 
                     // Distance > 15 means real problem (likely typo or missing heading)
-                    assert!(
-                        false,
+                    panic!(
                         "English README has broken internal link!\n\
                          Link in TOC: #{}\n\
                          Closest heading anchor: #{} (edit distance: {})\n\
@@ -400,8 +396,7 @@ fn test_internal_links_valid() {
                         anchor, closest, distance, closest
                     );
                 } else {
-                    assert!(
-                        false,
+                    panic!(
                         "English README has broken internal link: #{} \
                          (No matching heading found)",
                         anchor
@@ -429,8 +424,7 @@ fn test_internal_links_valid() {
                     }
 
                     // Distance > 15 means real problem (likely typo or missing heading)
-                    assert!(
-                        false,
+                    panic!(
                         "Pirate README has broken internal link!\n\
                          Link in TOC: #{}\n\
                          Closest heading anchor: #{} (edit distance: {})\n\
@@ -443,8 +437,7 @@ fn test_internal_links_valid() {
                         anchor, closest, distance, closest
                     );
                 } else {
-                    assert!(
-                        false,
+                    panic!(
                         "Pirate README has broken internal link: #{} \
                          (No matching heading found)",
                         anchor

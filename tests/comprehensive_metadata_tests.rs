@@ -7,7 +7,7 @@
 // Known limitation: Nanosecond timestamp propagation is currently unreliable in CI.
 // See issue: https://github.com/jmalicki/arsync/issues/9
 
-use arsync::cli::{Args, CopyMethod};
+use arsync::cli::Args;
 use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;

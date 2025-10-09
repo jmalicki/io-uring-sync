@@ -4,7 +4,7 @@
 //! These tests verify that metadata preservation works correctly under
 //! various performance scenarios and stress conditions.
 
-use arsync::cli::{Args, CopyMethod};
+use arsync::cli::Args;
 use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;

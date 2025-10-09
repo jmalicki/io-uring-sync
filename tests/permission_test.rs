@@ -1,6 +1,6 @@
 //! Test permission preservation in file copying
 
-use arsync::cli::{Args, CopyMethod};
+use arsync::cli::Args;
 use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;

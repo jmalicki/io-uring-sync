@@ -4,7 +4,7 @@
 //! These tests cover extreme scenarios and edge cases that could reveal
 //! subtle bugs in the permission and timestamp preservation logic.
 
-use arsync::cli::{Args, CopyMethod};
+use arsync::cli::Args;
 use arsync::copy::copy_file;
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
