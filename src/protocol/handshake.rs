@@ -774,6 +774,140 @@ impl HandshakeState {
 }
 
 // ============================================================================
+// Public API Functions
+// ============================================================================
+
+/// Perform handshake as sender
+///
+/// This is a convenience function that runs the complete handshake state machine
+/// in sender mode. The sender is the side that will be sending files.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Transport I/O fails
+/// - Protocol version is incompatible
+/// - Handshake fails for any reason
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use arsync::protocol::handshake::handshake_sender;
+/// use arsync::protocol::pipe::PipeTransport;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let mut transport = PipeTransport::from_stdio()?;
+/// let capabilities = handshake_sender(&mut transport).await?;
+/// println!("Handshake complete! Version: {}", capabilities.version);
+/// # Ok(())
+/// # }
+/// ```
+pub async fn handshake_sender<T: Transport>(transport: &mut T) -> Result<ProtocolCapabilities> {
+    info!("Starting handshake as sender");
+
+    let mut state = HandshakeState::Initial;
+
+    while !state.is_complete() {
+        state = state.advance(transport, Role::Sender).await?;
+    }
+
+    let capabilities = state
+        .get_capabilities()
+        .ok_or_else(|| anyhow::anyhow!("Handshake completed but capabilities not set"))?
+        .clone();
+
+    info!(
+        "Handshake complete (sender): version={}, flags=0x{:08X}",
+        capabilities.version, capabilities.flags
+    );
+
+    Ok(capabilities)
+}
+
+/// Perform handshake as receiver
+///
+/// This is a convenience function that runs the complete handshake state machine
+/// in receiver mode. The receiver is the side that will be receiving files.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Transport I/O fails
+/// - Protocol version is incompatible
+/// - Handshake fails for any reason
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use arsync::protocol::handshake::handshake_receiver;
+/// use arsync::protocol::pipe::PipeTransport;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let mut transport = PipeTransport::from_stdio()?;
+/// let capabilities = handshake_receiver(&mut transport).await?;
+/// println!("Handshake complete! Version: {}", capabilities.version);
+/// # Ok(())
+/// # }
+/// ```
+pub async fn handshake_receiver<T: Transport>(transport: &mut T) -> Result<ProtocolCapabilities> {
+    info!("Starting handshake as receiver");
+
+    let mut state = HandshakeState::Initial;
+
+    while !state.is_complete() {
+        state = state.advance(transport, Role::Receiver).await?;
+    }
+
+    let capabilities = state
+        .get_capabilities()
+        .ok_or_else(|| anyhow::anyhow!("Handshake completed but capabilities not set"))?
+        .clone();
+
+    info!(
+        "Handshake complete (receiver): version={}, flags=0x{:08X}",
+        capabilities.version, capabilities.flags
+    );
+
+    Ok(capabilities)
+}
+
+/// Perform handshake with specified role
+///
+/// This is the most general handshake function that accepts a role parameter.
+/// Use `handshake_sender()` or `handshake_receiver()` for more convenient APIs.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Transport I/O fails
+/// - Protocol version is incompatible
+/// - Handshake fails for any reason
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use arsync::protocol::handshake::{handshake, Role};
+/// use arsync::protocol::pipe::PipeTransport;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let mut transport = PipeTransport::from_stdio()?;
+/// let role = Role::Sender;
+/// let capabilities = handshake(&mut transport, role).await?;
+/// println!("Handshake complete! Version: {}", capabilities.version);
+/// # Ok(())
+/// # }
+/// ```
+pub async fn handshake<T: Transport>(
+    transport: &mut T,
+    role: Role,
+) -> Result<ProtocolCapabilities> {
+    match role {
+        Role::Sender => handshake_sender(transport).await,
+        Role::Receiver => handshake_receiver(transport).await,
+    }
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 

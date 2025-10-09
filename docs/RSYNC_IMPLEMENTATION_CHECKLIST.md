@@ -1,8 +1,8 @@
 # rsync Wire Protocol Implementation - Detailed Checklist
 
 **Purpose**: Comprehensive, step-by-step implementation plan with granular checkboxes  
-**Status**: Planning Phase  
-**Started**: Not yet  
+**Status**: ✅ Phase 1 In Progress (Phases 1.1, 1.2, 1.3 complete)  
+**Started**: October 9, 2025  
 **Target Completion**: 7-10 weeks
 
 ---
@@ -28,11 +28,11 @@
 - [ ] Understand existing local metadata code in `src/directory.rs`
 
 ### Environment Setup
-- [ ] Verify rsync installed: `rsync --version`
-- [ ] Verify compio version in `Cargo.toml`
-- [ ] Create feature branch: `git checkout -b feat/rsync-handshake-protocol`
+- [x] Verify rsync installed: `rsync --version` → rsync 3.4.1, protocol 32
+- [x] Verify compio version in `Cargo.toml` → compio 0.16
+- [x] Create feature branch: Using existing `feature/rsync-wire-protocol`
 - [ ] Set up test data directories in `/tmp/arsync-test/`
-- [ ] Install any missing dependencies (md-4 crate, etc.)
+- [x] Install any missing dependencies → Added rand 0.9
 
 ---
 
@@ -47,14 +47,14 @@
 
 ---
 
-## Phase 1.1: Core Data Structures
+## Phase 1.1: Core Data Structures ✅ COMPLETE
 
 ### Create `src/protocol/handshake.rs`
 
-- [ ] Create file: `touch src/protocol/handshake.rs`
-- [ ] Add to `src/protocol/mod.rs`: `pub mod handshake;`
-- [ ] Add file header documentation
-- [ ] Add imports:
+- [x] Create file: `touch src/protocol/handshake.rs`
+- [x] Add to `src/protocol/mod.rs`: `pub mod handshake;`
+- [x] Add file header documentation
+- [x] Add imports:
   ```rust
   use crate::protocol::transport::Transport;
   use crate::protocol::varint::{encode_varint_into, decode_varint_sync};
@@ -64,253 +64,197 @@
   ```
 
 #### Define Protocol Constants
-- [ ] Add `pub const PROTOCOL_VERSION: u8 = 31;`
-- [ ] Add `pub const MIN_PROTOCOL_VERSION: u8 = 27;`
-- [ ] Add `pub const MAX_PROTOCOL_VERSION: u8 = 40;`
-- [ ] Add capability flags:
-  ```rust
-  pub const XMIT_CHECKSUMS: u32 = 1 << 0;
-  pub const XMIT_HARDLINKS: u32 = 1 << 1;
-  pub const XMIT_SYMLINKS: u32 = 1 << 2;
-  pub const XMIT_DEVICES: u32 = 1 << 3;
-  pub const XMIT_XATTRS: u32 = 1 << 4;
-  pub const XMIT_ACLS: u32 = 1 << 5;
-  pub const XMIT_SPARSE: u32 = 1 << 6;
-  pub const XMIT_CHECKSUM_SEED: u32 = 1 << 7;
-  pub const XMIT_PROTECTION: u32 = 1 << 8;
-  pub const XMIT_TIMES: u32 = 1 << 9;
-  ```
-- [ ] Add doc comments for each constant explaining its purpose
+- [x] Add `pub const PROTOCOL_VERSION: u8 = 31;`
+- [x] Add `pub const MIN_PROTOCOL_VERSION: u8 = 27;`
+- [x] Add `pub const MAX_PROTOCOL_VERSION: u8 = 40;`
+- [x] Add capability flags (all 10 flags defined)
+- [x] Add doc comments for each constant explaining its purpose
 
 #### Define Role Enum
-- [ ] Add `#[derive(Debug, Clone, Copy, PartialEq, Eq)]`
-- [ ] Add `pub enum Role { Sender, Receiver }`
-- [ ] Add doc comment explaining sender vs receiver
-- [ ] Add `impl Role` with helper methods:
-  - [ ] `pub const fn is_sender(&self) -> bool`
-  - [ ] `pub const fn is_receiver(&self) -> bool`
-  - [ ] `pub const fn opposite(&self) -> Self`
+- [x] Add `#[derive(Debug, Clone, Copy, PartialEq, Eq)]`
+- [x] Add `pub enum Role { Sender, Receiver }`
+- [x] Add doc comment explaining sender vs receiver
+- [x] Add `impl Role` with helper methods:
+  - [x] `pub const fn is_sender(&self) -> bool`
+  - [x] `pub const fn is_receiver(&self) -> bool`
+  - [x] `pub const fn opposite(&self) -> Self`
 
 #### Define ChecksumSeed Struct
-- [ ] Add `#[derive(Debug, Clone, Copy)]`
-- [ ] Add `pub struct ChecksumSeed { pub seed: u32 }`
-- [ ] Add doc comment explaining purpose
-- [ ] Add `impl ChecksumSeed`:
-  - [ ] `pub fn generate() -> Self` - uses `rand::thread_rng()`
-  - [ ] `pub fn from_bytes(bytes: [u8; 4]) -> Self` - little-endian
-  - [ ] `pub fn to_bytes(&self) -> [u8; 4]` - little-endian
-  - [ ] `pub fn is_zero(&self) -> bool` - check if uninitialized
-- [ ] Add unit test: `test_checksum_seed_roundtrip`
-- [ ] Add unit test: `test_checksum_seed_generate`
+- [x] Add `#[derive(Debug, Clone, Copy)]`
+- [x] Add `pub struct ChecksumSeed { pub seed: u32 }`
+- [x] Add doc comment explaining purpose
+- [x] Add `impl ChecksumSeed`:
+  - [x] `pub fn generate() -> Self` - uses `rand::rng().random()`
+  - [x] `pub fn from_bytes(bytes: [u8; 4]) -> Self` - little-endian
+  - [x] `pub fn to_bytes(&self) -> [u8; 4]` - little-endian
+  - [x] `pub fn is_zero(&self) -> bool` - check if uninitialized
+- [x] Add unit test: `test_checksum_seed_roundtrip`
+- [x] Add unit test: `test_checksum_seed_generate`
 
 #### Define ProtocolCapabilities Struct
-- [ ] Add `#[derive(Debug, Clone)]`
-- [ ] Add struct:
-  ```rust
-  pub struct ProtocolCapabilities {
-      pub version: u8,
-      pub flags: u32,
-      pub checksum_seed: Option<u32>,
-  }
-  ```
-- [ ] Add doc comment explaining each field
-- [ ] Add `impl ProtocolCapabilities`:
-  - [ ] `pub fn new(version: u8) -> Self` - default constructor
-  - [ ] `pub fn supports_checksums(&self) -> bool`
-  - [ ] `pub fn supports_hardlinks(&self) -> bool`
-  - [ ] `pub fn supports_symlinks(&self) -> bool`
-  - [ ] `pub fn supports_devices(&self) -> bool`
-  - [ ] `pub fn supports_xattrs(&self) -> bool`
-  - [ ] `pub fn supports_acls(&self) -> bool`
-  - [ ] `pub fn supports_sparse(&self) -> bool`
-  - [ ] `pub fn supports_checksum_seed(&self) -> bool`
-  - [ ] `pub fn supports_protection(&self) -> bool`
-  - [ ] `pub fn supports_times(&self) -> bool`
-  - [ ] `pub fn negotiate(client: &Self, server: &Self) -> Self` - intersection
-- [ ] Add unit test: `test_capabilities_negotiation`
-- [ ] Add unit test: `test_capabilities_support_methods`
+- [x] Add `#[derive(Debug, Clone)]`
+- [x] Add struct with all 3 fields
+- [x] Add doc comment explaining each field
+- [x] Add `impl ProtocolCapabilities`:
+  - [x] `pub fn new(version: u8) -> Self` - default constructor
+  - [x] `pub fn supports_checksums(&self) -> bool`
+  - [x] `pub fn supports_hardlinks(&self) -> bool`
+  - [x] `pub fn supports_symlinks(&self) -> bool`
+  - [x] `pub fn supports_devices(&self) -> bool`
+  - [x] `pub fn supports_xattrs(&self) -> bool`
+  - [x] `pub fn supports_acls(&self) -> bool`
+  - [x] `pub fn supports_sparse(&self) -> bool`
+  - [x] `pub fn supports_checksum_seed(&self) -> bool`
+  - [x] `pub fn supports_protection(&self) -> bool`
+  - [x] `pub fn supports_times(&self) -> bool`
+  - [x] `pub fn negotiate(client: &Self, server: &Self) -> Self` - intersection
+- [x] Add unit test: `test_capabilities_negotiation`
+- [x] Add unit test: `test_capabilities_support_methods`
 
 #### Define HandshakeState Enum
-- [ ] Add `#[derive(Debug, Clone)]`
-- [ ] Add enum with all states:
-  ```rust
-  pub enum HandshakeState {
-      Initial,
-      VersionSent { our_version: u8 },
-      VersionReceived { our_version: u8, remote_version: u8 },
-      VersionNegotiated { protocol_version: u8 },
-      FlagsSent { protocol_version: u8, our_flags: u32 },
-      FlagsReceived { protocol_version: u8, our_flags: u32, remote_flags: u32 },
-      CapabilitiesNegotiated { capabilities: ProtocolCapabilities },
-      SeedExchange { capabilities: ProtocolCapabilities },
-      Complete { capabilities: ProtocolCapabilities, seed: Option<ChecksumSeed> },
-  }
-  ```
-- [ ] Add doc comment explaining state machine
-- [ ] Add diagram in doc comment showing state transitions
-- [ ] Add `impl HandshakeState`:
-  - [ ] `pub fn is_complete(&self) -> bool`
-  - [ ] `pub fn get_capabilities(&self) -> Option<&ProtocolCapabilities>`
-  - [ ] `pub fn get_seed(&self) -> Option<ChecksumSeed>`
+- [x] Add `#[derive(Debug, Clone)]`
+- [x] Add enum with all 9 states
+- [x] Add doc comment explaining state machine
+- [x] Add diagram in doc comment showing state transitions
+- [x] Add `impl HandshakeState`:
+  - [x] `pub fn is_complete(&self) -> bool`
+  - [x] `pub fn get_capabilities(&self) -> Option<&ProtocolCapabilities>`
+  - [x] `pub fn get_seed(&self) -> Option<ChecksumSeed>`
 
-### Acceptance Criteria for Phase 1.1
-- [ ] All structs and enums compile without errors
-- [ ] All doc comments are present and descriptive
-- [ ] All unit tests pass
-- [ ] Code formatted with `cargo fmt`
-- [ ] Clippy warnings addressed
-- [ ] Commit message: "feat(handshake): add core data structures for protocol handshake"
+### Acceptance Criteria for Phase 1.1 ✅ COMPLETE
+- [x] All structs and enums compile without errors
+- [x] All doc comments are present and descriptive
+- [x] All unit tests pass (7/7)
+- [x] Code formatted with `cargo fmt`
+- [x] Clippy warnings addressed
+- [x] Commit message: "feat(handshake): add core data structures for protocol handshake"
+- [x] **Commit**: 37451a4
 
 ---
 
-## Phase 1.2: State Machine Implementation
+## Phase 1.2: State Machine Implementation ✅ COMPLETE
 
 ### Implement State Transitions
 
-- [ ] Add `impl HandshakeState` with main method:
-  ```rust
-  pub async fn advance<T: Transport>(
-      self,
-      transport: &mut T,
-      role: Role,
-  ) -> Result<Self>
-  ```
+- [x] Add `impl HandshakeState` with main `advance()` method
 
 #### Implement Initial → VersionSent
-- [ ] Match on `Self::Initial`
-- [ ] Send protocol version byte: `transport.write(&[PROTOCOL_VERSION]).await?`
-- [ ] Add debug log: "Sent protocol version: {}"
-- [ ] Return `Self::VersionSent { our_version: PROTOCOL_VERSION }`
-- [ ] Add error handling for write failure
+- [x] Match on `Self::Initial`
+- [x] Send protocol version byte using `write_all()`
+- [x] Add debug log: "Sent protocol version: {}"
+- [x] Return `Self::VersionSent { our_version: PROTOCOL_VERSION }`
+- [x] Add error handling for write failure
 
 #### Implement VersionSent → VersionReceived
-- [ ] Match on `Self::VersionSent { our_version }`
-- [ ] Read remote version: `transport.read_exact(&mut [0u8; 1]).await?`
-- [ ] Validate version >= MIN_PROTOCOL_VERSION
-- [ ] Validate version <= MAX_PROTOCOL_VERSION
-- [ ] Add info log: "Received protocol version: {} from remote"
-- [ ] Return `Self::VersionReceived { our_version, remote_version }`
-- [ ] Add error for unsupported version
+- [x] Match on `Self::VersionSent { our_version }`
+- [x] Read remote version using `read_exact()`
+- [x] Validate version >= MIN_PROTOCOL_VERSION
+- [x] Validate version <= MAX_PROTOCOL_VERSION (with warning)
+- [x] Add debug log: "Received protocol version: {} from remote"
+- [x] Return `Self::VersionReceived { our_version, remote_version }`
+- [x] Add error for unsupported version
 
 #### Implement VersionReceived → VersionNegotiated
-- [ ] Match on `Self::VersionReceived { our_version, remote_version }`
-- [ ] Calculate: `protocol_version = our_version.min(remote_version)`
-- [ ] Add info log: "Protocol version negotiated: {}"
-- [ ] Return `Self::VersionNegotiated { protocol_version }`
+- [x] Match on `Self::VersionReceived { our_version, remote_version }`
+- [x] Calculate: `protocol_version = our_version.min(remote_version)`
+- [x] Add info log: "Protocol version negotiated: {}"
+- [x] Return `Self::VersionNegotiated { protocol_version }`
 
 #### Implement VersionNegotiated → FlagsSent
-- [ ] Match on `Self::VersionNegotiated { protocol_version }`
-- [ ] Call `get_our_capabilities()`
-- [ ] Encode flags as varint
-- [ ] Send flags: `transport.write(&buf).await?`
-- [ ] Add debug log: "Sent capability flags: 0x{:08X}"
-- [ ] Return `Self::FlagsSent { protocol_version, our_flags }`
+- [x] Match on `Self::VersionNegotiated { protocol_version }`
+- [x] Call `get_our_capabilities()`
+- [x] Encode flags as varint
+- [x] Send flags using `write_all()`
+- [x] Add debug log: "Sent capability flags: 0x{:08X}"
+- [x] Return `Self::FlagsSent { protocol_version, our_flags }`
 
 #### Implement FlagsSent → FlagsReceived
-- [ ] Match on `Self::FlagsSent { protocol_version, our_flags }`
-- [ ] Decode remote flags: `decode_varint_sync(&mut cursor)?`
-- [ ] Add debug log: "Received capability flags: 0x{:08X}"
-- [ ] Return `Self::FlagsReceived { protocol_version, our_flags, remote_flags }`
+- [x] Match on `Self::FlagsSent { protocol_version, our_flags }`
+- [x] Decode remote flags using `decode_varint()`
+- [x] Add debug log: "Received capability flags: 0x{:08X}"
+- [x] Return `Self::FlagsReceived { protocol_version, our_flags, remote_flags }`
 
 #### Implement FlagsReceived → CapabilitiesNegotiated
-- [ ] Match on `Self::FlagsReceived { protocol_version, our_flags, remote_flags }`
-- [ ] Create `ProtocolCapabilities::new(protocol_version)`
-- [ ] Set `capabilities.flags = our_flags & remote_flags`
-- [ ] Add info log: "Capabilities negotiated: {:?}"
-- [ ] Return `Self::CapabilitiesNegotiated { capabilities }`
+- [x] Match on `Self::FlagsReceived`
+- [x] Create `ProtocolCapabilities::new(protocol_version)`
+- [x] Set `capabilities.flags = our_flags & remote_flags`
+- [x] Add info log with all flags
+- [x] Add debug logs for each capability
+- [x] Return `Self::CapabilitiesNegotiated { capabilities }`
 
 #### Implement CapabilitiesNegotiated → SeedExchange or Complete
-- [ ] Match on `Self::CapabilitiesNegotiated { capabilities }`
-- [ ] Check if `capabilities.supports_checksum_seed()`
-- [ ] If yes:
-  - [ ] Match on role
-  - [ ] If Sender: generate seed, send bytes
-  - [ ] If Receiver: receive bytes, decode seed
-  - [ ] Set `capabilities.checksum_seed`
-  - [ ] Return `Self::SeedExchange { capabilities }`
-- [ ] If no:
-  - [ ] Return `Self::Complete { capabilities, seed: None }`
+- [x] Match on `Self::CapabilitiesNegotiated { capabilities }`
+- [x] Check if `capabilities.supports_checksum_seed()`
+- [x] If yes:
+  - [x] Match on role
+  - [x] If Sender: generate seed, send bytes
+  - [x] If Receiver: receive bytes, decode seed
+  - [x] Set `capabilities.checksum_seed`
+  - [x] Return `Self::SeedExchange { capabilities }`
+- [x] If no:
+  - [x] Return `Self::Complete { capabilities, seed: None }`
 
 #### Implement SeedExchange → Complete
-- [ ] Match on `Self::SeedExchange { capabilities }`
-- [ ] Extract seed from capabilities
-- [ ] Return `Self::Complete { capabilities, seed }`
+- [x] Match on `Self::SeedExchange { capabilities }`
+- [x] Extract seed from capabilities
+- [x] Return `Self::Complete { capabilities, seed }`
 
 #### Implement Complete (terminal state)
-- [ ] Match on `Self::Complete { .. }`
-- [ ] Return error: "Handshake already complete"
+- [x] Match on `Self::Complete { .. }`
+- [x] Return error: "Handshake already complete"
 
 ### Add Helper Function
-- [ ] Implement `get_our_capabilities() -> u32`:
-  - [ ] Set all supported flags (checksums, symlinks, hardlinks, devices, xattrs, acls, etc.)
-  - [ ] Add doc comment listing what we support
-  - [ ] Reference arsync's local implementations
+- [x] Implement `get_our_capabilities() -> u32`:
+  - [x] Set all supported flags (9 flags including checksums, symlinks, hardlinks, devices, xattrs, acls)
+  - [x] Add doc comment listing what we support
+  - [x] Reference arsync's local implementations
 
-### Acceptance Criteria for Phase 1.2
-- [ ] All state transitions compile
-- [ ] Error handling for each state
-- [ ] Logging at appropriate levels (debug, info, warn, error)
-- [ ] Code formatted with `cargo fmt`
-- [ ] No clippy warnings
-- [ ] Commit message: "feat(handshake): implement state machine transitions"
+### Acceptance Criteria for Phase 1.2 ✅ COMPLETE
+- [x] All state transitions compile
+- [x] Error handling for each state
+- [x] Logging at appropriate levels (debug, info, warn)
+- [x] Code formatted with `cargo fmt`
+- [x] No clippy warnings
+- [x] Commit message: "feat(handshake): implement state machine transitions"
+- [x] **Commit**: cb6c715
 
 ---
 
-## Phase 1.3: High-Level Handshake API
+## Phase 1.3: High-Level Handshake API ✅ COMPLETE
 
 ### Create Public API Functions
 
 #### Implement `handshake_sender`
-- [ ] Add function signature:
-  ```rust
-  pub async fn handshake_sender<T: Transport>(
-      transport: &mut T,
-  ) -> Result<ProtocolCapabilities>
-  ```
-- [ ] Add doc comment explaining purpose
-- [ ] Initialize: `let mut state = HandshakeState::Initial;`
-- [ ] Loop until complete:
-  ```rust
-  while !state.is_complete() {
-      state = state.advance(transport, Role::Sender).await?;
-  }
-  ```
-- [ ] Extract capabilities from Complete state
-- [ ] Add info log: "Handshake complete (sender)"
-- [ ] Return capabilities
+- [x] Add function signature with Transport bound
+- [x] Add comprehensive doc comment with example
+- [x] Initialize: `let mut state = HandshakeState::Initial;`
+- [x] Loop until complete with `state.advance(transport, Role::Sender)`
+- [x] Extract capabilities from Complete state
+- [x] Add info log: "Handshake complete (sender)"
+- [x] Return capabilities
 
 #### Implement `handshake_receiver`
-- [ ] Add function signature:
-  ```rust
-  pub async fn handshake_receiver<T: Transport>(
-      transport: &mut T,
-  ) -> Result<ProtocolCapabilities>
-  ```
-- [ ] Add doc comment explaining purpose
-- [ ] Same logic as sender but with `Role::Receiver`
-- [ ] Add info log: "Handshake complete (receiver)"
-- [ ] Return capabilities
+- [x] Add function signature
+- [x] Add comprehensive doc comment with example
+- [x] Same logic as sender but with `Role::Receiver`
+- [x] Add info log: "Handshake complete (receiver)"
+- [x] Return capabilities
 
 #### Implement `handshake`
-- [ ] Add function signature:
-  ```rust
-  pub async fn handshake<T: Transport>(
-      transport: &mut T,
-      role: Role,
-  ) -> Result<ProtocolCapabilities>
-  ```
-- [ ] Add doc comment explaining purpose
-- [ ] Match on role:
-  - [ ] `Role::Sender => handshake_sender(transport).await`
-  - [ ] `Role::Receiver => handshake_receiver(transport).await`
+- [x] Add function signature with role parameter
+- [x] Add doc comment explaining it's the general version
+- [x] Match on role:
+  - [x] `Role::Sender => handshake_sender(transport).await`
+  - [x] `Role::Receiver => handshake_receiver(transport).await`
 
-### Acceptance Criteria for Phase 1.3
-- [ ] All public APIs compile
-- [ ] Doc comments include examples
-- [ ] Error propagation works correctly
-- [ ] Code formatted with `cargo fmt`
-- [ ] No clippy warnings
-- [ ] Commit message: "feat(handshake): add high-level handshake API"
+### Acceptance Criteria for Phase 1.3 ✅ COMPLETE
+- [x] All public APIs compile
+- [x] Doc comments include examples
+- [x] Error propagation works correctly
+- [x] Code formatted with `cargo fmt`
+- [x] No clippy warnings
+- [x] Tests still passing (7/7)
+- [x] Ready for commit
 
 ---
 
