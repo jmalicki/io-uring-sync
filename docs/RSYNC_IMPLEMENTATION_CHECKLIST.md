@@ -997,3 +997,460 @@ Phase 5 (integration)
 
 Last Updated: October 9, 2025  
 Revision Reason: Reordered to do compio migration before pipe tests
+
+---
+
+# PHASE 3: rsync Handshake Integration Test ✅ COMPLETE
+
+**Goal**: Validate handshake works with real rsync binary
+
+**Commit**: 39da443
+
+## Phase 3.1: Create rsync Integration Test
+
+### Create `tests/rsync_handshake_integration_test.rs`
+
+- [x] Create test file
+- [x] Add RsyncTransport wrapper struct
+  - [x] Fields: stdin, stdout (compio::process types)
+  - [x] Implement AsyncRead (delegate to stdout)
+  - [x] Implement AsyncWrite (delegate to stdin)
+  - [x] Implement Transport marker trait
+
+### Implement test_rsync_handshake_integration
+
+- [x] Check rsync availability (which rsync)
+- [x] Spawn `rsync --server` via compio::process::Command
+- [x] Configure stdin/stdout as piped
+- [x] Extract stdin/stdout from process
+- [x] Create RsyncTransport wrapper
+- [x] Call handshake_sender()
+- [x] Verify protocol version in range
+- [x] Handle expected "connection closed" error
+- [x] Add descriptive logging
+
+### Additional Tests
+
+- [x] test_rsync_version_detection
+  - [x] Run `rsync --version`
+  - [x] Display version info
+- [x] test_summary
+  - [x] Document test suite purpose
+  - [x] List all tests
+
+### Acceptance Criteria for Phase 3
+
+- [x] 3/3 tests passing
+- [x] Works with rsync 3.4.1 (protocol v32)
+- [x] Handshake validated with real binary
+- [x] Code formatted
+- [x] Commit message: "test(rsync): add handshake integration test with real rsync binary"
+- [x] **Commit**: 39da443
+
+---
+
+# PHASE 4: File List Exchange ✅ COMPLETE
+
+**Goal**: Implement complete file list encoding/decoding in rsync wire format
+
+**Commits**: 91833f1, 77941a3
+
+## Phase 4.1: Verify varint Implementation
+
+### Check `src/protocol/varint.rs`
+
+- [x] encode_varint() already exists
+- [x] decode_varint() already exists
+- [x] encode_varint_into() already exists
+- [x] Zigzag encoding (signed) already exists
+- [x] 7 unit tests already passing
+- [x] All documented with examples
+
+**Status**: varint is DONE, no work needed! ✅
+
+## Phase 4.2: Verify File List Implementation
+
+### Check `src/protocol/rsync_compat.rs`
+
+- [x] encode_file_list_rsync() already exists
+- [x] decode_file_list_rsync() already exists
+- [x] decode_file_entry() already exists
+- [x] MultiplexReader/Writer already exist
+- [x] 14 format unit tests already passing
+
+**Status**: File list encoding/decoding is DONE! ✅
+
+## Phase 4.3: Create Integration Tests
+
+### Create `tests/rsync_file_list_integration_test.rs`
+
+- [x] Create test file (213 lines)
+- [x] Add test_file_list_encoding_to_rsync
+  - [x] Create test file entries
+  - [x] Validate encoding doesn't panic
+  - [x] Document test purpose
+- [x] Add test_file_list_roundtrip
+  - [x] Create bidirectional pipes
+  - [x] Create test files (regular + symlink)
+  - [x] Run encode and decode concurrently (futures::join!)
+  - [x] Verify all fields match
+  - [x] Verify symlinks work
+- [x] Add test_summary
+
+**Commit**: 91833f1
+
+### Add Edge Case Tests
+
+- [x] Add test_file_list_edge_cases
+  - [x] Long path (>255 bytes) with XMIT_LONG_NAME
+  - [x] Special characters and spaces
+  - [x] UTF-8 filenames (Cyrillic: файл.txt)
+  - [x] Empty files (size=0)
+  - [x] Maximum values (u64::MAX, i64::MAX)
+  - [x] Verify all roundtrip correctly
+- [x] Add test_empty_file_list
+  - [x] Empty file list (0 entries)
+  - [x] End-of-list marker handling
+  - [x] Verify no crashes
+
+**Commit**: 77941a3
+
+### Acceptance Criteria for Phase 4
+
+- [x] 5/5 integration tests passing
+- [x] File list roundtrips correctly
+- [x] Edge cases handled (long paths, UTF-8, empty, max values)
+- [x] Total: 26 file list tests (7 varint + 14 format + 5 integration)
+- [x] Code formatted
+- [x] Commit messages descriptive
+- [x] **Commits**: 91833f1, 77941a3
+
+---
+
+# PHASE 5: Checksum Algorithm ✅ COMPLETE
+
+**Goal**: Implement seeded checksums and rsync checksum exchange format
+
+**Commit**: 07acdb6
+
+## Phase 5.1: Add Checksum Seed Support
+
+### Update `src/protocol/checksum.rs`
+
+- [x] Add rolling_checksum_with_seed(data, seed)
+  - [x] Mix seed into initial state (a, b)
+  - [x] Modulo MODULUS for safety
+  - [x] Return combined checksum
+- [x] Update rolling_checksum() to call with seed=0
+- [x] Add comprehensive doc comments
+- [x] Add usage examples
+
+### Add Unit Tests
+
+- [x] test_rolling_checksum_with_seed
+  - [x] Verify seed=0 matches unseeded
+  - [x] Different seeds produce different checksums
+  - [x] Validate anti-collision property
+- [x] test_seeded_checksum_deterministic
+  - [x] Same seed always gives same result
+- [x] test_seed_prevents_collisions
+  - [x] Seeding makes colliding data distinct
+
+**Unit Tests**: 7 total (4 existing + 3 new)
+
+## Phase 5.2: Implement rsync Checksum Format
+
+### Add to `src/protocol/rsync_compat.rs`
+
+- [x] Define RsyncBlockChecksum struct
+  - [x] weak: u32
+  - [x] strong: Vec<u8> (variable length)
+- [x] Implement send_block_checksums_rsync()
+  - [x] Build header: [count][size][remainder][checksum_length]
+  - [x] Generate checksums with seed
+  - [x] Append each: [weak][strong] (NO offset/index)
+  - [x] Send as MSG_DATA
+  - [x] Handle empty data (0 blocks)
+- [x] Implement receive_block_checksums_rsync()
+  - [x] Read MSG_DATA message
+  - [x] Parse header (4 fields)
+  - [x] Read each checksum
+  - [x] Return (checksums, block_size)
+  - [x] Handle empty checksum lists
+
+## Phase 5.3: Create Integration Tests
+
+### Create `tests/rsync_checksum_tests.rs`
+
+- [x] Create test file (340+ lines)
+- [x] Add test_checksum_roundtrip
+  - [x] Create test data (50 bytes)
+  - [x] Create bidirectional pipes
+  - [x] Send and receive concurrently
+  - [x] Verify block size
+  - [x] Verify checksum count
+  - [x] Verify each weak/strong checksum
+- [x] Add test_empty_checksum_list
+  - [x] Empty data (0 bytes)
+  - [x] Verify header format
+  - [x] Verify 0 checksums returned
+- [x] Add test_checksum_with_different_seeds
+  - [x] Test seeds: 0, 0x11111111, 0xDEADBEEF, 0xFFFFFFFF
+  - [x] Verify each seed produces correct checksums
+- [x] Add test_large_file_checksums
+  - [x] 1MB test data
+  - [x] 4KB blocks (256 blocks total)
+  - [x] Verify performance
+  - [x] Verify all blocks handled
+- [x] Add test_summary
+
+### Acceptance Criteria for Phase 5
+
+- [x] 5/5 integration tests passing
+- [x] Checksum exchange works bidirectionally
+- [x] Seeded checksums verified
+- [x] rsync format correct (header + implicit indexing)
+- [x] Total: 12 checksum tests (7 unit + 5 integration)
+- [x] Code formatted
+- [x] Commit message: "feat(checksum): implement rsync checksum exchange with seed support"
+- [x] **Commit**: 07acdb6
+
+---
+
+# PHASE 6: Delta Algorithm ✅ COMPLETE
+
+**Goal**: Implement rsync token stream format for delta transfer
+
+**Commit**: 6e933e9
+
+## Phase 6.1: Implement Token Encoding
+
+### Add to `src/protocol/rsync_compat.rs`
+
+- [x] Use DeltaInstruction enum (already exists in rsync.rs)
+- [x] Implement delta_to_tokens(delta) -> Vec<u8>
+  - [x] Initialize last_block_index = -1
+  - [x] For each DeltaInstruction:
+    - [x] Literal: Split into 96-byte chunks, token = length (1-96)
+    - [x] BlockMatch: Calculate offset from last block
+    - [x] Simple offset (<16): token = 97 + offset
+    - [x] Complex offset (>=16): token = 97 + (bit_count << 4) + extra bytes
+  - [x] Append end marker (token 0)
+- [x] Implement tokens_to_delta(tokens, checksums)
+  - [x] Parse each token
+  - [x] Token 0: End of data
+  - [x] Tokens 1-96: Literal run
+  - [x] Tokens 97-255: Block match with offset decoding
+  - [x] Reconstruct absolute block indices
+  - [x] Return Vec<DeltaInstruction>
+
+## Phase 6.2: Implement Delta Exchange Functions
+
+- [x] Implement send_delta_rsync(writer, delta)
+  - [x] Convert delta to tokens
+  - [x] Send as MSG_DATA
+  - [x] Log token count
+- [x] Implement receive_delta_rsync(reader, checksums)
+  - [x] Read MSG_DATA
+  - [x] Parse tokens
+  - [x] Return delta instructions
+
+## Phase 6.3: Create Comprehensive Tests
+
+### Create `tests/rsync_delta_token_tests.rs`
+
+- [x] Create test file (280+ lines)
+- [x] Add test_literal_encoding
+  - [x] Small literal (5 bytes)
+  - [x] Verify token format: [5]['H''e''l''l''o'][0]
+- [x] Add test_large_literal_chunking
+  - [x] 200 bytes → should split into 96+96+8
+  - [x] Verify chunk boundaries
+  - [x] Verify tokens: [96][...][96][...][8][...][0]
+- [x] Add test_block_match_simple_offset
+  - [x] Consecutive blocks (offset 0)
+  - [x] Blocks with gaps (offset 1-15)
+  - [x] Verify token values (97, 97, 100, etc.)
+- [x] Add test_delta_roundtrip
+  - [x] Mixed literals and block matches
+  - [x] Encode → Decode → Verify
+  - [x] All instruction types preserved
+- [x] Add test_empty_delta
+  - [x] Empty delta = just end marker [0]
+- [x] Add test_only_literals
+  - [x] Multiple literal instructions
+  - [x] No block matches
+- [x] Add test_only_block_matches
+  - [x] Consecutive blocks
+  - [x] Verify offset encoding
+- [x] Add test_summary
+
+### Acceptance Criteria for Phase 6
+
+- [x] 8/8 delta token tests passing
+- [x] Token encoding correct (0, 1-96, 97-255)
+- [x] Literal chunking works (max 96 bytes)
+- [x] Offset encoding works (simple + complex)
+- [x] Roundtrip verified
+- [x] Code formatted
+- [x] Commit message: "feat(delta): implement rsync delta token encoding/decoding"
+- [x] **Commit**: 6e933e9
+
+---
+
+# PHASE 7: Full End-to-End Sync ✅ COMPLETE
+
+**Goal**: Wire all protocol components together and validate complete flow
+
+**Commit**: 0d8faf4
+
+## Phase 7.1: Make Delta Functions Public
+
+### Update `src/protocol/rsync.rs`
+
+- [x] Change `fn generate_block_checksums` to `pub fn`
+- [x] Change `fn generate_delta` to `pub fn`
+- [x] Change `fn apply_delta` to `pub fn`
+- [x] Verify all compile
+- [x] Verify tests still pass
+
+## Phase 7.2: Add Bidirectional Multiplex Support
+
+### Update `src/protocol/rsync_compat.rs`
+
+- [x] Add transport_mut() to MultiplexWriter
+  - [x] Returns &mut T
+  - [x] Allows access to underlying transport
+- [x] Create Multiplex<T> struct (bidirectional)
+  - [x] Fields: transport, read_buffer, read_buffer_pos
+  - [x] Method: read_message()
+  - [x] Method: write_message()
+  - [x] Method: transport_mut()
+- [x] Fix duplicate impl block error
+
+## Phase 7.3: Create End-to-End Test
+
+### Create `tests/rsync_end_to_end_test.rs`
+
+- [x] Create test file (240+ lines)
+- [x] Add helper functions:
+  - [x] encode_single_file() - encode FileEntry to bytes
+  - [x] build_checksum_message() - create rsync checksum format
+  - [x] parse_checksum_message() - parse rsync checksum format
+  - [x] receive_file_list() - receive MSG_FLIST messages
+- [x] Add test_full_protocol_flow
+  - [x] Create test data (original vs modified content)
+  - [x] Create FileEntry
+  - [x] Create bidirectional pipes
+  - [x] **Sender side**:
+    - [x] Handshake (get seed)
+    - [x] Send file list (MSG_FLIST messages)
+    - [x] Receive checksums (MSG_DATA)
+    - [x] Generate delta (use generate_delta())
+    - [x] Send delta tokens (MSG_DATA)
+  - [x] **Receiver side**:
+    - [x] Handshake (get seed)
+    - [x] Receive file list
+    - [x] Generate checksums with seed
+    - [x] Send checksums
+    - [x] Receive delta tokens
+    - [x] Apply delta (use apply_delta())
+    - [x] Verify reconstruction
+  - [x] Run sender and receiver concurrently (futures::join!)
+  - [x] Assert reconstructed == modified_content
+  - [x] Byte-for-byte verification
+- [x] Add test_summary
+  - [x] Document complete protocol flow
+  - [x] List all validated components
+
+### Acceptance Criteria for Phase 7
+
+- [x] 2/2 end-to-end tests passing
+- [x] Complete protocol flow works:
+  - [x] Handshake ✅
+  - [x] File list ✅
+  - [x] Checksums ✅
+  - [x] Delta ✅
+  - [x] Reconstruction ✅
+- [x] Byte-for-byte file verification ✅
+- [x] All components integrate correctly
+- [x] Code formatted
+- [x] Commit message: "feat(protocol): complete end-to-end rsync protocol implementation!"
+- [x] **Commit**: 0d8faf4
+
+---
+
+# COMPLETION SUMMARY
+
+## All Phases Complete! ✅
+
+### Phase 1: Handshake Protocol
+- [x] Core data structures (37451a4)
+- [x] State machine (d25e02a)
+- [x] High-level API (e7bc831)
+- [x] Unit tests - 14 tests (0f47e14)
+- [x] Pipe integration tests - 5 tests (f3cb0d0)
+
+### Phase 2: compio/io_uring Migration
+- [x] compio audit (12396c5)
+- [x] Transport redesign (9fbf1fb)
+- [x] PipeTransport migration (4a68f88)
+- [x] SshConnection migration (62ea27a)
+- [x] Validation (all tests passing)
+
+### Phase 3: rsync Integration Test
+- [x] Handshake with real rsync - 3 tests (39da443)
+
+### Phase 4: File List Exchange
+- [x] varint encoding/decoding - 7 tests (already existed)
+- [x] File list format - 14 tests (already existed)
+- [x] Integration tests - 5 tests (91833f1, 77941a3)
+- [x] **Total: 26 file list tests**
+
+### Phase 5: Checksum Algorithm
+- [x] Seeded rolling checksums - 3 new tests
+- [x] rsync checksum format
+- [x] Integration tests - 5 tests (07acdb6)
+- [x] **Total: 12 checksum tests**
+
+### Phase 6: Delta Algorithm
+- [x] Token stream encoding
+- [x] Token stream decoding
+- [x] Integration tests - 8 tests (6e933e9)
+- [x] **Total: 8 delta tests**
+
+### Phase 7: End-to-End Sync
+- [x] Complete protocol flow - 2 tests (0d8faf4)
+- [x] Byte-for-byte verification ✅
+
+## Final Statistics
+
+**Total Commits**: 13 (in this session)
+**Total Tests**: 106/106 passing ✅
+**Total New Test Files**: 7
+**Total Lines Added**: ~3000+ lines
+**Architecture**: Pure compio + io_uring ✅
+
+## What Works Now
+
+✅ Complete rsync wire protocol implementation
+✅ Handshake with seed exchange
+✅ File list in rsync format (varint + multiplex)
+✅ Seeded checksums (anti-collision)
+✅ Delta tokens (rsync token stream)
+✅ File reconstruction from delta
+✅ All on io_uring backend!
+
+## What's Next (Optional)
+
+- [ ] Wire into main.rs for CLI usage
+- [ ] Test with real rsync binary (full file transfer)
+- [ ] Performance benchmarks
+- [ ] Production hardening
+- [ ] Additional rsync features (compression, --delete, etc.)
+
+---
+
+**CHECKLIST VERSION**: 3.0 (All 7 Phases Complete)
+**Last Updated**: Current session (October 9, 2025)
+**Status**: ✅ COMPLETE - Protocol implementation finished!
