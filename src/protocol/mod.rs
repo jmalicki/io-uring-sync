@@ -7,6 +7,7 @@
 pub mod checksum;
 pub mod pipe;
 pub mod rsync;
+pub mod rsync_compat;
 pub mod ssh;
 pub mod transport;
 
