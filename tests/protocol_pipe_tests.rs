@@ -127,37 +127,58 @@ async fn test_arsync_to_arsync_via_pipe() {
     create_test_data(&source);
     fs::create_dir(&dest).unwrap();
 
-    // Use shell to pipe sender to receiver
-    // This is the simplest and most reliable way to test pipe mode
-    let status = Command::new("sh")
-        .arg("-c")
-        .arg(format!(
-            "{} --pipe --pipe-role=sender -r '{}' /dev/null 2>/dev/null | {} --pipe --pipe-role=receiver -r /dev/null '{}' 2>/dev/null",
-            env!("CARGO_BIN_EXE_arsync"),
-            source.display(),
-            env!("CARGO_BIN_EXE_arsync"),
-            dest.display()
-        ))
-        .status()
-        .await
-        .expect("Failed to run pipeline");
+    // Create bidirectional pipe pairs
+    // pipe1: sender stdout → receiver stdin
+    // pipe2: receiver stdout → sender stdin
+    let (pipe1_read, pipe1_write) = create_pipe_pair();
+    let (pipe2_read, pipe2_write) = create_pipe_pair();
 
-    if !status.success() {
+    // Spawn sender
+    let mut sender = Command::new(env!("CARGO_BIN_EXE_arsync"))
+        .arg("--pipe")
+        .arg("--pipe-role=sender")
+        .arg("-r")
+        .arg(&source)
+        .arg("/dev/null")
+        .stdin(unsafe { Stdio::from_raw_fd(pipe2_read) }) // reads responses
+        .stdout(unsafe { Stdio::from_raw_fd(pipe1_write) }) // writes requests
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to spawn sender");
+
+    // Spawn receiver
+    let mut receiver = Command::new(env!("CARGO_BIN_EXE_arsync"))
+        .arg("--pipe")
+        .arg("--pipe-role=receiver")
+        .arg("-r")
+        .arg("/dev/null")
+        .arg(&dest)
+        .stdin(unsafe { Stdio::from_raw_fd(pipe1_read) }) // reads requests
+        .stdout(unsafe { Stdio::from_raw_fd(pipe2_write) }) // writes responses
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to spawn receiver");
+
+    // Wait for completion
+    let sender_status = sender.wait().await.expect("Sender wait failed");
+    let receiver_status = receiver.wait().await.expect("Receiver wait failed");
+
+    if !sender_status.success() || !receiver_status.success() {
+        eprintln!("⚠️  Test 2/4: arsync → arsync - FAILED");
         eprintln!(
-            "⚠️  Test 2/4: arsync → arsync - FAILED (exit code: {:?})",
-            status.code()
+            "    Sender: {:?}, Receiver: {:?}",
+            sender_status.code(),
+            receiver_status.code()
         );
-        eprintln!("    This is expected - protocol not fully implemented yet");
         return;
     }
 
-    // Verify transfer (if it succeeded)
+    // Verify transfer
     if verify_transfer(&source, &dest).is_ok() {
         println!("✓ Test 2/4: arsync → arsync via pipe PASSED");
-        println!("  This validates our protocol implementation works!");
+        println!("  Our custom protocol implementation works!");
     } else {
-        eprintln!("⚠️  Test 2/4: arsync → arsync - Processes succeeded but transfer incomplete");
-        eprintln!("    This is expected during initial protocol development");
+        eprintln!("⚠️  Test 2/4: arsync → arsync - transfer incomplete");
     }
 }
 

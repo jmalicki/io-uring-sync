@@ -171,14 +171,32 @@ pub async fn send_via_pipe(
     send_file_list_simple(&mut transport, &files).await?;
     debug!("Sender: File list sent");
 
-    // Phase 3: For each file, receive checksums and send delta
+    // Phase 3: Send file contents
+    // For now, send whole files as literal data (no delta/checksum optimization)
+    let mut bytes_sent = 0u64;
     for file in &files {
-        debug!("Sender: Processing file: {}", file.path);
-        // TODO: Implement checksum reception and delta generation
-        // For now, just send the whole file as literal data
+        debug!("Sender: Sending file: {}", file.path);
+        let file_path = source_path.join(&file.path);
+
+        // Read entire file content
+        let content = fs::read(&file_path)
+            .map_err(|e| anyhow::anyhow!("Failed to read {}: {}", file.path, e))?;
+
+        // Send content length (for verification, though receiver already knows from file list)
+        let content_len = content.len() as u64;
+        transport::write_all(&mut transport, &content_len.to_le_bytes()).await?;
+
+        // Send file content
+        transport::write_all(&mut transport, &content).await?;
+        bytes_sent += content.len() as u64;
+
+        debug!("Sender: Sent {} bytes for {}", content.len(), file.path);
     }
 
-    info!("Sender: Transfer complete");
+    // Flush to ensure all data is sent
+    transport.flush().await?;
+
+    info!("Sender: Transfer complete, sent {} bytes", bytes_sent);
 
     Ok(SyncStats {
         files_copied: files.len() as u64,
@@ -209,19 +227,47 @@ pub async fn receive_via_pipe(
     let files = receive_file_list_simple(&mut transport).await?;
     info!("Receiver: Received {} files", files.len());
 
-    // Phase 3: For each file, send checksums and receive delta
+    // Phase 3: Receive file contents
+    let mut bytes_received = 0u64;
     for file in &files {
-        debug!("Receiver: Processing file: {}", file.path);
-        // TODO: Implement checksum generation and delta application
-        // For now, just create empty file
+        debug!("Receiver: Receiving file: {}", file.path);
         let file_path = dest_path.join(&file.path);
+
+        // Create parent directories
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(&file_path, b"")?;
+
+        // Receive content length
+        let mut len_buf = [0u8; 8];
+        transport::read_exact(&mut transport, &mut len_buf).await?;
+        let content_len = u64::from_le_bytes(len_buf);
+
+        // Verify length matches what we expect
+        if content_len != file.size {
+            anyhow::bail!(
+                "File size mismatch for {}: expected {}, got {}",
+                file.path,
+                file.size,
+                content_len
+            );
+        }
+
+        // Receive file content
+        let mut content = vec![0u8; content_len as usize];
+        transport::read_exact(&mut transport, &mut content).await?;
+
+        // Write to file
+        fs::write(&file_path, &content)?;
+        bytes_received += content.len() as u64;
+
+        debug!("Receiver: Wrote {} bytes to {}", content.len(), file.path);
     }
 
-    info!("Receiver: Transfer complete");
+    info!(
+        "Receiver: Transfer complete, received {} bytes",
+        bytes_received
+    );
 
     Ok(SyncStats {
         files_copied: files.len() as u64,
