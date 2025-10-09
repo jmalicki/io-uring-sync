@@ -19,7 +19,7 @@ pub async fn push_via_rsync_protocol(
     _local_path: &Path,
     _connection: &mut SshConnection,
 ) -> Result<SyncStats> {
-    let start = Instant::now();
+    let _start = Instant::now();
 
     // TODO: Implement rsync protocol
     // Phase 1: Protocol handshake
@@ -37,7 +37,7 @@ pub async fn pull_via_rsync_protocol(
     _connection: &mut SshConnection,
     _local_path: &Path,
 ) -> Result<SyncStats> {
-    let start = Instant::now();
+    let _start = Instant::now();
 
     // TODO: Implement rsync protocol (receiver side)
 

@@ -4,8 +4,10 @@
 //! existing rsync servers, as well as modern extensions using QUIC and
 //! merkle trees.
 
+pub mod pipe;
 pub mod rsync;
 pub mod ssh;
+pub mod transport;
 
 #[cfg(feature = "quic")]
 pub mod quic;
@@ -48,12 +50,8 @@ async fn push_to_remote(
     remote_path: &std::path::Path,
 ) -> Result<SyncStats> {
     // Connect to remote via SSH
-    let mut connection = ssh::SshConnection::connect(
-        host,
-        user.unwrap_or_else(|| whoami::username().as_str()),
-        &args.remote_shell,
-    )
-    .await?;
+    let username = user.map(String::from).unwrap_or_else(whoami::username);
+    let mut connection = ssh::SshConnection::connect(host, &username, &args.remote_shell).await?;
 
     // Start remote arsync in server mode
     connection.start_server(remote_path).await?;
@@ -79,12 +77,8 @@ async fn pull_from_remote(
     local_path: &std::path::Path,
 ) -> Result<SyncStats> {
     // Connect to remote via SSH
-    let mut connection = ssh::SshConnection::connect(
-        host,
-        user.unwrap_or_else(|| whoami::username().as_str()),
-        &args.remote_shell,
-    )
-    .await?;
+    let username = user.map(String::from).unwrap_or_else(whoami::username);
+    let mut connection = ssh::SshConnection::connect(host, &username, &args.remote_shell).await?;
 
     // Start remote arsync in server mode
     connection.start_server(remote_path).await?;

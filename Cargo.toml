@@ -53,7 +53,8 @@ compio-fs-extended = { path = "crates/compio-fs-extended", features = ["xattr"] 
 compio-sync = { path = "crates/compio-sync" }
 
 # Remote sync dependencies (optional)
-tokio = { version = "1.0", features = ["process", "io-util", "rt"], optional = true }
+tokio = { version = "1.0", features = ["process", "io-util", "rt", "fs", "macros"], optional = true }
+async-trait = { version = "0.1", optional = true }
 quinn = { version = "0.11", optional = true }
 rustls = { version = "0.23", optional = true }
 
@@ -88,7 +89,7 @@ cargo-audit = "0.21"
 [features]
 default = []
 benchmarks = ["criterion"]
-remote-sync = ["tokio"]
+remote-sync = ["tokio", "async-trait"]
 quic = ["remote-sync", "quinn", "rustls"]
 
 [profile.release]

@@ -100,11 +100,11 @@ async fn main() -> Result<()> {
         {
             warn!("Remote sync support not compiled in");
             warn!("To enable remote sync, compile with: cargo build --features remote-sync");
-            anyhow::bail!("Remote sync not supported in this build")
+            Err(anyhow::anyhow!("Remote sync not supported in this build"))
         }
     } else {
         // Local sync mode
-        sync::sync_files(&args).await
+        sync::sync_files(&args).await.map_err(Into::into)
     };
 
     match result {
