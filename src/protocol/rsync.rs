@@ -4,15 +4,18 @@
 //! Based on the rsync technical report and protocol specification.
 
 use crate::cli::Args;
+use crate::protocol::checksum::{rolling_checksum, rolling_checksum_update, strong_checksum};
 use crate::protocol::pipe::PipeTransport;
 use crate::protocol::ssh::SshConnection;
 use crate::protocol::transport::{self, Transport};
 use crate::sync::SyncStats;
 use anyhow::Result;
+use std::collections::HashMap;
 use std::fs;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 use std::time::{Duration, Instant};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use walkdir;
 
 /// Protocol version we support
@@ -78,6 +81,8 @@ pub struct FileEntry {
     pub mode: u32,
     pub uid: u32,
     pub gid: u32,
+    pub is_symlink: bool,
+    pub symlink_target: Option<String>,
 }
 
 /// Generate file list for transmission
@@ -236,7 +241,7 @@ pub async fn receive_via_pipe(
     let files = receive_file_list_simple(&mut transport).await?;
     info!("Receiver: Received {} files", files.len());
 
-    // Phase 3: Receive file contents
+    // Phase 3: Receive file contents and apply metadata
     let mut bytes_received = 0u64;
     for file in &files {
         debug!("Receiver: Receiving file: {}", file.path);
@@ -247,30 +252,45 @@ pub async fn receive_via_pipe(
             fs::create_dir_all(parent)?;
         }
 
-        // Receive content length
-        let mut len_buf = [0u8; 8];
-        transport::read_exact(&mut transport, &mut len_buf).await?;
-        let content_len = u64::from_le_bytes(len_buf);
+        if file.is_symlink {
+            // Handle symlink
+            if let Some(target) = &file.symlink_target {
+                debug!("Receiver: Creating symlink {} -> {}", file.path, target);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs as unix_fs;
+                    unix_fs::symlink(target, &file_path)?;
+                }
+            }
+        } else {
+            // Regular file - receive content
+            let mut len_buf = [0u8; 8];
+            transport::read_exact(&mut transport, &mut len_buf).await?;
+            let content_len = u64::from_le_bytes(len_buf);
 
-        // Verify length matches what we expect
-        if content_len != file.size {
-            anyhow::bail!(
-                "File size mismatch for {}: expected {}, got {}",
-                file.path,
-                file.size,
-                content_len
-            );
+            // Verify length matches what we expect
+            if content_len != file.size {
+                anyhow::bail!(
+                    "File size mismatch for {}: expected {}, got {}",
+                    file.path,
+                    file.size,
+                    content_len
+                );
+            }
+
+            // Receive file content
+            let mut content = vec![0u8; content_len as usize];
+            transport::read_exact(&mut transport, &mut content).await?;
+
+            // Write to file
+            fs::write(&file_path, &content)?;
+            bytes_received += content.len() as u64;
+
+            debug!("Receiver: Wrote {} bytes to {}", content.len(), file.path);
         }
 
-        // Receive file content
-        let mut content = vec![0u8; content_len as usize];
-        transport::read_exact(&mut transport, &mut content).await?;
-
-        // Write to file
-        fs::write(&file_path, &content)?;
-        bytes_received += content.len() as u64;
-
-        debug!("Receiver: Wrote {} bytes to {}", content.len(), file.path);
+        // Apply metadata (permissions, timestamps, ownership)
+        apply_metadata(&file_path, file)?;
     }
 
     info!(
@@ -349,9 +369,11 @@ async fn generate_file_list_simple(path: &Path, args: &Args) -> Result<Vec<FileE
                 .modified()?
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_secs() as i64,
-            mode: 0o644, // TODO: Get actual mode
-            uid: 0,      // TODO: Get actual uid
-            gid: 0,      // TODO: Get actual gid
+            mode: metadata.permissions().mode(),
+            uid: metadata.uid(),
+            gid: metadata.gid(),
+            is_symlink: false,
+            symlink_target: None,
         });
     } else if path.is_dir() && args.should_recurse() {
         // Recursively list directory (blocking I/O for simplicity in protocol code)
@@ -371,9 +393,31 @@ async fn generate_file_list_simple(path: &Path, args: &Args) -> Result<Vec<FileE
                         .modified()?
                         .duration_since(std::time::UNIX_EPOCH)?
                         .as_secs() as i64,
-                    mode: 0o644,
-                    uid: 0,
-                    gid: 0,
+                    mode: metadata.permissions().mode(),
+                    uid: metadata.uid(),
+                    gid: metadata.gid(),
+                    is_symlink: false,
+                    symlink_target: None,
+                });
+            } else if metadata.is_symlink() {
+                let symlink_target = fs::read_link(entry.path())?.to_string_lossy().to_string();
+                let rel_path = entry
+                    .path()
+                    .strip_prefix(path)?
+                    .to_string_lossy()
+                    .to_string();
+                files.push(FileEntry {
+                    path: rel_path,
+                    size: 0, // Symlinks have no size
+                    mtime: metadata
+                        .modified()?
+                        .duration_since(std::time::UNIX_EPOCH)?
+                        .as_secs() as i64,
+                    mode: metadata.permissions().mode(),
+                    uid: metadata.uid(),
+                    gid: metadata.gid(),
+                    is_symlink: true,
+                    symlink_target: Some(symlink_target),
                 });
             }
         }
@@ -382,14 +426,55 @@ async fn generate_file_list_simple(path: &Path, args: &Args) -> Result<Vec<FileE
     Ok(files)
 }
 
-/// Send file list (minimal implementation)
+/// Apply full metadata to a file
+fn apply_metadata(path: &Path, file: &FileEntry) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Set permissions
+    let permissions = std::fs::Permissions::from_mode(file.mode);
+    if let Err(e) = fs::set_permissions(path, permissions) {
+        warn!("Failed to set permissions on {}: {}", path.display(), e);
+    }
+
+    // Set ownership (requires root privileges, so we'll try but not fail)
+    #[cfg(unix)]
+    {
+        // Note: chown/lchown not in std, would need nix crate
+        // For now, we'll skip ownership (rsync also needs --owner --group flags)
+        // This matches rsync's behavior when run without privileges
+        debug!(
+            "Skipping ownership for {} (uid={}, gid={}) - requires privileges",
+            path.display(),
+            file.uid,
+            file.gid
+        );
+    }
+
+    // Set modification time
+    if !file.is_symlink {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let mtime = UNIX_EPOCH + Duration::from_secs(file.mtime as u64);
+        if let Err(e) = filetime::set_file_mtime(path, filetime::FileTime::from_system_time(mtime))
+        {
+            warn!("Failed to set mtime on {}: {}", path.display(), e);
+        }
+    }
+
+    Ok(())
+}
+
+/// Send file list (with full metadata)
 async fn send_file_list_simple<T: Transport>(transport: &mut T, files: &[FileEntry]) -> Result<()> {
     // Send file count as 4-byte little-endian
     let count = files.len() as u32;
     transport::write_all(transport, &count.to_le_bytes()).await?;
 
-    // Send each file entry (simplified format)
+    // Send each file entry
     for file in files {
+        // Flags byte: bit 0 = is_symlink
+        let flags = if file.is_symlink { 1u8 } else { 0u8 };
+        transport::write_all(transport, &[flags]).await?;
+
         // Path length + path
         let path_bytes = file.path.as_bytes();
         let path_len = path_bytes.len() as u32;
@@ -399,15 +484,27 @@ async fn send_file_list_simple<T: Transport>(transport: &mut T, files: &[FileEnt
         // File size
         transport::write_all(transport, &file.size.to_le_bytes()).await?;
 
-        // Metadata (simplified)
+        // Full metadata
         transport::write_all(transport, &file.mtime.to_le_bytes()).await?;
         transport::write_all(transport, &file.mode.to_le_bytes()).await?;
+        transport::write_all(transport, &file.uid.to_le_bytes()).await?;
+        transport::write_all(transport, &file.gid.to_le_bytes()).await?;
+
+        // Symlink target if applicable
+        if file.is_symlink {
+            if let Some(target) = &file.symlink_target {
+                let target_bytes = target.as_bytes();
+                let target_len = target_bytes.len() as u32;
+                transport::write_all(transport, &target_len.to_le_bytes()).await?;
+                transport::write_all(transport, target_bytes).await?;
+            }
+        }
     }
 
     Ok(())
 }
 
-/// Receive file list (minimal implementation)
+/// Receive file list (with full metadata)
 async fn receive_file_list_simple<T: Transport>(transport: &mut T) -> Result<Vec<FileEntry>> {
     // Receive file count
     let mut count_buf = [0u8; 4];
@@ -418,6 +515,11 @@ async fn receive_file_list_simple<T: Transport>(transport: &mut T) -> Result<Vec
 
     // Receive each file entry
     for _ in 0..count {
+        // Flags byte
+        let mut flags_buf = [0u8; 1];
+        transport::read_exact(transport, &mut flags_buf).await?;
+        let is_symlink = (flags_buf[0] & 1) != 0;
+
         // Path length
         let mut path_len_buf = [0u8; 4];
         transport::read_exact(transport, &mut path_len_buf).await?;
@@ -433,7 +535,7 @@ async fn receive_file_list_simple<T: Transport>(transport: &mut T) -> Result<Vec
         transport::read_exact(transport, &mut size_buf).await?;
         let size = u64::from_le_bytes(size_buf);
 
-        // Metadata
+        // Full metadata
         let mut mtime_buf = [0u8; 8];
         transport::read_exact(transport, &mut mtime_buf).await?;
         let mtime = i64::from_le_bytes(mtime_buf);
@@ -442,13 +544,36 @@ async fn receive_file_list_simple<T: Transport>(transport: &mut T) -> Result<Vec
         transport::read_exact(transport, &mut mode_buf).await?;
         let mode = u32::from_le_bytes(mode_buf);
 
+        let mut uid_buf = [0u8; 4];
+        transport::read_exact(transport, &mut uid_buf).await?;
+        let uid = u32::from_le_bytes(uid_buf);
+
+        let mut gid_buf = [0u8; 4];
+        transport::read_exact(transport, &mut gid_buf).await?;
+        let gid = u32::from_le_bytes(gid_buf);
+
+        // Symlink target if applicable
+        let symlink_target = if is_symlink {
+            let mut target_len_buf = [0u8; 4];
+            transport::read_exact(transport, &mut target_len_buf).await?;
+            let target_len = u32::from_le_bytes(target_len_buf) as usize;
+
+            let mut target_buf = vec![0u8; target_len];
+            transport::read_exact(transport, &mut target_buf).await?;
+            Some(String::from_utf8(target_buf)?)
+        } else {
+            None
+        };
+
         files.push(FileEntry {
             path,
             size,
             mtime,
             mode,
-            uid: 0,
-            gid: 0,
+            uid,
+            gid,
+            is_symlink,
+            symlink_target,
         });
     }
 

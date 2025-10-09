@@ -46,6 +46,9 @@ walkdir = "2.0"
 md5 = "0.7"
 blake3 = "1.5"
 
+# File metadata manipulation
+filetime = "0.2"
+
 # io_uring libraries
 libc = "0.2"
 # rio removed - using compio instead
