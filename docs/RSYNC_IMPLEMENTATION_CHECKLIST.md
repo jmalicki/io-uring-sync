@@ -7,28 +7,33 @@
 
 ---
 
-## IMPORTANT: Revised Phase Ordering
+## IMPORTANT: Revised Phase Ordering (v2)
 
-**Original Problem**: We tried to do bidirectional pipe tests (Phase 1.5) but hit async/blocking I/O mismatch:
-- Current code uses **blocking I/O** (`std::io::Read/Write`)
-- Tests tried to use **tokio async** for concurrency
-- Result: **Deadlocks** and hangs
+**Problem**: Current code uses **blocking I/O** which creates async/blocking mismatch
+- PipeTransport uses `std::io::Read/Write` (blocking)
+- Tests need bidirectional I/O (requires async concurrency)
+- Main binary uses compio runtime
+- Result: Architecture conflict from the start
 
-**Solution**: **Reorder phases** to do compio migration earlier:
+**Solution**: **Do compio migration NOW, before any more testing**
 
 ```
 ✅ Phase 1.1-1.4: Handshake core (DONE)
-→ Phase 1.5:     rsync integration tests (shell scripts work!)
-→ PHASE 2:       compio/io_uring migration (FIX THE ROOT CAUSE)
-→ Phase 1.5b:    Pipe tests (revisit after compio - will work properly)
-→ Phase 3-5:     Checksums, Delta, Final integration
+→ PHASE 2:       compio/io_uring migration (FIX IT NOW!)
+→ Phase 1.5:     rsync integration tests (with correct architecture)
+→ Phase 1.5b:    Pipe tests (with correct architecture)
+→ Phase 3-5:     Checksums, Delta, Integration
 ```
 
-**Why this works**:
-1. rsync integration tests use **shell scripts** (no async/blocking issues)
-2. compio migration **fixes the transport layer** properly
-3. Then pipe tests will work **correctly** with real async I/O
-4. Everything else builds on solid foundation
+**Why this is correct**:
+1. Handshake code is **generic over Transport trait** ✅
+2. Fix Transport once → everything works
+3. All testing uses **correct architecture from start**
+4. No wasted effort testing with wrong I/O layer
+5. No re-testing after migration
+6. Aligns with arsync's **core io_uring design**
+
+**Key insight**: Don't test broken architecture, fix it first!
 
 ---
 
@@ -116,17 +121,36 @@
 
 ---
 
-# CURRENT WORK - REVISED ORDER
+# CURRENT WORK - PHASE 2 FIRST!
 
-## Phase 1.5: Integration Tests with Real rsync
+## Why Phase 2 Now?
 
-**Goal**: Validate handshake works with real rsync using shell scripts (avoids async/blocking issues)
+**Handshake is done, but transport is broken**. Before writing ANY more tests:
+1. Fix the Transport trait to use compio
+2. Fix PipeTransport to use io_uring
+3. Then ALL tests will work correctly
 
-**Why This Phase Now**: Shell scripts handle concurrency, no runtime conflicts
+**Do NOT test with blocking I/O** - it's technical debt we'll have to redo.
 
 ---
 
-### Create `tests/handshake_rsync_tests.rs`
+# PHASE 2: compio/io_uring Migration (DO THIS NOW!)
+
+**Goal**: Migrate protocol code from tokio to compio for io_uring-based async I/O
+
+**Why Now**: Fixes async/blocking mismatch, enables all subsequent testing
+
+**Duration Estimate**: 2-3 weeks (but saves time overall by avoiding re-testing)
+
+**Files to Create**: 2-3 new files  
+**Files to Modify**: 8 existing files  
+**Tests to Add**: 10+ test functions
+
+---
+
+## Phase 2.1: compio Capability Audit
+
+### Research compio Features
 
 - [ ] Create file: `touch tests/handshake_rsync_tests.rs`
 - [ ] Add header: `#![cfg(feature = "remote-sync")]`
