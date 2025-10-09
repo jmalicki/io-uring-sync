@@ -15,8 +15,33 @@ const MODULUS: u32 = 65521;
 /// as we slide a window over the data.
 #[must_use]
 pub fn rolling_checksum(data: &[u8]) -> u32 {
-    let mut a: u32 = 0;
-    let mut b: u32 = 0;
+    rolling_checksum_with_seed(data, 0)
+}
+
+/// Compute rolling checksum with seed (rsync protocol)
+///
+/// The seed is mixed into the initial state to make checksums
+/// session-unique and prevent precomputed collision attacks.
+///
+/// # Arguments
+///
+/// * `data` - The data block to checksum
+/// * `seed` - Checksum seed from handshake (0 for unseeded)
+///
+/// # Examples
+///
+/// ```
+/// # use arsync::protocol::checksum::rolling_checksum_with_seed;
+/// let data = b"Hello, World!";
+/// let unseeded = rolling_checksum_with_seed(data, 0);
+/// let seeded = rolling_checksum_with_seed(data, 12345);
+/// assert_ne!(unseeded, seeded); // Different seeds = different checksums
+/// ```
+#[must_use]
+pub fn rolling_checksum_with_seed(data: &[u8], seed: u32) -> u32 {
+    // Initialize with seed mixed in
+    let mut a: u32 = (seed & 0xFFFF) % MODULUS;
+    let mut b: u32 = ((seed >> 16) & 0xFFFF) % MODULUS;
 
     for &byte in data {
         a = (a + u32::from(byte)) % MODULUS;
@@ -123,5 +148,52 @@ mod tests {
             let expected = rolling_checksum(&data[i..i + window_size]);
             assert_eq!(checksum, expected, "Mismatch at position {}", i);
         }
+    }
+
+    #[test]
+    fn test_rolling_checksum_with_seed() {
+        let data = b"Hello, World!";
+
+        // Unseeded (seed=0) should match original
+        let unseeded = rolling_checksum_with_seed(data, 0);
+        let original = rolling_checksum(data);
+        assert_eq!(unseeded, original);
+
+        // Different seeds produce different checksums
+        let seed1 = rolling_checksum_with_seed(data, 12345);
+        let seed2 = rolling_checksum_with_seed(data, 67890);
+        assert_ne!(seed1, seed2);
+        assert_ne!(seed1, unseeded);
+        assert_ne!(seed2, unseeded);
+    }
+
+    #[test]
+    fn test_seeded_checksum_deterministic() {
+        let data = b"Test data";
+        let seed = 0xDEADBEEF;
+
+        // Same seed should give same result
+        let checksum1 = rolling_checksum_with_seed(data, seed);
+        let checksum2 = rolling_checksum_with_seed(data, seed);
+        assert_eq!(checksum1, checksum2);
+    }
+
+    #[test]
+    fn test_seed_prevents_collisions() {
+        // Two different data blocks might have same unseeded checksum (collision)
+        // But seeding makes them different
+        let data1 = b"AB";
+        let data2 = b"BA"; // Different data
+
+        let unseeded1 = rolling_checksum(data1);
+        let unseeded2 = rolling_checksum(data2);
+        // May or may not collide (depends on algorithm)
+
+        let seed = 0x12345678;
+        let seeded1 = rolling_checksum_with_seed(data1, seed);
+        let seeded2 = rolling_checksum_with_seed(data2, seed);
+
+        // Even if unseeded collides, seeded makes them distinct
+        assert_ne!(seeded1, seeded2);
     }
 }

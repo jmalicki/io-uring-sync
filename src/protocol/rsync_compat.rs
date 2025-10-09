@@ -495,6 +495,132 @@ fn decode_varint_sync(reader: &mut Cursor<&[u8]>) -> Result<u64> {
 }
 
 // ============================================================================
+// Checksum Exchange (rsync format)
+// ============================================================================
+
+use crate::protocol::checksum::{rolling_checksum_with_seed, strong_checksum};
+
+/// Block checksum in rsync wire format
+#[derive(Debug, Clone)]
+pub struct RsyncBlockChecksum {
+    pub weak: u32,
+    pub strong: Vec<u8>, // Variable length (2 or 16 bytes)
+}
+
+/// Send block checksums in rsync wire format
+///
+/// rsync format:
+/// - Header: [block_count][block_size][remainder][checksum2_length]
+/// - Then each block: [weak][strong] (no offset/index - implicit!)
+pub async fn send_block_checksums_rsync<T: Transport>(
+    writer: &mut MultiplexWriter<T>,
+    data: &[u8],
+    block_size: usize,
+    seed: u32,
+) -> Result<()> {
+    if data.is_empty() {
+        // Send empty checksum list
+        let header = vec![
+            0u8, 0, 0, 0, // block_count = 0
+            0, 0, 0, 0, // block_size = 0
+            0, 0, 0, 0, // remainder = 0
+            16, 0, 0, 0, // checksum2_length = 16 (MD5)
+        ];
+        writer.write_message(MessageTag::Data, &header).await?;
+        return Ok(());
+    }
+
+    let block_count = (data.len() + block_size - 1) / block_size;
+    let remainder = data.len() % block_size;
+    let checksum2_length = 16u32; // MD5 = 16 bytes
+
+    // Build header
+    let mut message = Vec::new();
+    message.extend((block_count as u32).to_le_bytes());
+    message.extend((block_size as u32).to_le_bytes());
+    message.extend((remainder as u32).to_le_bytes());
+    message.extend(checksum2_length.to_le_bytes());
+
+    // Generate and append checksums
+    let mut offset = 0;
+    while offset < data.len() {
+        let end = (offset + block_size).min(data.len());
+        let block = &data[offset..end];
+
+        // Compute checksums with seed
+        let weak = rolling_checksum_with_seed(block, seed);
+        let strong = strong_checksum(block);
+
+        message.extend(weak.to_le_bytes());
+        message.extend(strong);
+
+        offset = end;
+    }
+
+    // Send as MSG_DATA
+    writer.write_message(MessageTag::Data, &message).await?;
+    debug!(
+        "Sent {} block checksums (block_size={}, seed={})",
+        block_count, block_size, seed
+    );
+
+    Ok(())
+}
+
+/// Receive block checksums in rsync wire format
+pub async fn receive_block_checksums_rsync<T: Transport>(
+    reader: &mut MultiplexReader<T>,
+) -> Result<(Vec<RsyncBlockChecksum>, usize)> {
+    // Read MSG_DATA containing checksums
+    let msg = reader.read_message().await?;
+
+    if msg.tag != MessageTag::Data {
+        anyhow::bail!("Expected MSG_DATA for checksums, got {:?}", msg.tag);
+    }
+
+    if msg.data.len() < 16 {
+        // Empty or invalid checksum list
+        return Ok((vec![], 0));
+    }
+
+    let mut cursor = Cursor::new(&msg.data[..]);
+
+    // Read header
+    let mut buf4 = [0u8; 4];
+
+    std::io::Read::read_exact(&mut cursor, &mut buf4)?;
+    let block_count = u32::from_le_bytes(buf4) as usize;
+
+    std::io::Read::read_exact(&mut cursor, &mut buf4)?;
+    let block_size = u32::from_le_bytes(buf4) as usize;
+
+    std::io::Read::read_exact(&mut cursor, &mut buf4)?;
+    let _remainder = u32::from_le_bytes(buf4);
+
+    std::io::Read::read_exact(&mut cursor, &mut buf4)?;
+    let checksum2_length = u32::from_le_bytes(buf4) as usize;
+
+    debug!(
+        "Receiving {} checksums (block_size={}, strong_len={})",
+        block_count, block_size, checksum2_length
+    );
+
+    // Read checksums
+    let mut checksums = Vec::with_capacity(block_count);
+    for _ in 0..block_count {
+        std::io::Read::read_exact(&mut cursor, &mut buf4)?;
+        let weak = u32::from_le_bytes(buf4);
+
+        let mut strong = vec![0u8; checksum2_length];
+        std::io::Read::read_exact(&mut cursor, &mut strong)?;
+
+        checksums.push(RsyncBlockChecksum { weak, strong });
+    }
+
+    Ok((checksums, block_size))
+}
+
+// ============================================================================
 // rsync-Compatible Pipe Mode (File List Exchange Only - Minimal)
 // ============================================================================
 
