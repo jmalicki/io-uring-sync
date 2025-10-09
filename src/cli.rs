@@ -123,6 +123,18 @@ pub struct Args {
     /// Quiet mode (suppress all output except errors)
     #[arg(short, long)]
     pub quiet: bool,
+
+    // ========== Concurrency control flags ==========
+    /// Disable adaptive concurrency control (fail fast on resource exhaustion)
+    ///
+    /// By default, arsync automatically reduces concurrency when hitting resource
+    /// limits like "Too many open files" (EMFILE). This flag disables that behavior
+    /// and causes arsync to exit immediately on such errors instead.
+    ///
+    /// Use this if you want strict resource limit enforcement or in CI/CD environments
+    /// where you want to catch configuration issues early.
+    #[arg(long)]
+    pub no_adaptive_concurrency: bool,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -391,6 +403,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_ok());
@@ -426,6 +439,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_ok());
@@ -460,6 +474,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_err());
