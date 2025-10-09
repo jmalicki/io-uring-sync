@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use tracing::{info, Level};
 
+mod adaptive_concurrency;
 mod cli;
 mod copy;
 mod directory;

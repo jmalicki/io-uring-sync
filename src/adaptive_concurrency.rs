@@ -122,6 +122,7 @@ impl AdaptiveConcurrencyController {
 
     /// Get current statistics
     #[must_use]
+    #[allow(dead_code)] // Public API for future monitoring/metrics
     pub fn stats(&self) -> ConcurrencyStats {
         ConcurrencyStats {
             max_permits: self.semaphore.max_permits(),
@@ -134,6 +135,7 @@ impl AdaptiveConcurrencyController {
 
 /// Statistics about concurrency control
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)] // Public API for future monitoring/metrics
 pub struct ConcurrencyStats {
     /// Maximum permits configured
     pub max_permits: usize,
@@ -189,6 +191,7 @@ pub fn check_fd_limits() -> std::io::Result<u64> {
 
 /// Detect if an I/O error is EMFILE (file descriptor exhaustion)
 #[must_use]
+#[allow(dead_code)] // Public API for future use in copy.rs
 pub fn is_emfile_error(error: &std::io::Error) -> bool {
     error.kind() == ErrorKind::Other && error.raw_os_error() == Some(libc::EMFILE)
 }
