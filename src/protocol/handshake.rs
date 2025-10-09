@@ -929,7 +929,7 @@ pub async fn handshake<T: Transport>(
 /// Note: All these features are fully implemented in arsync's local sync code.
 /// The wire protocol just needs to transmit these attributes.
 #[must_use]
-fn get_our_capabilities() -> u32 {
+pub fn get_our_capabilities() -> u32 {
     let mut flags = 0u32;
 
     // What we support (arsync has LOCAL support for all of these!)
