@@ -645,6 +645,7 @@ pub fn generate_block_checksums(data: &[u8], block_size: usize) -> Result<Vec<Bl
 }
 
 /// Generate delta by finding matching blocks (sender side)
+#[allow(clippy::disallowed_types)] // HashMap needed for O(1) checksum lookup in delta algorithm
 pub fn generate_delta(data: &[u8], checksums: &[BlockChecksum]) -> Result<Vec<DeltaInstruction>> {
     if checksums.is_empty() {
         // No basis, send everything
@@ -653,8 +654,6 @@ pub fn generate_delta(data: &[u8], checksums: &[BlockChecksum]) -> Result<Vec<De
 
     let block_size = if checksums.len() > 1 {
         (checksums[1].offset - checksums[0].offset) as usize
-    } else if !checksums.is_empty() {
-        DEFAULT_BLOCK_SIZE
     } else {
         DEFAULT_BLOCK_SIZE
     };
