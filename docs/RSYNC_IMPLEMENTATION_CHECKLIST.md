@@ -233,13 +233,13 @@ All expected and will be fixed in Phases 2.3-2.5.
 ### Update `src/protocol/pipe.rs`
 
 #### Update Imports
-- [ ] Remove: `use std::io::{Read, Write};`
-- [ ] Add: `use compio::fs::File;`
-- [ ] Add: `use compio::io::{AsyncReadExt, AsyncWriteExt};`
-- [ ] Keep: `use std::os::unix::io::{FromRawFd, RawFd};`
+- [x] Remove: `use std::io::{Read, Write};`
+- [x] Add: `use compio::fs::File;`
+- [x] Add: `use compio::io::{AsyncReadExt, AsyncWriteExt};`
+- [x] Keep: `use std::os::unix::io::{FromRawFd, RawFd};`
 
 #### Redesign PipeTransport Struct
-- [ ] Change struct:
+- [x] Change struct:
   ```rust
   pub struct PipeTransport {
       reader: compio::fs::File,
@@ -248,10 +248,10 @@ All expected and will be fixed in Phases 2.3-2.5.
       name: String,
   }
   ```
-- [ ] Update doc comment explaining io_uring usage
+- [x] Update doc comment explaining io_uring usage
 
 #### Update from_stdio()
-- [ ] Rewrite:
+- [x] Rewrite:
   ```rust
   pub fn from_stdio() -> Result<Self> {
       use std::os::unix::io::AsRawFd;
@@ -269,13 +269,13 @@ All expected and will be fixed in Phases 2.3-2.5.
       })
   }
   ```
-- [ ] Add safety documentation
-- [ ] Test it works
+- [x] Add safety documentation
+- [x] Test it works
 
 #### Update from_fds()
-- [ ] Rewrite to use `compio::fs::File::from_raw_fd()`
+- [x] Rewrite to use `compio::fs::File::from_raw_fd()`
 - [ ] Update safety documentation
-- [ ] Test it works
+- [x] Test it works
 
 #### Remove Old Transport Impl
 - [ ] Remove `#[async_trait] impl Transport`
@@ -302,8 +302,8 @@ All expected and will be fixed in Phases 2.3-2.5.
 - [ ] Document io_uring usage
 
 ### Acceptance Criteria for Phase 2.3
-- [ ] PipeTransport compiles with compio
-- [ ] Implements all required traits
+- [x] PipeTransport compiles with compio
+- [x] Implements all required traits
 - [ ] Uses io_uring (verified with strace)
 - [ ] from_stdio() and from_fds() work
 - [ ] Code formatted
