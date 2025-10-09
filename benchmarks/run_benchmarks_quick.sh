@@ -14,9 +14,11 @@ NUM_RUNS=3  # Quick benchmark: only 3 runs instead of 5
 CPUS=$(nproc)
 ENABLE_POWER_MONITORING="${ENABLE_POWER_MONITORING:-yes}"  # ENABLED BY DEFAULT for quick test!
 
-# Paths to binaries
+# Paths to binaries (use absolute paths!)
 RSYNC_BIN=$(which rsync)
-ARSYNC_BIN="${ARSYNC_BIN:-./target/release/arsync}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ARSYNC_BIN="${ARSYNC_BIN:-$PROJECT_ROOT/target/release/arsync}"
 
 # Check root
 if [ "$EUID" -ne 0 ]; then

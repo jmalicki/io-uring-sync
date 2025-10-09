@@ -16,9 +16,11 @@ NUM_RUNS=5  # Run each test 5 times, discard first (warm-up)
 CPUS=$(nproc)
 ENABLE_POWER_MONITORING="${ENABLE_POWER_MONITORING:-no}"  # Set to "yes" to enable power monitoring
 
-# Paths to binaries
+# Paths to binaries (use absolute paths!)
 RSYNC_BIN=$(which rsync)
-ARSYNC_BIN="${ARSYNC_BIN:-./target/release/arsync}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ARSYNC_BIN="${ARSYNC_BIN:-$PROJECT_ROOT/target/release/arsync}"
 
 # Check root
 if [ "$EUID" -ne 0 ]; then
