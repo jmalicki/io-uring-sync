@@ -621,6 +621,173 @@ pub async fn receive_block_checksums_rsync<T: Transport>(
 }
 
 // ============================================================================
+// Delta Token Encoding/Decoding (rsync format)
+// ============================================================================
+
+use crate::protocol::rsync::DeltaInstruction;
+
+/// Convert delta instructions to rsync token stream
+///
+/// rsync token format:
+/// - 0: End of data marker
+/// - 1-96: Literal run (N bytes of data follow)
+/// - 97-255: Block match with offset encoding
+pub fn delta_to_tokens(delta: &[DeltaInstruction]) -> Vec<u8> {
+    let mut tokens = Vec::new();
+    let mut last_block_index: i64 = -1;
+
+    for instruction in delta {
+        match instruction {
+            DeltaInstruction::Literal(data) => {
+                // Split into chunks of max 96 bytes
+                for chunk in data.chunks(96) {
+                    let token = chunk.len() as u8; // 1-96
+                    tokens.push(token);
+                    tokens.extend_from_slice(chunk);
+                }
+            }
+            DeltaInstruction::BlockMatch {
+                block_index,
+                length: _,
+            } => {
+                // Calculate offset from last block
+                let offset = if last_block_index < 0 {
+                    *block_index as i64
+                } else {
+                    (*block_index as i64) - (last_block_index + 1)
+                };
+
+                // Encode as token
+                if offset < 0 {
+                    // Shouldn't happen, but handle it
+                    tokens.push(97); // Offset 0
+                } else if offset < 16 {
+                    // Simple encoding: 97 + offset
+                    tokens.push(97 + offset as u8);
+                } else {
+                    // Complex encoding for large offsets
+                    // For now, use simplified version
+                    // TODO: Implement full rsync offset encoding
+                    let bit_count = 64 - (offset as u64).leading_zeros();
+                    let token = 97 + ((bit_count as u8) << 4);
+                    tokens.push(token);
+
+                    // Send offset bytes (simplified)
+                    tokens.extend((offset as u32).to_le_bytes());
+                }
+
+                last_block_index = *block_index as i64;
+            }
+        }
+    }
+
+    // End of data marker
+    tokens.push(0);
+
+    tokens
+}
+
+/// Parse rsync token stream back to delta instructions
+///
+/// Returns (instructions, bytes_consumed)
+pub fn tokens_to_delta(
+    tokens: &[u8],
+    block_checksums: &[RsyncBlockChecksum],
+) -> anyhow::Result<Vec<DeltaInstruction>> {
+    let mut instructions = Vec::new();
+    let mut pos = 0;
+    let mut last_block_index: i64 = -1;
+
+    while pos < tokens.len() {
+        let token = tokens[pos];
+        pos += 1;
+
+        if token == 0 {
+            // End of data
+            break;
+        } else if token <= 96 {
+            // Literal run
+            let literal_len = token as usize;
+            if pos + literal_len > tokens.len() {
+                anyhow::bail!("Literal data truncated");
+            }
+
+            let literal_data = tokens[pos..pos + literal_len].to_vec();
+            pos += literal_len;
+
+            instructions.push(DeltaInstruction::Literal(literal_data));
+        } else {
+            // Block match (97-255)
+            let offset = if token < 113 {
+                // Simple encoding: offset = token - 97
+                (token - 97) as i64
+            } else {
+                // Complex encoding
+                let bit_count = ((token - 97) >> 4) as usize;
+
+                if pos + 4 > tokens.len() {
+                    anyhow::bail!("Block offset truncated");
+                }
+
+                let mut offset_bytes = [0u8; 4];
+                offset_bytes.copy_from_slice(&tokens[pos..pos + 4]);
+                pos += 4;
+
+                u32::from_le_bytes(offset_bytes) as i64
+            };
+
+            // Calculate absolute block index
+            let block_index = if last_block_index < 0 {
+                offset as u32
+            } else {
+                ((last_block_index + 1) + offset) as u32
+            };
+
+            // Get block length from checksums
+            let length = if (block_index as usize) < block_checksums.len() {
+                block_checksums[block_index as usize].strong.len() as u32
+            } else {
+                4096 // Default block size if not in checksums
+            };
+
+            instructions.push(DeltaInstruction::BlockMatch {
+                block_index,
+                length,
+            });
+
+            last_block_index = block_index as i64;
+        }
+    }
+
+    Ok(instructions)
+}
+
+/// Send delta in rsync token format
+pub async fn send_delta_rsync<T: Transport>(
+    writer: &mut MultiplexWriter<T>,
+    delta: &[DeltaInstruction],
+) -> Result<()> {
+    let tokens = delta_to_tokens(delta);
+    writer.write_message(MessageTag::Data, &tokens).await?;
+    debug!("Sent {} bytes of delta tokens", tokens.len());
+    Ok(())
+}
+
+/// Receive delta in rsync token format
+pub async fn receive_delta_rsync<T: Transport>(
+    reader: &mut MultiplexReader<T>,
+    checksums: &[RsyncBlockChecksum],
+) -> Result<Vec<DeltaInstruction>> {
+    let msg = reader.read_message().await?;
+
+    if msg.tag != MessageTag::Data {
+        anyhow::bail!("Expected MSG_DATA for delta, got {:?}", msg.tag);
+    }
+
+    tokens_to_delta(&msg.data, checksums)
+}
+
+// ============================================================================
 // rsync-Compatible Pipe Mode (File List Exchange Only - Minimal)
 // ============================================================================
 
