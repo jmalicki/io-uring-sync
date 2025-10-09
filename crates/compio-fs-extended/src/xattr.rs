@@ -193,7 +193,7 @@ pub async fn get_xattr_impl(file: &File, name: &str) -> Result<Vec<u8>> {
     let size_result = submit(size_op).await;
 
     let size = match size_result.0 {
-        Ok(s) => s as usize,
+        Ok(s) => s,
         Err(e) => {
             // ENODATA means attribute doesn't exist
             return Err(xattr_error(&format!("fgetxattr size query failed: {}", e)));
@@ -211,7 +211,7 @@ pub async fn get_xattr_impl(file: &File, name: &str) -> Result<Vec<u8>> {
     match value_result.0 {
         Ok(actual_size) => {
             let mut buffer = value_result.1.buffer;
-            buffer.truncate(actual_size as usize);
+            buffer.truncate(actual_size);
             Ok(buffer)
         }
         Err(e) => Err(xattr_error(&format!("fgetxattr failed: {}", e))),
