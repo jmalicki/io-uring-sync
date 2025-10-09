@@ -2,10 +2,10 @@
 
 ## Benchmark Configuration
 
-**Date**: Wed Oct  8 17:21:55 PDT 2025
+**Date**: Wed Oct  8 17:27:38 PDT 2025
 **Source directory**: /mnt/newhome/benchmark-data-quick
 **Destination directory**: /mnt/newhome/benchmark-output-quick
-**Results directory**: /home/jmalicki/src/io_uring_sync/benchmark-results-quick-20251008_172155
+**Results directory**: /home/jmalicki/src/io_uring_sync/benchmark-results-quick-20251008_172738
 
 ## Test Methodology
 

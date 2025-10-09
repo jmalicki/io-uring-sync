@@ -128,10 +128,11 @@ run_benchmark() {
         local power_pid=""
     fi
     
-    # Run benchmark with time measurement
+    # Run benchmark with time measurement AND TIMEOUT (hanging is never acceptable)
     local start_time=$(date +%s.%N)
     
-    /usr/bin/time -v bash -c "$command" \
+    # Timeout: 5 minutes for quick tests (should complete in <2 min normally)
+    timeout 300 /usr/bin/time -v bash -c "$command" \
         > "${output_prefix}_stdout.log" \
         2> "${output_prefix}_time.log"
     
@@ -148,7 +149,21 @@ run_benchmark() {
     fi
     
     # Verify completion and show errors immediately
-    if [ $exit_code -ne 0 ]; then
+    if [ $exit_code -eq 124 ]; then
+        echo ""
+        echo "    ❌ TIMEOUT: Process hung for >5 minutes (CRITICAL BUG!)"
+        echo "    Command: $command"
+        echo ""
+        echo "    This is a DEADLOCK - arsync should NEVER hang!"
+        echo "    Check logs for 'Too many open files' or other errors before hang:"
+        tail -50 "${output_prefix}_stdout.log" | grep -E "WARN|ERROR|error|failed" | tail -10 | sed 's/^/      /'
+        echo ""
+        echo "    Full logs:"
+        echo "      stdout: ${output_prefix}_stdout.log"
+        echo "      stderr: ${output_prefix}_time.log"
+        echo ""
+        return 1
+    elif [ $exit_code -ne 0 ]; then
         echo ""
         echo "    ❌ ERROR: Command failed with exit code $exit_code"
         echo "    Command: $command"
@@ -254,7 +269,7 @@ run_test_suite "01_rsync_large_files" \
 
 run_test_suite "02_arsync_large_files" \
     "$SOURCE_DIR/large-files/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-files/' --destination '$DEST_DIR/'"
+    "$ARSYNC_BIN -a --max-files-in-flight 100 --source '$SOURCE_DIR/large-files/' --destination '$DEST_DIR/'"
 
 # Test 2: Many small files (1000 × 10KB)
 echo ""
@@ -265,7 +280,7 @@ run_test_suite "03_rsync_1k_small" \
 
 run_test_suite "04_arsync_1k_small" \
     "$SOURCE_DIR/small-files-1k/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/small-files-1k/' --destination '$DEST_DIR/'"
+    "$ARSYNC_BIN -a --max-files-in-flight 100 --source '$SOURCE_DIR/small-files-1k/' --destination '$DEST_DIR/'"
 
 # Test 3: Tiny files (5000 × 1KB) - extreme syscall overhead
 echo ""
@@ -276,7 +291,7 @@ run_test_suite "05_rsync_5k_tiny" \
 
 run_test_suite "06_arsync_5k_tiny" \
     "$SOURCE_DIR/tiny-files-5k/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/tiny-files-5k/' --destination '$DEST_DIR/'"
+    "$ARSYNC_BIN -a --max-files-in-flight 100 --source '$SOURCE_DIR/tiny-files-5k/' --destination '$DEST_DIR/'"
 
 # Test 4: Medium files (500 × 1MB)
 echo ""
@@ -287,7 +302,7 @@ run_test_suite "07_rsync_500_medium" \
 
 run_test_suite "08_arsync_500_medium" \
     "$SOURCE_DIR/medium-files-500/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/medium-files-500/' --destination '$DEST_DIR/'"
+    "$ARSYNC_BIN -a --max-files-in-flight 100 --source '$SOURCE_DIR/medium-files-500/' --destination '$DEST_DIR/'"
 
 # Test 5: Mixed workload (photos)
 echo ""
@@ -298,7 +313,7 @@ run_test_suite "09_rsync_photos" \
 
 run_test_suite "10_arsync_photos" \
     "$SOURCE_DIR/mixed-photos/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/mixed-photos/' --destination '$DEST_DIR/'"
+    "$ARSYNC_BIN -a --max-files-in-flight 100 --source '$SOURCE_DIR/mixed-photos/' --destination '$DEST_DIR/'"
 
 # Test 6: Directory tree
 echo ""
@@ -309,7 +324,7 @@ run_test_suite "11_rsync_dirtree" \
 
 run_test_suite "12_arsync_dirtree" \
     "$SOURCE_DIR/dir-tree/" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/dir-tree/' --destination '$DEST_DIR/'"
+    "$ARSYNC_BIN -a --max-files-in-flight 100 --source '$SOURCE_DIR/dir-tree/' --destination '$DEST_DIR/'"
 
 echo ""
 echo "========================================"
