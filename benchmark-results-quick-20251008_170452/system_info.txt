@@ -1,7 +1,0 @@
-=== Comprehensive Hardware Inventory ===
-Basic system info:
-Linux threadripper 6.14.0-33-generic #33-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep 17 23:22:02 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
-model name	: AMD Ryzen Threadripper 3970X 32-Core Processor
-               total        used        free      shared  buff/cache   available
-Mem:           247Gi        32Gi        40Gi       1.3Gi       178Gi       214Gi
-Swap:          1.2Ti       1.8Mi       1.2Ti

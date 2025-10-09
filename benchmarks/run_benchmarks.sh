@@ -142,15 +142,25 @@ run_benchmark() {
         wait $power_pid 2>/dev/null || true
     fi
     
+    # Verify completion and show errors immediately
+    if [ $exit_code -ne 0 ]; then
+        echo ""
+        echo "    ❌ ERROR: Command failed with exit code $exit_code"
+        echo "    Command: $command"
+        echo ""
+        echo "    Error details:"
+        tail -20 "${output_prefix}_time.log" | grep -E "error|Error|ERROR|No such|cannot|failed" | sed 's/^/      /'
+        echo ""
+        echo "    Full logs:"
+        echo "      stdout: ${output_prefix}_stdout.log"
+        echo "      stderr: ${output_prefix}_time.log"
+        echo ""
+        return 1
+    fi
+    
     # Calculate elapsed time
     local elapsed=$(echo "$end_time - $start_time" | bc)
     echo "$elapsed" > "${output_prefix}_elapsed.txt"
-    
-    # Verify completion
-    if [ $exit_code -ne 0 ]; then
-        echo "    ERROR: Command failed with exit code $exit_code"
-        return 1
-    fi
     
     # Count files
     local file_count=$(find "$dest" -type f 2>/dev/null | wc -l)
