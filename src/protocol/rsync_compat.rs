@@ -287,7 +287,8 @@ impl<T: Transport> MultiplexWriter<T> {
 
     /// Flush underlying transport
     pub async fn flush(&mut self) -> Result<()> {
-        self.transport.flush().await
+        use compio::io::AsyncWriteExt;
+        self.transport.flush().await.map_err(Into::into)
     }
 }
 

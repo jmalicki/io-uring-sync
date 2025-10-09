@@ -1,21 +1,40 @@
 //! Pipe-based transport for rsync protocol testing
 //!
-//! Enables testing rsync wire protocol via pipes (stdin/stdout or in-memory)
+//! Enables testing rsync wire protocol via pipes (stdin/stdout or Unix pipes)
 //! without requiring SSH or network infrastructure.
 //!
-//! Note: Uses blocking I/O for simplicity since pipes are fast enough
-//! and we want to avoid runtime conflicts (compio vs tokio).
+//! This implementation uses **compio::fs::AsyncFd** with **io_uring backend** for
+//! true async stream I/O. All operations go through the kernel's io_uring interface.
+//!
+//! # Architecture
+//!
+//! ```text
+//! PipeTransport
+//!     ↓
+//! compio::fs::AsyncFd (wraps raw FD)
+//!     ↓
+//! compio AsyncRead/AsyncWrite
+//!     ↓
+//! io_uring operations
+//! ```
 
 use super::transport::Transport;
-use anyhow::Result;
-use async_trait::async_trait;
-use std::io::{Read, Write};
+use compio::fs::AsyncFd;
+use compio::io::{AsyncRead, AsyncWrite};
+use std::io;
+use std::os::fd::OwnedFd;
 use std::os::unix::io::{FromRawFd, RawFd};
 
 /// Pipe-based transport for rsync protocol
+///
+/// Uses compio::fs::AsyncFd to wrap file descriptors and provide stream-based
+/// async I/O with io_uring backend.
 pub struct PipeTransport {
-    reader: Box<dyn Read + Send>,
-    writer: Box<dyn Write + Send>,
+    /// Reader end (stdin or custom FD)
+    reader: AsyncFd<OwnedFd>,
+    /// Writer end (stdout or custom FD)
+    writer: AsyncFd<OwnedFd>,
+    /// Transport name for debugging
     #[allow(dead_code)]
     name: String,
 }
@@ -23,67 +42,115 @@ pub struct PipeTransport {
 impl PipeTransport {
     /// Create from stdin/stdout (for --pipe mode)
     ///
-    /// # Safety
+    /// # Errors
     ///
-    /// Assumes FDs 0 and 1 are valid and will not be closed elsewhere
-    pub fn from_stdio() -> Result<Self> {
-        use std::os::unix::io::FromRawFd;
-
+    /// Returns an error if FD duplication or AsyncFd creation fails.
+    pub fn from_stdio() -> io::Result<Self> {
         // Duplicate FDs so we don't close stdin/stdout
         let stdin_fd = unsafe { libc::dup(0) };
         let stdout_fd = unsafe { libc::dup(1) };
 
         if stdin_fd < 0 || stdout_fd < 0 {
-            anyhow::bail!("Failed to duplicate stdin/stdout");
+            return Err(io::Error::last_os_error());
         }
 
-        let stdin = unsafe { std::fs::File::from_raw_fd(stdin_fd) };
-        let stdout = unsafe { std::fs::File::from_raw_fd(stdout_fd) };
-
-        Ok(Self {
-            reader: Box::new(stdin),
-            writer: Box::new(stdout),
-            name: "stdio".to_string(),
-        })
+        // SAFETY: We just created these FDs via dup()
+        unsafe { Self::from_fds(stdin_fd, stdout_fd, "stdio".to_string()) }
     }
 
     /// Create from specific file descriptors
     ///
     /// # Safety
     ///
-    /// Caller must ensure FDs are valid and not closed elsewhere
-    pub unsafe fn from_fds(read_fd: RawFd, write_fd: RawFd, name: String) -> Result<Self> {
-        let reader_file = std::fs::File::from_raw_fd(read_fd);
-        let writer_file = std::fs::File::from_raw_fd(write_fd);
+    /// Caller must ensure FDs are valid and not closed elsewhere.
+    pub unsafe fn from_fds(read_fd: RawFd, write_fd: RawFd, name: String) -> io::Result<Self> {
+        // Create OwnedFds (takes ownership)
+        let read_owned = OwnedFd::from_raw_fd(read_fd);
+        let write_owned = OwnedFd::from_raw_fd(write_fd);
+
+        // Wrap in AsyncFd for compio stream I/O
+        let reader = AsyncFd::new(read_owned)?;
+        let writer = AsyncFd::new(write_owned)?;
 
         Ok(Self {
-            reader: Box::new(reader_file),
-            writer: Box::new(writer_file),
+            reader,
+            writer,
             name,
         })
     }
+
+    /// Create a Unix pipe pair, returns (read_fd, write_fd)
+    pub fn create_pipe() -> io::Result<(RawFd, RawFd)> {
+        let mut fds = [0i32; 2];
+        unsafe {
+            if libc::pipe(fds.as_mut_ptr()) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        Ok((fds[0], fds[1]))
+    }
 }
 
-#[async_trait]
+// ============================================================================
+// compio AsyncRead Implementation (delegates to reader)
+// ============================================================================
+
+impl AsyncRead for PipeTransport {
+    async fn read<B: compio::buf::IoBufMut>(&mut self, buf: B) -> compio::buf::BufResult<usize, B> {
+        self.reader.read(buf).await
+    }
+}
+
+// ============================================================================
+// compio AsyncWrite Implementation (delegates to writer)
+// ============================================================================
+
+impl AsyncWrite for PipeTransport {
+    async fn write<B: compio::buf::IoBuf>(&mut self, buf: B) -> compio::buf::BufResult<usize, B> {
+        self.writer.write(buf).await
+    }
+
+    async fn flush(&mut self) -> io::Result<()> {
+        self.writer.flush().await
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        self.writer.shutdown().await
+    }
+}
+
+// ============================================================================
+// Transport Marker Implementation
+// ============================================================================
+
 impl Transport for PipeTransport {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        // Blocking I/O is fine for pipes (they're fast)
-        let n = self.reader.read(buf)?;
-        Ok(n)
-    }
-
-    async fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        // Blocking I/O is fine for pipes (they're fast)
-        let n = self.writer.write(buf)?;
-        Ok(n)
-    }
-
-    async fn flush(&mut self) -> Result<()> {
-        self.writer.flush()?;
-        Ok(())
-    }
-
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn supports_multiplexing(&self) -> bool {
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_pipe() {
+        let result = PipeTransport::create_pipe();
+        assert!(result.is_ok());
+
+        let (read_fd, write_fd) = result.unwrap();
+        assert!(read_fd >= 0);
+        assert!(write_fd >= 0);
+        assert_ne!(read_fd, write_fd);
+
+        // Clean up
+        unsafe {
+            libc::close(read_fd);
+            libc::close(write_fd);
+        }
     }
 }

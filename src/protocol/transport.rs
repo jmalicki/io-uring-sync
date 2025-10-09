@@ -30,7 +30,7 @@
 //! }
 //! ```
 
-use compio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use compio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use std::io;
 
 /// Generic transport for rsync protocol
@@ -83,7 +83,7 @@ pub trait Transport: AsyncRead + AsyncWrite + Send + Unpin {
 
 /// Helper to read exact number of bytes
 ///
-/// Repeatedly reads from the transport until the buffer is full or EOF is reached.
+/// Reads bytes using compio's buffer ownership model, copying into the provided buffer.
 ///
 /// # Errors
 ///
@@ -107,27 +107,40 @@ pub async fn read_exact<T>(transport: &mut T, buf: &mut [u8]) -> io::Result<()>
 where
     T: AsyncRead + Unpin,
 {
+    let len = buf.len();
+    let mut owned = vec![0u8; len];
+
     let mut offset = 0;
-    while offset < buf.len() {
-        let n = transport.read(&mut buf[offset..]).await?;
+    while offset < len {
+        // Read into owned buffer (compio takes ownership)
+        let buf_result = transport.read(owned).await;
+        let n = buf_result.0?; // Result
+        let returned_buf = buf_result.1; // Buffer
+
         if n == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
                     "Unexpected EOF while reading {} bytes (got {})",
-                    buf.len(),
-                    offset
+                    len, offset
                 ),
             ));
         }
+
+        // Copy from owned buffer to user's buffer
+        buf[offset..offset + n].copy_from_slice(&returned_buf[..n]);
         offset += n;
+
+        // Reuse buffer for next iteration
+        owned = returned_buf;
     }
+
     Ok(())
 }
 
 /// Helper to write all bytes
 ///
-/// Repeatedly writes to the transport until all bytes are written, then flushes.
+/// Writes bytes to transport using compio's buffer ownership model, then flushes.
 ///
 /// # Errors
 ///
@@ -148,7 +161,15 @@ pub async fn write_all<T>(transport: &mut T, buf: &[u8]) -> io::Result<()>
 where
     T: AsyncWrite + Unpin,
 {
-    transport.write_all(buf).await?;
+    use compio::io::AsyncWriteExt;
+
+    // Convert to owned buffer for compio
+    let owned_buf = buf.to_vec();
+
+    // write_all returns BufResult<(), B>
+    let buf_result = transport.write_all(owned_buf).await;
+    buf_result.0?; // Check result
+
     transport.flush().await?;
     Ok(())
 }

@@ -10,6 +10,7 @@ use crate::protocol::ssh::SshConnection;
 use crate::protocol::transport::{self, Transport};
 use crate::sync::SyncStats;
 use anyhow::Result;
+use compio::io::{AsyncWrite, AsyncWriteExt};
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -219,7 +220,10 @@ pub async fn send_via_pipe(
     }
 
     // Flush to ensure all data is sent
-    transport.flush().await?;
+    transport
+        .flush()
+        .await
+        .map_err(|e| anyhow::anyhow!("Flush failed: {}", e))?;
 
     info!(
         "Sender: Transfer complete, sent {} bytes, matched {} bytes",
