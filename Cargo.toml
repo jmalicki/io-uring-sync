@@ -40,6 +40,7 @@ indicatif = "0.18"
 num_cpus = "1.0"
 async-recursion = "1.0"
 whoami = "1.0"
+walkdir = "2.0"
 
 # io_uring libraries
 libc = "0.2"

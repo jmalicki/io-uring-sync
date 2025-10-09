@@ -22,17 +22,19 @@ mod protocol;
 
 use cli::{Args, Location};
 
-#[compio::main]
+#[compio::main(unwind_safe)]
 async fn main() -> Result<()> {
     // Parse command line arguments
     let args = Args::parse();
 
     // Initialize logging based on verbosity and quiet mode
-    if args.quiet {
-        // In quiet mode, only log errors
+    // Note: In pipe mode, logs go to stderr (FD 2) so they don't interfere with protocol (FD 0/1)
+    if args.pipe || args.quiet {
+        // In quiet or pipe mode, only log errors (to stderr)
         let subscriber = tracing_subscriber::fmt()
             .with_max_level(Level::ERROR)
             .with_target(false)
+            .with_writer(std::io::stderr) // Explicit stderr
             .finish();
         tracing::subscriber::set_global_default(subscriber)?;
     } else {
@@ -90,7 +92,37 @@ async fn main() -> Result<()> {
     args.validate().context("Invalid arguments")?;
 
     // Route to appropriate mode
-    let result = if source.is_remote() || destination.is_remote() {
+    let result = if args.pipe {
+        // ============================================================
+        // PIPE MODE (TESTING ONLY)
+        // ============================================================
+        // Uses rsync wire protocol over stdin/stdout
+        // FOR PROTOCOL TESTING, NOT PRODUCTION USE
+        // Local copies should use io_uring direct operations!
+        // ============================================================
+        #[cfg(feature = "remote-sync")]
+        {
+            match args.pipe_role {
+                Some(cli::PipeRole::Sender) => {
+                    info!("Pipe mode: sender");
+                    protocol::pipe_sender(&args, &source).await
+                }
+                Some(cli::PipeRole::Receiver) => {
+                    info!("Pipe mode: receiver");
+                    protocol::pipe_receiver(&args, &destination).await
+                }
+                None => {
+                    anyhow::bail!("--pipe requires --pipe-role (sender or receiver)")
+                }
+            }
+        }
+        #[cfg(not(feature = "remote-sync"))]
+        {
+            anyhow::bail!(
+                "--pipe requires remote-sync feature (compile with --features remote-sync)"
+            )
+        }
+    } else if source.is_remote() || destination.is_remote() {
         // Remote sync mode
         #[cfg(feature = "remote-sync")]
         {

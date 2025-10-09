@@ -15,6 +15,7 @@ pub mod quic;
 use crate::cli::{Args, Location};
 use crate::sync::SyncStats;
 use anyhow::Result;
+use std::path::Path;
 
 /// Main entry point for remote sync operations
 pub async fn remote_sync(
@@ -93,4 +94,36 @@ async fn pull_from_remote(
 
     // Fall back to rsync wire protocol over SSH
     rsync::pull_via_rsync_protocol(args, &mut connection, local_path).await
+}
+
+/// Pipe sender mode (for protocol testing)
+pub async fn pipe_sender(args: &Args, source: &Location) -> Result<SyncStats> {
+    let source_path = match source {
+        Location::Local(path) => path,
+        Location::Remote { .. } => {
+            anyhow::bail!("Pipe mode requires local source path");
+        }
+    };
+
+    // Create pipe transport from stdin/stdout
+    let transport = pipe::PipeTransport::from_stdio()?;
+
+    // Send via rsync protocol
+    rsync::send_via_pipe(args, source_path, transport).await
+}
+
+/// Pipe receiver mode (for protocol testing)
+pub async fn pipe_receiver(args: &Args, destination: &Location) -> Result<SyncStats> {
+    let dest_path = match destination {
+        Location::Local(path) => path,
+        Location::Remote { .. } => {
+            anyhow::bail!("Pipe mode requires local destination path");
+        }
+    };
+
+    // Create pipe transport from stdin/stdout
+    let transport = pipe::PipeTransport::from_stdio()?;
+
+    // Receive via rsync protocol
+    rsync::receive_via_pipe(args, transport, dest_path).await
 }

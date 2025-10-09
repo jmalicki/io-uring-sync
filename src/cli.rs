@@ -166,6 +166,27 @@ pub struct Args {
     /// Daemon mode (rsyncd compatibility)
     #[arg(long, hide = true)]
     pub daemon: bool,
+
+    // ========== Pipe mode (testing only) ==========
+    /// Pipe mode: communicate via stdin/stdout (for protocol testing)
+    ///
+    /// This mode is for testing the rsync wire protocol without SSH.
+    /// NOT for normal use - local copies use `io_uring` direct operations!
+    #[arg(long, hide = true)]
+    pub pipe: bool,
+
+    /// Pipe role: sender or receiver
+    #[arg(long, requires = "pipe", value_enum)]
+    pub pipe_role: Option<PipeRole>,
+}
+
+/// Role in pipe mode
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum PipeRole {
+    /// Sender: read files and send via protocol
+    Sender,
+    /// Receiver: receive via protocol and write files
+    Receiver,
 }
 
 /// Parsed location (local or remote)
@@ -300,6 +321,14 @@ impl Args {
     /// - No CPU cores are available
     /// - Both --quiet and --verbose options are used
     pub fn validate(&self) -> Result<()> {
+        // Pipe mode: skip path validation (paths from stdin/stdout)
+        if self.pipe {
+            if self.pipe_role.is_none() {
+                anyhow::bail!("--pipe requires --pipe-role (sender or receiver)");
+            }
+            return self.validate_common();
+        }
+
         // Get source and destination
         let source = self.get_source()?;
         let destination = self.get_destination()?;
@@ -545,6 +574,8 @@ impl Args {
             server: false,
             remote_shell: "ssh".to_string(),
             daemon: false,
+            pipe: false,
+            pipe_role: None,
         }
     }
 }

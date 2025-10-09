@@ -38,6 +38,8 @@ pub fn create_test_args(source: PathBuf, destination: PathBuf) -> Args {
         server: false,
         remote_shell: "ssh".to_string(),
         daemon: false,
+        pipe: false,
+        pipe_role: None,
     }
 }
 

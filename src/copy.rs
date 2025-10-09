@@ -575,6 +575,8 @@ mod tests {
             server: false,
             remote_shell: "ssh".to_string(),
             daemon: false,
+            pipe: false,
+            pipe_role: None,
         }
     }
 
