@@ -2,43 +2,123 @@
 //!
 //! The rsync wire protocol is transport-agnostic - it works over any
 //! bidirectional byte stream (pipes, TCP, SSH, QUIC, etc.)
+//!
+//! This module uses **compio** for async I/O with io_uring backend.
+//! All transport implementations must provide `AsyncRead + AsyncWrite` from compio.
+//!
+//! # Architecture
+//!
+//! ```text
+//! Transport Trait
+//!     ↓
+//! compio::io::AsyncRead + AsyncWrite
+//!     ↓
+//! io_uring Operations
+//! ```
+//!
+//! # Example
+//!
+//! ```rust,no_run
+//! use arsync::protocol::transport::Transport;
+//! use compio::io::{AsyncReadExt, AsyncWriteExt};
+//!
+//! async fn example<T: Transport>(mut transport: T) -> std::io::Result<()> {
+//!     let mut buf = vec![0u8; 1024];
+//!     let n = transport.read(&mut buf).await?;
+//!     transport.write_all(b"Hello").await?;
+//!     Ok(())
+//! }
+//! ```
 
-use anyhow::Result;
-use async_trait::async_trait;
+use compio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use std::io;
 
 /// Generic transport for rsync protocol
 ///
-/// Represents a bidirectional byte stream that can carry rsync protocol messages.
-/// Implementations include: pipes (testing), SSH (production), QUIC (future).
-#[async_trait]
-pub trait Transport: Send {
-    /// Read bytes from transport
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
-
-    /// Write bytes to transport
-    async fn write(&mut self, buf: &[u8]) -> Result<usize>;
-
-    /// Flush any buffered writes
-    async fn flush(&mut self) -> Result<()>;
-
-    /// Get transport name (for debugging)
+/// A transport represents a bidirectional byte stream that carries rsync protocol
+/// messages. This is a marker trait that requires `compio::io::AsyncRead` and
+/// `compio::io::AsyncWrite`, which provide io_uring-based async I/O.
+///
+/// # Requirements
+///
+/// - Must implement `compio::io::AsyncRead` for receiving data
+/// - Must implement `compio::io::AsyncWrite` for sending data
+/// - Must be `Send` for use across threads
+/// - Must be `Unpin` for safe async operations
+///
+/// # Implementations
+///
+/// - `PipeTransport` - For testing via stdin/stdout or Unix pipes
+/// - `SshConnection` - For production remote sync over SSH
+/// - `TcpStream` - For direct network connections (future)
+/// - `QuicConnection` - For QUIC-based transport (future)
+///
+/// # Example Implementation
+///
+/// ```rust,no_run
+/// use arsync::protocol::transport::Transport;
+/// use compio::fs::File;
+///
+/// // File automatically implements AsyncRead + AsyncWrite
+/// impl Transport for File {
+///     fn name(&self) -> &str { "file" }
+/// }
+/// ```
+pub trait Transport: AsyncRead + AsyncWrite + Send + Unpin {
+    /// Get transport name for debugging
+    ///
+    /// Used in log messages to identify which transport is being used.
     fn name(&self) -> &str {
         "unknown"
     }
 
-    /// Check if transport supports parallel streams
+    /// Check if transport supports multiplexing (multiple parallel streams)
+    ///
+    /// Returns `true` for transports like QUIC or HTTP/2 that can multiplex.
+    /// Returns `false` for simple streams like pipes or SSH.
     fn supports_multiplexing(&self) -> bool {
         false
     }
 }
 
 /// Helper to read exact number of bytes
-pub async fn read_exact<T: Transport>(transport: &mut T, buf: &mut [u8]) -> Result<()> {
+///
+/// Repeatedly reads from the transport until the buffer is full or EOF is reached.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Transport read fails
+/// - EOF is reached before buffer is full
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use arsync::protocol::transport::{Transport, read_exact};
+/// use compio::fs::File;
+///
+/// async fn example(mut file: File) -> std::io::Result<()> {
+///     let mut buf = [0u8; 100];
+///     read_exact(&mut file, &mut buf).await?;
+///     Ok(())
+/// }
+/// ```
+pub async fn read_exact<T>(transport: &mut T, buf: &mut [u8]) -> io::Result<()>
+where
+    T: AsyncRead + Unpin,
+{
     let mut offset = 0;
     while offset < buf.len() {
         let n = transport.read(&mut buf[offset..]).await?;
         if n == 0 {
-            anyhow::bail!("Unexpected EOF while reading {} bytes", buf.len());
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                format!(
+                    "Unexpected EOF while reading {} bytes (got {})",
+                    buf.len(),
+                    offset
+                ),
+            ));
         }
         offset += n;
     }
@@ -46,12 +126,29 @@ pub async fn read_exact<T: Transport>(transport: &mut T, buf: &mut [u8]) -> Resu
 }
 
 /// Helper to write all bytes
-pub async fn write_all<T: Transport>(transport: &mut T, buf: &[u8]) -> Result<()> {
-    let mut offset = 0;
-    while offset < buf.len() {
-        let n = transport.write(&buf[offset..]).await?;
-        offset += n;
-    }
+///
+/// Repeatedly writes to the transport until all bytes are written, then flushes.
+///
+/// # Errors
+///
+/// Returns an error if transport write or flush fails.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use arsync::protocol::transport::{Transport, write_all};
+/// use compio::fs::File;
+///
+/// async fn example(mut file: File) -> std::io::Result<()> {
+///     write_all(&mut file, b"Hello, World!").await?;
+///     Ok(())
+/// }
+/// ```
+pub async fn write_all<T>(transport: &mut T, buf: &[u8]) -> io::Result<()>
+where
+    T: AsyncWrite + Unpin,
+{
+    transport.write_all(buf).await?;
     transport.flush().await?;
     Ok(())
 }

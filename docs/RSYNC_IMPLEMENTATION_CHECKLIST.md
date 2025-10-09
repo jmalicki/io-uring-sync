@@ -148,67 +148,45 @@
 
 ---
 
-## Phase 2.1: compio Capability Audit
+## Phase 2.1: compio Capability Audit ✅ COMPLETE
+
+**Commit**: 12396c5
 
 ### Research compio Features
 
-- [ ] Create file: `touch tests/handshake_rsync_tests.rs`
-- [ ] Add header: `#![cfg(feature = "remote-sync")]`
-- [ ] Add helper to check rsync availability
-- [ ] Add helper to parse rsync version
+- [x] Check compio version in Cargo.toml → **0.16.0**
+- [x] Find compio source in cargo registry
+- [x] List available modules from lib.rs
+- [x] Check dependency tree
 
-### Test: Handshake with rsync --server --sender
+### Findings Documented
 
-- [ ] `test_handshake_with_real_rsync_sender`
-  - [ ] Create test source directory with files
-  - [ ] Use shell script to set up bidirectional pipes
-  - [ ] Spawn: `rsync --server --sender -vlogDtpr . /source/`
-  - [ ] Spawn: `arsync --handshake-test receiver` (need to add this mode)
-  - [ ] Connect via named pipes
-  - [ ] Capture output from both
-  - [ ] Verify both complete without error
-  - [ ] Parse logs to verify handshake completed
-  - [ ] Verify negotiated version is logged
-  - [ ] Print success message with version and flags
+- [x] Created `docs/COMPIO_AUDIT.md` (276 lines)
+- [x] Documented all available modules:
+  - [x] compio-io: AsyncRead/AsyncWrite ✅
+  - [x] compio-fs: File operations with from_raw_fd() ✅
+  - [x] **compio-process: FULL process support!** ✅
+    - Command, Child, ChildStdin/Stdout/Stderr
+    - spawn() method
+    - All implement AsyncRead/AsyncWrite
+  - [x] compio-net: TcpStream, UnixStream ✅
+  - [x] compio-runtime: #[compio::test] macro ✅
+  - [x] compio-driver: Low-level io_uring ops ✅
 
-### Test: Handshake with rsync --server (receiver mode)
+### Migration Strategy Decision
 
-- [ ] `test_handshake_with_real_rsync_receiver`
-  - [ ] Create test destination directory
-  - [ ] Use shell script for pipes
-  - [ ] Spawn: `rsync --server -vlogDtpr . /dest/`
-  - [ ] Spawn: `arsync --handshake-test sender`
-  - [ ] Connect and run
-  - [ ] Verify handshake completes
-  - [ ] Parse capabilities from logs
+- [x] **Chose: Pure compio (no hybrid needed!)**
+- [x] Rationale: compio-process exists with full API
+- [x] No workarounds required
+- [x] Clean architecture throughout
 
-### Add CLI Mode for Handshake Testing
-
-- [ ] Update `src/cli.rs`:
-  - [ ] Add `--handshake-test` flag (hidden)
-  - [ ] Add `handshake_role: Option<Role>` parameter
-- [ ] Update `src/main.rs`:
-  - [ ] Add routing for `--handshake-test`
-  - [ ] Run handshake, print capabilities, exit
-  - [ ] Log to stderr (stdout is for protocol)
-
-### Test: Version Detection
-
-- [ ] `test_rsync_protocol_version_from_binary`
-  - [ ] Run: `rsync --version`
-  - [ ] Parse output
-  - [ ] Extract protocol version (should be 31 or 32)
-  - [ ] Verify >= MIN_PROTOCOL_VERSION
-  - [ ] Print rsync version info
-
-### Acceptance Criteria for Phase 1.5
-- [ ] All tests pass with real rsync
-- [ ] Tests skip gracefully if rsync not available
-- [ ] Handshake completes successfully in both directions
-- [ ] Version and capabilities are negotiated correctly
-- [ ] Code formatted with `cargo fmt`
-- [ ] Commit message: "test(handshake): add integration tests with real rsync"
-- [ ] **Commit**: TBD
+### Acceptance Criteria for Phase 2.1 ✅ COMPLETE
+- [x] Audit document complete
+- [x] All features identified
+- [x] Strategy chosen (pure compio)
+- [x] Expected performance documented (30-50% improvement)
+- [x] Commit message: "docs(compio): audit compio 0.16 - full process support available!"
+- [x] **Commit**: 12396c5
 
 ---
 
