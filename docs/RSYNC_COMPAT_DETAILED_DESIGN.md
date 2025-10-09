@@ -44,6 +44,27 @@ The rsync handshake is a multi-phase protocol that establishes:
 4. Exclusion/inclusion patterns
 5. Multiplexing mode activation
 
+## 1.1 arsync's Existing Metadata Capabilities
+
+**Important Note**: arsync ALREADY has full local support for:
+- ✅ **Extended attributes** (`-X/--xattrs`) - See `tests/file_xattr_tests.rs`, `tests/directory_xattr_tests.rs`
+- ✅ **POSIX ACLs** (`-A/--acls`) - Full implementation in `src/copy.rs` and `src/directory.rs`
+- ✅ **Hard links** (`-H/--hard-links`) - Tracked and preserved
+- ✅ **Device files** (`-D/--devices`) - Special files supported
+- ✅ **Symlinks** (`-l/--links`) - Copy as symlinks
+- ✅ **Permissions** (`-p/--perms`) - Full mode preservation
+- ✅ **Timestamps** (`-t/--times`) - Modification times
+- ✅ **Access times** (`-U/--atimes`) - Use times
+- ✅ **Creation times** (`--crtimes`) - Birth times (when supported)
+- ✅ **Owner/Group** (`-o/-g`) - UID/GID preservation
+
+**What this means for rsync protocol**: We already know HOW to preserve all this metadata locally. The wire protocol implementation just needs to:
+1. **Transmit** these attributes in rsync's file list format
+2. **Receive** these attributes from rsync servers  
+3. **Apply** them using our existing local functions
+
+This is MUCH easier than if we had to implement metadata preservation from scratch!
+
 ## 1.1 Protocol Sequence
 
 ### Phase 1.1: Initial Version Exchange
