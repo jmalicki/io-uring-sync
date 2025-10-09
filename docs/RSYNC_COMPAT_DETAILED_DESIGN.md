@@ -436,18 +436,21 @@ pub enum Role {
 fn get_our_capabilities() -> u32 {
     let mut flags = 0u32;
     
-    // What we support
-    flags |= XMIT_CHECKSUMS;      // Yes, we do checksums
-    flags |= XMIT_SYMLINKS;       // Yes, we handle symlinks
-    flags |= XMIT_CHECKSUM_SEED;  // Yes, we use seed
-    flags |= XMIT_PROTECTION;     // Yes, we preserve perms
-    flags |= XMIT_TIMES;          // Yes, we preserve times
+    // What we support (arsync has LOCAL support for all of these!)
+    flags |= XMIT_CHECKSUMS;      // ✅ Checksums
+    flags |= XMIT_SYMLINKS;       // ✅ Symlinks (-l/--links)
+    flags |= XMIT_HARDLINKS;      // ✅ Hard links (-H/--hard-links)
+    flags |= XMIT_DEVICES;        // ✅ Device files (-D/--devices)
+    flags |= XMIT_XATTRS;         // ✅ Extended attributes (-X/--xattrs)
+    flags |= XMIT_ACLS;           // ✅ POSIX ACLs (-A/--acls)
+    flags |= XMIT_CHECKSUM_SEED;  // ✅ Checksum seed
+    flags |= XMIT_PROTECTION;     // ✅ Permissions (-p/--perms)
+    flags |= XMIT_TIMES;          // ✅ Timestamps (-t/--times)
+    // Note: We also support -U/--atimes and --crtimes locally!
     
-    // What we don't support (yet)
-    // flags |= XMIT_HARDLINKS;   // No hardlinks yet
-    // flags |= XMIT_DEVICES;     // No device files
-    // flags |= XMIT_XATTRS;      // No xattrs in protocol
-    // flags |= XMIT_ACLS;        // No ACLs
+    // What we don't support in wire protocol yet
+    // (but WILL need to implement for rsync compatibility)
+    // flags |= XMIT_SPARSE;      // Sparse file optimization (rsync-specific)
     
     flags
 }
