@@ -134,8 +134,21 @@ jobs:
       run: |
         cargo tarpaulin --all-features --out Html --output-dir coverage
         
-        # Rename the tarpaulin HTML report
-        mv coverage/index.html coverage/report.html
+        # Debug: see what files were created
+        echo "Files in coverage directory:"
+        ls -la coverage/
+        
+        # Check if index.html exists and rename it, or create a simple one if not
+        if [ -f "coverage/index.html" ]; then
+          echo "Found index.html, renaming to report.html"
+          mv coverage/index.html coverage/report.html
+        elif [ -f "coverage/tarpaulin-report.html" ]; then
+          echo "Found tarpaulin-report.html, using as report.html"
+          mv coverage/tarpaulin-report.html coverage/report.html
+        else
+          echo "No HTML file found, creating placeholder"
+          echo "<h1>Coverage report generation failed</h1>" > coverage/report.html
+        fi
         
         # Create a nice landing page
         cat > coverage/index.html << 'EOF'
