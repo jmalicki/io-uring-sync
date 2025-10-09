@@ -92,7 +92,9 @@ prepare_test() {
     sync
     
     # Drop caches (CRITICAL for fair comparison)
+    echo "  → Dropping caches (echo 3 > /proc/sys/vm/drop_caches)..."
     echo 3 > /proc/sys/vm/drop_caches
+    echo "  → Caches dropped - testing COLD performance"
     
     # Wait for I/O to quiesce
     sleep 2

@@ -85,14 +85,16 @@ prepare_test() {
     sync
     
     # Drop caches (CRITICAL for fair comparison)
+    echo "  → Dropping caches (echo 3 > /proc/sys/vm/drop_caches)..."
     echo 3 > /proc/sys/vm/drop_caches
+    echo "  → Caches dropped - testing COLD performance"
     
     # Wait for I/O to quiesce
     sleep 3
     
     # Verify no other I/O activity
     local io_wait=$(iostat -x 1 2 | tail -1 | awk '{print $NF}')
-    echo "  I/O wait: ${io_wait}%"
+    echo "  → I/O wait: ${io_wait}%"
 }
 
 # Run a single benchmark
