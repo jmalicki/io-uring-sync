@@ -15,8 +15,9 @@ use unic_langid::LanguageIdentifier;
 
 /// Supported language identifiers
 const EN_US: &str = "en-US";
-// Using qaa (reserved for private use per ISO 639-2) for pirate speak
-// This is the standard way to represent constructed/private languages in BCP 47
+
+/// Pirate language identifier (using qaa - reserved for private use per ISO 639-2)
+/// This is the standard way to represent constructed/private languages in BCP 47
 const EN_X_PIRATE: &str = "qaa";
 
 /// English (US) fluent resource
@@ -29,6 +30,11 @@ static X_PIRATE_FTL: &str = include_str!("../locales/qaa/main.ftl");
 static CURRENT_LOCALE: LazyLock<RwLock<String>> = LazyLock::new(|| RwLock::new(EN_US.to_string()));
 
 /// Create a fluent bundle for the given locale (creates fresh each time - cheap operation)
+///
+/// # Panics
+/// Panics if the locale identifier is invalid or the FTL resource is malformed.
+/// This is acceptable because these are compile-time constants that are validated during development.
+#[allow(clippy::expect_used)] // Acceptable for static compile-time constants
 fn create_bundle(locale: &str, ftl_string: &'static str) -> FluentBundle<FluentResource> {
     let langid: LanguageIdentifier = locale.parse().expect("Failed to parse language identifier");
     let resource =
@@ -53,6 +59,7 @@ fn get_ftl_for_locale(locale: &str) -> &'static str {
 /// Supported languages/locales
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)] // Not all variants used yet but will be in full implementation
+#[allow(clippy::missing_docs_in_private_items)] // Variants are self-documenting
 pub enum Language {
     English,
     Pirate,
@@ -78,6 +85,7 @@ pub fn set_language(lang: Language) {
 
 /// Get the current language
 #[allow(dead_code)] // Will be used for runtime language queries
+#[allow(clippy::unwrap_used)] // RwLock poisoning is unrecoverable, default to English
 pub fn get_language() -> Language {
     CURRENT_LOCALE
         .read()
@@ -94,6 +102,7 @@ pub fn get_language() -> Language {
 /// Translation key enum - maps to Fluent message IDs
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)] // Not all keys used yet but available for full i18n coverage
+#[allow(clippy::missing_docs_in_private_items)] // Variants map directly to Fluent keys and are self-documenting
 pub enum TranslationKey {
     // Progress messages
     ProgressDiscovered,
@@ -258,6 +267,7 @@ impl TranslationKey {
     ///
     /// # Panics
     /// Panics if the global locale lock is poisoned (should never happen in normal operation)
+    #[allow(clippy::unwrap_used)] // RwLock poisoning is unrecoverable, panic is appropriate
     pub fn get(self) -> String {
         let locale = CURRENT_LOCALE.read().unwrap();
         self.translate(locale.as_str())
