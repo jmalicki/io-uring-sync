@@ -209,20 +209,7 @@ jobs:
       uses: ./.github/actions/setup-rust
     
     - name: Run benchmarks
-      run: cargo bench --all-features -- --save-baseline current
-    
-    - name: Store benchmark results
-      uses: benchmark-action/github-action-benchmark@v1
-      if: github.ref == 'refs/heads/main'
-      with:
-        tool: 'cargo'
-        output-file-path: target/criterion/*/base/estimates.json
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        auto-push: true
-        comment-on-alert: true
-        alert-threshold: '120%'
-        fail-on-alert: false
-        comment-always: false
+      run: cargo bench --all-features
     
     - name: Upload benchmark artifacts
       uses: actions/upload-artifact@v4
