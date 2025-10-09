@@ -263,68 +263,69 @@ echo ""
 
 # Test 1: Multiple large files (5× 5GB = 25GB total)
 echo "=== TEST 1: Large Files (5× 5GB = 25GB) ==="
-run_test_suite "01_rsync_large_files" \
-    "$SOURCE_DIR/large-files/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/large-files/' '$DEST_DIR/'"
-
-run_test_suite "02_arsync_large_files" \
+# Run arsync first to catch bugs early
+run_test_suite "01_arsync_large_files" \
     "$SOURCE_DIR/large-files/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-files/' --destination '$DEST_DIR/'"
+
+run_test_suite "02_rsync_large_files" \
+    "$SOURCE_DIR/large-files/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/large-files/' '$DEST_DIR/'"
 
 # Test 2: Many small files (1000 × 10KB)
 echo ""
 echo "=== TEST 2: Small Files (1000 × 10KB) ==="
-run_test_suite "03_rsync_1k_small" \
-    "$SOURCE_DIR/small-files-1k/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/small-files-1k/' '$DEST_DIR/'"
-
-run_test_suite "04_arsync_1k_small" \
+run_test_suite "03_arsync_1k_small" \
     "$SOURCE_DIR/small-files-1k/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/small-files-1k/' --destination '$DEST_DIR/'"
+
+run_test_suite "04_rsync_1k_small" \
+    "$SOURCE_DIR/small-files-1k/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/small-files-1k/' '$DEST_DIR/'"
 
 # Test 3: Tiny files (5000 × 1KB) - extreme syscall overhead
 echo ""
 echo "=== TEST 3: Tiny Files (5000 × 1KB) ==="
-run_test_suite "05_rsync_5k_tiny" \
-    "$SOURCE_DIR/tiny-files-5k/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/tiny-files-5k/' '$DEST_DIR/'"
-
-run_test_suite "06_arsync_5k_tiny" \
+run_test_suite "05_arsync_5k_tiny" \
     "$SOURCE_DIR/tiny-files-5k/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/tiny-files-5k/' --destination '$DEST_DIR/'"
+
+run_test_suite "06_rsync_5k_tiny" \
+    "$SOURCE_DIR/tiny-files-5k/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/tiny-files-5k/' '$DEST_DIR/'"
 
 # Test 4: Medium files (500 × 1MB)
 echo ""
 echo "=== TEST 4: Medium Files (500 × 1MB) ==="
-run_test_suite "07_rsync_500_medium" \
-    "$SOURCE_DIR/medium-files-500/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/medium-files-500/' '$DEST_DIR/'"
-
-run_test_suite "08_arsync_500_medium" \
+run_test_suite "07_arsync_500_medium" \
     "$SOURCE_DIR/medium-files-500/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/medium-files-500/' --destination '$DEST_DIR/'"
+
+run_test_suite "08_rsync_500_medium" \
+    "$SOURCE_DIR/medium-files-500/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/medium-files-500/' '$DEST_DIR/'"
 
 # Test 5: Mixed workload (photos)
 echo ""
 echo "=== TEST 5: Mixed Workload (Photos) ==="
-run_test_suite "09_rsync_photos" \
-    "$SOURCE_DIR/mixed-photos/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/mixed-photos/' '$DEST_DIR/'"
-
-run_test_suite "10_arsync_photos" \
+run_test_suite "09_arsync_photos" \
     "$SOURCE_DIR/mixed-photos/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/mixed-photos/' --destination '$DEST_DIR/'"
+
+run_test_suite "10_rsync_photos" \
+    "$SOURCE_DIR/mixed-photos/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/mixed-photos/' '$DEST_DIR/'"
 
 # Test 6: Directory tree
 echo ""
 echo "=== TEST 6: Directory Tree ==="
-run_test_suite "11_rsync_dirtree" \
-    "$SOURCE_DIR/dir-tree/" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/dir-tree/' '$DEST_DIR/'"
-
-run_test_suite "12_arsync_dirtree" \
+run_test_suite "11_arsync_dirtree" \
     "$SOURCE_DIR/dir-tree/" \
     "$ARSYNC_BIN -a --source '$SOURCE_DIR/dir-tree/' --destination '$DEST_DIR/'"
+
+run_test_suite "12_rsync_dirtree" \
+    "$SOURCE_DIR/dir-tree/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/dir-tree/' '$DEST_DIR/'"
 
 echo ""
 echo "========================================"
