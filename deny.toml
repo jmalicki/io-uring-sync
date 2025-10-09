@@ -17,6 +17,9 @@ allow = [
     "MIT",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",  # Used by arrayref (dependency of blake3)
+    "BSD-3-Clause",  # Common BSD license
+    "0BSD",          # Zero-clause BSD (used by adler crate)
     "Unicode-3.0",
     "Zlib",
 ]
