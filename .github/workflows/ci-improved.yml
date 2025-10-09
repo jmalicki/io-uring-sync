@@ -21,7 +21,6 @@ env:
 permissions:
   contents: read
   checks: write
-  pull-requests: write
 
 jobs:
   # Quick checks run first for fast feedback
@@ -52,22 +51,6 @@ jobs:
           -D clippy::todo \
           -D clippy::unimplemented \
           -D clippy::unreachable
-
-  # Supply chain security check for PRs
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: critical
-          warn-on-severity: moderate
-        continue-on-error: true
 
   # Dependency checks
   dependencies:

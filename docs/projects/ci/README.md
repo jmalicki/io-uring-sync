@@ -36,7 +36,6 @@ The actual workflow files are located in `.github/workflows/`:
 7. ✅ Automated changelog generation
 8. ✅ SHA256 checksums for releases
 9. ✅ Artifact attestations for supply chain security
-10. ✅ Dependency review for PRs
 
 ### Estimated Impact
 
