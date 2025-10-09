@@ -54,9 +54,13 @@ pub mod io_uring;
 pub mod progress;
 pub mod sync;
 
-// Export test helpers for integration tests
+// Export for tests
 #[cfg(test)]
 pub use cli::Args;
+
+// Export protocol module for integration tests
+#[cfg(all(test, feature = "remote-sync"))]
+pub mod protocol;
 
 // Re-export commonly used types
 pub use directory::FilesystemTracker;

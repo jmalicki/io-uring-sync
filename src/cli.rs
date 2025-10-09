@@ -612,7 +612,8 @@ mod tests {
     #[compio::test]
     async fn test_validate_with_existing_file() {
         let (temp_dir, file_path) = create_temp_file().await.unwrap();
-        let args = Args {
+        let mut args = Args::test_default(file_path.clone(), temp_dir.path().join("dest"));
+        args = Args {
             source_positional: None,
             dest_positional: None,
             source: Some(file_path),
@@ -645,6 +646,9 @@ mod tests {
             server: false,
             remote_shell: "ssh".to_string(),
             daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
         };
 
         assert!(args.validate().is_ok());
@@ -653,7 +657,8 @@ mod tests {
     #[compio::test]
     async fn test_validate_with_existing_directory() {
         let (temp_dir, dir_path) = create_temp_dir().await.unwrap();
-        let args = Args {
+        let mut args = Args::test_default(dir_path.clone(), temp_dir.path().join("dest"));
+        args = Args {
             source_positional: None,
             dest_positional: None,
             source: Some(dir_path),
@@ -686,6 +691,9 @@ mod tests {
             server: false,
             remote_shell: "ssh".to_string(),
             daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
         };
 
         assert!(args.validate().is_ok());
@@ -693,7 +701,8 @@ mod tests {
 
     #[test]
     fn test_validate_with_nonexistent_source() {
-        let args = Args {
+        let mut args = Args::test_default(PathBuf::from("/nonexistent"), PathBuf::from("/dest"));
+        args = Args {
             source_positional: None,
             dest_positional: None,
             source: Some(PathBuf::from("/nonexistent/path")),
@@ -726,6 +735,9 @@ mod tests {
             server: false,
             remote_shell: "ssh".to_string(),
             daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
         };
 
         assert!(args.validate().is_err());
@@ -766,7 +778,8 @@ mod tests {
 
     #[test]
     fn test_positional_args() {
-        let args = Args {
+        let mut args = Args::test_default(PathBuf::from("/dev/null"), PathBuf::from("/dev/null"));
+        args = Args {
             source_positional: Some("/src".to_string()),
             dest_positional: Some("/dest".to_string()),
             source: None,
@@ -799,6 +812,9 @@ mod tests {
             server: false,
             remote_shell: "ssh".to_string(),
             daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
         };
 
         let source = args.get_source().unwrap();
