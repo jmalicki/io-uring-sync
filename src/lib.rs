@@ -54,6 +54,10 @@ pub mod io_uring;
 pub mod progress;
 pub mod sync;
 
+// Export test helpers for integration tests
+#[cfg(test)]
+pub use cli::Args;
+
 // Re-export commonly used types
 pub use directory::FilesystemTracker;
 pub use error::{Result, SyncError};

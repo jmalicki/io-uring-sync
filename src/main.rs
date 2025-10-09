@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use tracing::{info, Level};
+use tracing::{info, warn, Level};
 
 mod adaptive_concurrency;
 mod cli;
@@ -16,7 +16,11 @@ mod io_uring;
 mod progress;
 mod sync;
 
-use cli::Args;
+// Remote sync protocol (feature-gated for now)
+#[cfg(feature = "remote-sync")]
+mod protocol;
+
+use cli::{Args, Location};
 
 #[compio::main]
 async fn main() -> Result<()> {
@@ -46,11 +50,35 @@ async fn main() -> Result<()> {
         tracing::subscriber::set_global_default(subscriber)?;
     }
 
+    // Get source and destination
+    let source = args.get_source().context("Failed to parse source")?;
+    let destination = args
+        .get_destination()
+        .context("Failed to parse destination")?;
+
     // Log startup information (unless in quiet mode)
     if !args.quiet {
         info!("Starting arsync v{}", env!("CARGO_PKG_VERSION"));
-        info!("Source: {}", args.source.display());
-        info!("Destination: {}", args.destination.display());
+        match &source {
+            Location::Local(path) => info!("Source: {} (local)", path.display()),
+            Location::Remote { user, host, path } => {
+                if let Some(u) = user {
+                    info!("Source: {}@{}:{} (remote)", u, host, path.display());
+                } else {
+                    info!("Source: {}:{} (remote)", host, path.display());
+                }
+            }
+        }
+        match &destination {
+            Location::Local(path) => info!("Destination: {} (local)", path.display()),
+            Location::Remote { user, host, path } => {
+                if let Some(u) = user {
+                    info!("Destination: {}@{}:{} (remote)", u, host, path.display());
+                } else {
+                    info!("Destination: {}:{} (remote)", host, path.display());
+                }
+            }
+        }
         info!("Copy method: {:?}", args.copy_method);
         info!("Queue depth: {}", args.queue_depth);
         info!("CPU count: {}", args.effective_cpu_count());
@@ -61,8 +89,23 @@ async fn main() -> Result<()> {
     // Validate arguments
     args.validate().context("Invalid arguments")?;
 
-    // Perform the sync operation
-    let result = sync::sync_files(&args).await;
+    // Route to appropriate mode
+    let result = if source.is_remote() || destination.is_remote() {
+        // Remote sync mode
+        #[cfg(feature = "remote-sync")]
+        {
+            protocol::remote_sync(&args, &source, &destination).await
+        }
+        #[cfg(not(feature = "remote-sync"))]
+        {
+            warn!("Remote sync support not compiled in");
+            warn!("To enable remote sync, compile with: cargo build --features remote-sync");
+            anyhow::bail!("Remote sync not supported in this build")
+        }
+    } else {
+        // Local sync mode
+        sync::sync_files(&args).await
+    };
 
     match result {
         Ok(stats) => {

@@ -39,6 +39,7 @@ indicatif = "0.18"
 # System utilities
 num_cpus = "1.0"
 async-recursion = "1.0"
+whoami = "1.0"
 
 # io_uring libraries
 libc = "0.2"
@@ -50,6 +51,11 @@ compio-fs-extended = { path = "crates/compio-fs-extended", features = ["xattr"] 
 
 # Async synchronization primitives
 compio-sync = { path = "crates/compio-sync" }
+
+# Remote sync dependencies (optional)
+tokio = { version = "1.0", features = ["process", "io-util", "rt"], optional = true }
+quinn = { version = "0.11", optional = true }
+rustls = { version = "0.23", optional = true }
 
 # Build dependencies
 [build-dependencies]
@@ -82,6 +88,8 @@ cargo-audit = "0.21"
 [features]
 default = []
 benchmarks = ["criterion"]
+remote-sync = ["tokio"]
+quic = ["remote-sync", "quinn", "rustls"]
 
 [profile.release]
 lto = true
