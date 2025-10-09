@@ -38,6 +38,7 @@
 //! # }
 //! ```
 
+use crate::protocol::transport::{read_exact, write_all, Transport};
 use anyhow::Result;
 use tracing::{debug, info, warn};
 
@@ -173,7 +174,7 @@ impl ChecksumSeed {
     pub fn generate() -> Self {
         use rand::Rng;
         Self {
-            seed: rand::thread_rng().gen(),
+            seed: rand::rng().random(),
         }
     }
 
@@ -512,6 +513,308 @@ impl HandshakeState {
             _ => None,
         }
     }
+
+    /// Advance the handshake state machine
+    ///
+    /// This is the core state machine that implements the rsync handshake protocol.
+    /// Each call advances the state by one step, performing the necessary I/O and
+    /// validation for that step.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Transport I/O fails
+    /// - Protocol version is incompatible
+    /// - Invalid data is received
+    /// - Handshake is already complete
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use arsync::protocol::handshake::{HandshakeState, Role};
+    /// # use arsync::protocol::pipe::PipeTransport;
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let mut transport = PipeTransport::from_stdio()?;
+    /// let mut state = HandshakeState::Initial;
+    ///
+    /// while !state.is_complete() {
+    ///     state = state.advance(&mut transport, Role::Sender).await?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn advance<T>(self, transport: &mut T, role: Role) -> Result<Self>
+    where
+        T: Transport,
+    {
+        match self {
+            // ================================================================
+            // Initial → VersionSent: Send our protocol version
+            // ================================================================
+            Self::Initial => {
+                debug!("Handshake: Sending protocol version {}", PROTOCOL_VERSION);
+
+                write_all(transport, &[PROTOCOL_VERSION])
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to send protocol version: {}", e))?;
+
+                debug!("Handshake: Version sent");
+
+                Ok(Self::VersionSent {
+                    our_version: PROTOCOL_VERSION,
+                })
+            }
+
+            // ================================================================
+            // VersionSent → VersionReceived: Receive remote protocol version
+            // ================================================================
+            Self::VersionSent { our_version } => {
+                debug!("Handshake: Waiting for remote protocol version");
+
+                let mut buf = [0u8; 1];
+                read_exact(transport, &mut buf).await.map_err(|e| {
+                    anyhow::anyhow!("Failed to read remote protocol version: {}", e)
+                })?;
+
+                let remote_version = buf[0];
+
+                debug!(
+                    "Handshake: Received protocol version {} from remote",
+                    remote_version
+                );
+
+                // Validate remote version
+                if remote_version < MIN_PROTOCOL_VERSION {
+                    anyhow::bail!(
+                        "Unsupported remote protocol version: {} (minimum supported: {})",
+                        remote_version,
+                        MIN_PROTOCOL_VERSION
+                    );
+                }
+
+                if remote_version > MAX_PROTOCOL_VERSION {
+                    warn!(
+                        "Remote protocol version {} is newer than maximum known version {}",
+                        remote_version, MAX_PROTOCOL_VERSION
+                    );
+                }
+
+                Ok(Self::VersionReceived {
+                    our_version,
+                    remote_version,
+                })
+            }
+
+            // ================================================================
+            // VersionReceived → VersionNegotiated: Compute effective version
+            // ================================================================
+            Self::VersionReceived {
+                our_version,
+                remote_version,
+            } => {
+                // Effective version is minimum of both
+                let protocol_version = our_version.min(remote_version);
+
+                info!(
+                    "Handshake: Protocol version negotiated: {} (our={}, remote={})",
+                    protocol_version, our_version, remote_version
+                );
+
+                Ok(Self::VersionNegotiated { protocol_version })
+            }
+
+            // ================================================================
+            // VersionNegotiated → FlagsSent: Send our capability flags
+            // ================================================================
+            Self::VersionNegotiated { protocol_version } => {
+                let our_flags = get_our_capabilities();
+
+                debug!("Handshake: Sending capability flags: 0x{:08X}", our_flags);
+
+                // Encode flags as varint
+                let mut buf = Vec::new();
+                crate::protocol::varint::encode_varint_into(our_flags as u64, &mut buf);
+
+                write_all(transport, &buf)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to send capability flags: {}", e))?;
+
+                debug!("Handshake: Capability flags sent");
+
+                Ok(Self::FlagsSent {
+                    protocol_version,
+                    our_flags,
+                })
+            }
+
+            // ================================================================
+            // FlagsSent → FlagsReceived: Receive remote capability flags
+            // ================================================================
+            Self::FlagsSent {
+                protocol_version,
+                our_flags,
+            } => {
+                debug!("Handshake: Waiting for remote capability flags");
+
+                // Decode remote flags from varint
+                let remote_flags = crate::protocol::varint::decode_varint(transport)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to read remote capability flags: {}", e))?
+                    as u32;
+
+                debug!(
+                    "Handshake: Received capability flags: 0x{:08X}",
+                    remote_flags
+                );
+
+                Ok(Self::FlagsReceived {
+                    protocol_version,
+                    our_flags,
+                    remote_flags,
+                })
+            }
+
+            // ================================================================
+            // FlagsReceived → CapabilitiesNegotiated: Compute effective capabilities
+            // ================================================================
+            Self::FlagsReceived {
+                protocol_version,
+                our_flags,
+                remote_flags,
+            } => {
+                // Negotiated capabilities are intersection of flags
+                let mut capabilities = ProtocolCapabilities::new(protocol_version);
+                capabilities.flags = our_flags & remote_flags;
+
+                info!(
+                    "Handshake: Capabilities negotiated: 0x{:08X} (our=0x{:08X}, remote=0x{:08X})",
+                    capabilities.flags, our_flags, remote_flags
+                );
+
+                debug!("  Checksums: {}", capabilities.supports_checksums());
+                debug!("  Hardlinks: {}", capabilities.supports_hardlinks());
+                debug!("  Symlinks: {}", capabilities.supports_symlinks());
+                debug!("  Devices: {}", capabilities.supports_devices());
+                debug!("  Xattrs: {}", capabilities.supports_xattrs());
+                debug!("  ACLs: {}", capabilities.supports_acls());
+                debug!("  Checksum seed: {}", capabilities.supports_checksum_seed());
+
+                Ok(Self::CapabilitiesNegotiated { capabilities })
+            }
+
+            // ================================================================
+            // CapabilitiesNegotiated → SeedExchange or Complete
+            // ================================================================
+            Self::CapabilitiesNegotiated { mut capabilities } => {
+                // Check if we need to exchange checksum seeds
+                if capabilities.supports_checksum_seed() {
+                    debug!("Handshake: Checksum seed exchange required");
+
+                    let seed = match role {
+                        Role::Sender => {
+                            // Sender generates and sends seed
+                            let seed = ChecksumSeed::generate();
+                            debug!("Handshake: Sending checksum seed: 0x{:08X}", seed.seed);
+
+                            let bytes = seed.to_bytes();
+                            write_all(transport, &bytes).await.map_err(|e| {
+                                anyhow::anyhow!("Failed to send checksum seed: {}", e)
+                            })?;
+
+                            Some(seed)
+                        }
+                        Role::Receiver => {
+                            // Receiver reads seed from sender
+                            let mut bytes = [0u8; 4];
+                            read_exact(transport, &mut bytes).await.map_err(|e| {
+                                anyhow::anyhow!("Failed to receive checksum seed: {}", e)
+                            })?;
+
+                            let seed = ChecksumSeed::from_bytes(bytes);
+                            debug!("Handshake: Received checksum seed: 0x{:08X}", seed.seed);
+
+                            Some(seed)
+                        }
+                    };
+
+                    capabilities.checksum_seed = seed.map(|s| s.seed);
+
+                    Ok(Self::SeedExchange { capabilities })
+                } else {
+                    debug!("Handshake: No checksum seed exchange needed");
+
+                    info!("Handshake: Complete (no seed exchange)");
+
+                    Ok(Self::Complete {
+                        capabilities,
+                        seed: None,
+                    })
+                }
+            }
+
+            // ================================================================
+            // SeedExchange → Complete
+            // ================================================================
+            Self::SeedExchange { capabilities } => {
+                let seed = capabilities.checksum_seed.map(|s| ChecksumSeed { seed: s });
+
+                info!("Handshake: Complete (with checksum seed)");
+
+                Ok(Self::Complete { capabilities, seed })
+            }
+
+            // ================================================================
+            // Complete: Terminal state
+            // ================================================================
+            Self::Complete { .. } => {
+                anyhow::bail!("Handshake already complete")
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/// Get our supported capabilities
+///
+/// Returns the capability flags that arsync supports. These represent features
+/// that arsync has ALREADY IMPLEMENTED locally:
+///
+/// - **Checksums**: Delta algorithm with rolling + strong checksums ✅
+/// - **Symlinks**: Copy symlinks as symlinks (-l/--links) ✅
+/// - **Hard links**: Track and preserve hard links (-H/--hard-links) ✅
+/// - **Devices**: Preserve device files and special files (-D/--devices) ✅
+/// - **Extended attributes**: Preserve xattrs (-X/--xattrs) ✅
+/// - **ACLs**: Preserve POSIX ACLs (-A/--acls) ✅
+/// - **Checksum seed**: Use random seed for security ✅
+/// - **Permissions**: Preserve file permissions (-p/--perms) ✅
+/// - **Timestamps**: Preserve modification times (-t/--times) ✅
+///
+/// Note: All these features are fully implemented in arsync's local sync code.
+/// The wire protocol just needs to transmit these attributes.
+#[must_use]
+fn get_our_capabilities() -> u32 {
+    let mut flags = 0u32;
+
+    // What we support (arsync has LOCAL support for all of these!)
+    flags |= XMIT_CHECKSUMS; // ✅ Checksums
+    flags |= XMIT_SYMLINKS; // ✅ Symlinks (-l/--links)
+    flags |= XMIT_HARDLINKS; // ✅ Hard links (-H/--hard-links)
+    flags |= XMIT_DEVICES; // ✅ Device files (-D/--devices)
+    flags |= XMIT_XATTRS; // ✅ Extended attributes (-X/--xattrs)
+    flags |= XMIT_ACLS; // ✅ POSIX ACLs (-A/--acls)
+    flags |= XMIT_CHECKSUM_SEED; // ✅ Checksum seed
+    flags |= XMIT_PROTECTION; // ✅ Permissions (-p/--perms)
+    flags |= XMIT_TIMES; // ✅ Timestamps (-t/--times)
+                         // Note: We also support -U/--atimes and --crtimes locally!
+
+    // What we don't support in wire protocol yet
+    // (but may add in future)
+    // flags |= XMIT_SPARSE;      // Sparse file optimization (rsync-specific)
+
+    flags
 }
 
 #[cfg(test)]
