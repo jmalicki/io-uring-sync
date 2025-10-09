@@ -106,51 +106,33 @@ async fn receive_file_list(_connection: &mut SshConnection) -> Result<Vec<FileEn
     Ok(vec![])
 }
 
-/// Block checksum for rsync algorithm
-#[derive(Debug, Clone)]
+/// Block checksum for rsync delta algorithm
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockChecksum {
-    pub weak_checksum: u32,        // Rolling checksum (Adler-32 style)
-    pub strong_checksum: [u8; 16], // MD5 or SHA-256
+    pub weak: u32,        // Rolling checksum (fast, collision-prone)
+    pub strong: [u8; 16], // MD5 checksum (slow, collision-resistant)
+    pub offset: u64,      // Offset in file where this block starts
+    pub block_index: u32, // Index of this block
 }
 
-/// Generate block checksums for a file
-async fn generate_block_checksums(_path: &Path, _block_size: usize) -> Result<Vec<BlockChecksum>> {
-    // TODO: Read file in blocks
-    // TODO: Compute weak checksum (rolling)
-    // TODO: Compute strong checksum (MD5/SHA-256)
-    Ok(vec![])
-}
-
-/// rsync delta instruction
+/// Delta instruction for reconstructing files
 #[derive(Debug, Clone)]
 pub enum DeltaInstruction {
-    /// Copy block from local file at given offset
-    CopyBlock { offset: u64, length: usize },
-    /// Literal data to write
-    LiteralData(Vec<u8>),
+    /// Raw data to insert (when no match found)
+    Literal(Vec<u8>),
+    /// Copy from basis file using block index
+    BlockMatch { block_index: u32, length: u32 },
 }
 
-/// Generate delta for a file using rsync algorithm
-async fn generate_delta(
-    _local_file: &Path,
-    _remote_checksums: &[BlockChecksum],
-) -> Result<Vec<DeltaInstruction>> {
-    // TODO: Implement rsync rolling checksum algorithm
-    // TODO: Find matching blocks
-    // TODO: Generate delta instructions
-    Ok(vec![])
-}
+/// Calculate optimal block size for a file
+fn calculate_block_size(file_size: u64) -> usize {
+    if file_size == 0 {
+        return DEFAULT_BLOCK_SIZE;
+    }
 
-/// Apply delta to reconstruct file
-async fn apply_delta(
-    _local_file: &Path,
-    _delta: &[DeltaInstruction],
-    _output: &Path,
-) -> Result<()> {
-    // TODO: Read local file (if exists)
-    // TODO: Apply delta instructions
-    // TODO: Write output file
-    Ok(())
+    // rsync's algorithm: sqrt of file size, but clamped
+    let block_size = (file_size as f64).sqrt() as usize;
+    block_size.clamp(MIN_BLOCK_SIZE, DEFAULT_BLOCK_SIZE * 4)
 }
 
 // ============================================================================
@@ -185,32 +167,63 @@ pub async fn send_via_pipe(
     send_file_list_simple(&mut transport, &files).await?;
     debug!("Sender: File list sent");
 
-    // Phase 3: Send file contents
-    // For now, send whole files as literal data (no delta/checksum optimization)
+    // Phase 3: Delta transfer with block checksums
     let mut bytes_sent = 0u64;
+    let mut bytes_matched = 0u64;
+
     for file in &files {
-        debug!("Sender: Sending file: {}", file.path);
+        if file.is_symlink {
+            // Symlinks have no content, skip
+            continue;
+        }
+
+        debug!("Sender: Processing file: {}", file.path);
         let file_path = source_path.join(&file.path);
 
-        // Read entire file content
+        // Read file content
         let content = fs::read(&file_path)
             .map_err(|e| anyhow::anyhow!("Failed to read {}: {}", file.path, e))?;
 
-        // Send content length (for verification, though receiver already knows from file list)
-        let content_len = content.len() as u64;
-        transport::write_all(&mut transport, &content_len.to_le_bytes()).await?;
+        // Receive block checksums from receiver
+        let block_checksums = receive_block_checksums(&mut transport).await?;
 
-        // Send file content
-        transport::write_all(&mut transport, &content).await?;
-        bytes_sent += content.len() as u64;
+        if block_checksums.is_empty() {
+            // No basis file, send everything as literal
+            debug!(
+                "Sender: No basis file, sending {} bytes as literal",
+                content.len()
+            );
+            let delta = vec![DeltaInstruction::Literal(content.clone())];
+            send_delta(&mut transport, &delta).await?;
+            bytes_sent += content.len() as u64;
+        } else {
+            // Generate delta using block matching
+            debug!(
+                "Sender: Received {} block checksums, generating delta",
+                block_checksums.len()
+            );
+            let delta = generate_delta(&content, &block_checksums)?;
 
-        debug!("Sender: Sent {} bytes for {}", content.len(), file.path);
+            // Calculate statistics
+            let (literal_bytes, matched_bytes) = count_delta_bytes(&delta);
+            debug!(
+                "Sender: Delta: {} literal bytes, {} matched bytes",
+                literal_bytes, matched_bytes
+            );
+
+            send_delta(&mut transport, &delta).await?;
+            bytes_sent += literal_bytes as u64;
+            bytes_matched += matched_bytes as u64;
+        }
     }
 
     // Flush to ensure all data is sent
     transport.flush().await?;
 
-    info!("Sender: Transfer complete, sent {} bytes", bytes_sent);
+    info!(
+        "Sender: Transfer complete, sent {} bytes, matched {} bytes",
+        bytes_sent, bytes_matched
+    );
 
     Ok(SyncStats {
         files_copied: files.len() as u64,
@@ -241,10 +254,12 @@ pub async fn receive_via_pipe(
     let files = receive_file_list_simple(&mut transport).await?;
     info!("Receiver: Received {} files", files.len());
 
-    // Phase 3: Receive file contents and apply metadata
+    // Phase 3: Delta transfer with block checksums
     let mut bytes_received = 0u64;
+    let mut bytes_matched = 0u64;
+
     for file in &files {
-        debug!("Receiver: Receiving file: {}", file.path);
+        debug!("Receiver: Processing file: {}", file.path);
         let file_path = dest_path.join(&file.path);
 
         // Create parent directories
@@ -263,30 +278,46 @@ pub async fn receive_via_pipe(
                 }
             }
         } else {
-            // Regular file - receive content
-            let mut len_buf = [0u8; 8];
-            transport::read_exact(&mut transport, &mut len_buf).await?;
-            let content_len = u64::from_le_bytes(len_buf);
+            // Regular file - use delta transfer
+            // Check if basis file exists
+            let basis_content = if file_path.exists() {
+                fs::read(&file_path).ok()
+            } else {
+                None
+            };
 
-            // Verify length matches what we expect
-            if content_len != file.size {
-                anyhow::bail!(
-                    "File size mismatch for {}: expected {}, got {}",
-                    file.path,
-                    file.size,
-                    content_len
+            // Generate and send block checksums
+            let block_checksums = if let Some(ref basis) = basis_content {
+                let block_size = calculate_block_size(basis.len() as u64);
+                debug!(
+                    "Receiver: Basis file exists ({} bytes), block size {}",
+                    basis.len(),
+                    block_size
                 );
-            }
+                generate_block_checksums(basis, block_size)?
+            } else {
+                debug!("Receiver: No basis file, sending empty checksum list");
+                vec![]
+            };
 
-            // Receive file content
-            let mut content = vec![0u8; content_len as usize];
-            transport::read_exact(&mut transport, &mut content).await?;
+            send_block_checksums(&mut transport, &block_checksums).await?;
 
-            // Write to file
-            fs::write(&file_path, &content)?;
-            bytes_received += content.len() as u64;
+            // Receive delta and apply
+            let delta = receive_delta(&mut transport).await?;
+            let (literal_bytes, matched_bytes) = count_delta_bytes(&delta);
+            debug!(
+                "Receiver: Received delta: {} literal bytes, {} matched bytes",
+                literal_bytes, matched_bytes
+            );
 
-            debug!("Receiver: Wrote {} bytes to {}", content.len(), file.path);
+            let reconstructed = apply_delta(basis_content.as_deref(), &delta, &block_checksums)?;
+
+            // Write reconstructed file
+            fs::write(&file_path, &reconstructed)?;
+            bytes_received += literal_bytes as u64;
+            bytes_matched += matched_bytes as u64;
+
+            debug!("Receiver: Reconstructed {} bytes", reconstructed.len());
         }
 
         // Apply metadata (permissions, timestamps, ownership)
@@ -294,8 +325,8 @@ pub async fn receive_via_pipe(
     }
 
     info!(
-        "Receiver: Transfer complete, received {} bytes",
-        bytes_received
+        "Receiver: Transfer complete, received {} literal bytes, matched {} bytes",
+        bytes_received, bytes_matched
     );
 
     Ok(SyncStats {
@@ -578,4 +609,296 @@ async fn receive_file_list_simple<T: Transport>(transport: &mut T) -> Result<Vec
     }
 
     Ok(files)
+}
+
+// ============================================================================
+// Delta Algorithm Implementation
+// ============================================================================
+
+/// Generate block checksums for a file (receiver side)
+fn generate_block_checksums(data: &[u8], block_size: usize) -> Result<Vec<BlockChecksum>> {
+    let mut checksums = Vec::new();
+    let mut offset = 0;
+    let mut block_index = 0;
+
+    while offset < data.len() {
+        let end = (offset + block_size).min(data.len());
+        let block = &data[offset..end];
+
+        checksums.push(BlockChecksum {
+            weak: rolling_checksum(block),
+            strong: strong_checksum(block),
+            offset: offset as u64,
+            block_index,
+        });
+
+        offset = end;
+        block_index += 1;
+    }
+
+    Ok(checksums)
+}
+
+/// Generate delta by finding matching blocks (sender side)
+fn generate_delta(data: &[u8], checksums: &[BlockChecksum]) -> Result<Vec<DeltaInstruction>> {
+    if checksums.is_empty() {
+        // No basis, send everything
+        return Ok(vec![DeltaInstruction::Literal(data.to_vec())]);
+    }
+
+    let block_size = if checksums.len() > 1 {
+        (checksums[1].offset - checksums[0].offset) as usize
+    } else if !checksums.is_empty() {
+        DEFAULT_BLOCK_SIZE
+    } else {
+        DEFAULT_BLOCK_SIZE
+    };
+
+    // Build hash map for fast weak checksum lookup
+    let mut weak_map: HashMap<u32, Vec<&BlockChecksum>> = HashMap::new();
+    for checksum in checksums {
+        weak_map.entry(checksum.weak).or_default().push(checksum);
+    }
+
+    let mut delta = Vec::new();
+    let mut pos = 0;
+    let mut literal_buffer = Vec::new();
+
+    while pos < data.len() {
+        let remaining = data.len() - pos;
+        let window_size = remaining.min(block_size);
+
+        if window_size < block_size && pos > 0 {
+            // Last partial block, send as literal
+            literal_buffer.extend_from_slice(&data[pos..]);
+            break;
+        }
+
+        let window = &data[pos..pos + window_size];
+        let weak = rolling_checksum(window);
+
+        // Check for weak match
+        if let Some(candidates) = weak_map.get(&weak) {
+            // Verify with strong checksum
+            let strong = strong_checksum(window);
+            if let Some(matched) = candidates.iter().find(|c| c.strong == strong) {
+                // Found a match!
+                // Flush any pending literal data
+                if !literal_buffer.is_empty() {
+                    delta.push(DeltaInstruction::Literal(literal_buffer.clone()));
+                    literal_buffer.clear();
+                }
+
+                // Add block match instruction
+                delta.push(DeltaInstruction::BlockMatch {
+                    block_index: matched.block_index,
+                    length: window_size as u32,
+                });
+
+                pos += window_size;
+                continue;
+            }
+        }
+
+        // No match, add byte to literal buffer
+        literal_buffer.push(data[pos]);
+        pos += 1;
+    }
+
+    // Flush any remaining literal data
+    if !literal_buffer.is_empty() {
+        delta.push(DeltaInstruction::Literal(literal_buffer));
+    }
+
+    Ok(delta)
+}
+
+/// Apply delta to reconstruct file (receiver side)
+fn apply_delta(
+    basis: Option<&[u8]>,
+    delta: &[DeltaInstruction],
+    checksums: &[BlockChecksum],
+) -> Result<Vec<u8>> {
+    let mut output = Vec::new();
+
+    for instruction in delta {
+        match instruction {
+            DeltaInstruction::Literal(data) => {
+                // Append literal data
+                output.extend_from_slice(data);
+            }
+            DeltaInstruction::BlockMatch {
+                block_index,
+                length,
+            } => {
+                // Copy block from basis file
+                if let Some(basis_data) = basis {
+                    if let Some(checksum) = checksums.iter().find(|c| c.block_index == *block_index)
+                    {
+                        let start = checksum.offset as usize;
+                        let end = (start + *length as usize).min(basis_data.len());
+                        output.extend_from_slice(&basis_data[start..end]);
+                    } else {
+                        anyhow::bail!("Block index {} not found in checksums", block_index);
+                    }
+                } else {
+                    anyhow::bail!("BlockMatch instruction but no basis file");
+                }
+            }
+        }
+    }
+
+    Ok(output)
+}
+
+/// Send block checksums over transport
+async fn send_block_checksums<T: Transport>(
+    transport: &mut T,
+    checksums: &[BlockChecksum],
+) -> Result<()> {
+    // Send count
+    let count = checksums.len() as u32;
+    transport::write_all(transport, &count.to_le_bytes()).await?;
+
+    // Send each checksum
+    for checksum in checksums {
+        transport::write_all(transport, &checksum.weak.to_le_bytes()).await?;
+        transport::write_all(transport, &checksum.strong).await?;
+        transport::write_all(transport, &checksum.offset.to_le_bytes()).await?;
+        transport::write_all(transport, &checksum.block_index.to_le_bytes()).await?;
+    }
+
+    Ok(())
+}
+
+/// Receive block checksums from transport
+async fn receive_block_checksums<T: Transport>(transport: &mut T) -> Result<Vec<BlockChecksum>> {
+    // Receive count
+    let mut count_buf = [0u8; 4];
+    transport::read_exact(transport, &mut count_buf).await?;
+    let count = u32::from_le_bytes(count_buf) as usize;
+
+    let mut checksums = Vec::with_capacity(count);
+
+    // Receive each checksum
+    for _ in 0..count {
+        let mut weak_buf = [0u8; 4];
+        transport::read_exact(transport, &mut weak_buf).await?;
+        let weak = u32::from_le_bytes(weak_buf);
+
+        let mut strong = [0u8; 16];
+        transport::read_exact(transport, &mut strong).await?;
+
+        let mut offset_buf = [0u8; 8];
+        transport::read_exact(transport, &mut offset_buf).await?;
+        let offset = u64::from_le_bytes(offset_buf);
+
+        let mut index_buf = [0u8; 4];
+        transport::read_exact(transport, &mut index_buf).await?;
+        let block_index = u32::from_le_bytes(index_buf);
+
+        checksums.push(BlockChecksum {
+            weak,
+            strong,
+            offset,
+            block_index,
+        });
+    }
+
+    Ok(checksums)
+}
+
+/// Send delta instructions over transport
+async fn send_delta<T: Transport>(transport: &mut T, delta: &[DeltaInstruction]) -> Result<()> {
+    // Send instruction count
+    let count = delta.len() as u32;
+    transport::write_all(transport, &count.to_le_bytes()).await?;
+
+    // Send each instruction
+    for instruction in delta {
+        match instruction {
+            DeltaInstruction::Literal(data) => {
+                // Type: 0 = Literal
+                transport::write_all(transport, &[0u8]).await?;
+                // Length + data
+                let len = data.len() as u32;
+                transport::write_all(transport, &len.to_le_bytes()).await?;
+                transport::write_all(transport, data).await?;
+            }
+            DeltaInstruction::BlockMatch {
+                block_index,
+                length,
+            } => {
+                // Type: 1 = BlockMatch
+                transport::write_all(transport, &[1u8]).await?;
+                transport::write_all(transport, &block_index.to_le_bytes()).await?;
+                transport::write_all(transport, &length.to_le_bytes()).await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Receive delta instructions from transport
+async fn receive_delta<T: Transport>(transport: &mut T) -> Result<Vec<DeltaInstruction>> {
+    // Receive instruction count
+    let mut count_buf = [0u8; 4];
+    transport::read_exact(transport, &mut count_buf).await?;
+    let count = u32::from_le_bytes(count_buf) as usize;
+
+    let mut delta = Vec::with_capacity(count);
+
+    // Receive each instruction
+    for _ in 0..count {
+        let mut type_buf = [0u8; 1];
+        transport::read_exact(transport, &mut type_buf).await?;
+
+        match type_buf[0] {
+            0 => {
+                // Literal
+                let mut len_buf = [0u8; 4];
+                transport::read_exact(transport, &mut len_buf).await?;
+                let len = u32::from_le_bytes(len_buf) as usize;
+
+                let mut data = vec![0u8; len];
+                transport::read_exact(transport, &mut data).await?;
+
+                delta.push(DeltaInstruction::Literal(data));
+            }
+            1 => {
+                // BlockMatch
+                let mut index_buf = [0u8; 4];
+                transport::read_exact(transport, &mut index_buf).await?;
+                let block_index = u32::from_le_bytes(index_buf);
+
+                let mut length_buf = [0u8; 4];
+                transport::read_exact(transport, &mut length_buf).await?;
+                let length = u32::from_le_bytes(length_buf);
+
+                delta.push(DeltaInstruction::BlockMatch {
+                    block_index,
+                    length,
+                });
+            }
+            _ => anyhow::bail!("Unknown delta instruction type: {}", type_buf[0]),
+        }
+    }
+
+    Ok(delta)
+}
+
+/// Count literal and matched bytes in delta
+fn count_delta_bytes(delta: &[DeltaInstruction]) -> (usize, usize) {
+    let mut literal = 0;
+    let mut matched = 0;
+
+    for instruction in delta {
+        match instruction {
+            DeltaInstruction::Literal(data) => literal += data.len(),
+            DeltaInstruction::BlockMatch { length, .. } => matched += *length as usize,
+        }
+    }
+
+    (literal, matched)
 }
