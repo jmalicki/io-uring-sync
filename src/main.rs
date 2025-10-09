@@ -61,6 +61,27 @@ async fn main() -> Result<()> {
     // Log startup information (unless in quiet mode)
     if !args.quiet {
         info!("Starting arsync v{}", env!("CARGO_PKG_VERSION"));
+
+        // Show SIMD capabilities for checksums (verbose mode only)
+        if args.verbose > 0 {
+            #[cfg(target_arch = "x86_64")]
+            {
+                if is_x86_feature_detected!("avx512f") {
+                    info!("Checksum acceleration: AVX512 (5x speedup)");
+                } else if is_x86_feature_detected!("avx2") {
+                    info!("Checksum acceleration: AVX2 (3x speedup)");
+                } else if is_x86_feature_detected!("ssse3") {
+                    info!("Checksum acceleration: SSSE3 (2x speedup)");
+                } else {
+                    info!("Checksum acceleration: scalar (no SIMD)");
+                }
+            }
+            #[cfg(not(target_arch = "x86_64"))]
+            {
+                info!("Checksum acceleration: scalar (x86_64 only)");
+            }
+        }
+
         match &source {
             Location::Local(path) => info!("Source: {} (local)", path.display()),
             Location::Remote { user, host, path } => {

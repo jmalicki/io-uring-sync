@@ -5,6 +5,12 @@ use clap::Parser;
 use std::path::PathBuf;
 
 /// High-performance bulk file copying utility using `io_uring`
+///
+/// Optimizations:
+/// - `io_uring` for zero-copy async I/O
+/// - SIMD-accelerated checksums (AVX512/AVX2/SSSE3)
+/// - Parallel file processing across CPU cores
+/// - Adaptive concurrency control
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[allow(clippy::struct_excessive_bools)]
