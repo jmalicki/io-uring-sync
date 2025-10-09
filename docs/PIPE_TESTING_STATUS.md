@@ -11,9 +11,9 @@
 | # | Test Case | Sender | Receiver | Status | Notes |
 |---|-----------|--------|----------|--------|-------|
 | 1 | Baseline | rsync | rsync | ✅ **PASSING** | Validates rsync works, test infrastructure correct |
-| 2 | Our Protocol | arsync | arsync | ⏳ **SKIPPED** | Needs `--pipe` mode implementation |
-| 3 | Pull Compat | rsync | arsync | ⏳ **SKIPPED** | Needs receiver protocol implementation |
-| 4 | Push Compat | arsync | rsync | ⏳ **SKIPPED** | Needs sender protocol implementation |
+| 2 | Our Protocol | arsync | arsync | ✅ **PASSING** | Full file transfer working! |
+| 3 | Pull Compat | rsync | arsync | ⏳ **PENDING** | Needs rsync wire protocol compatibility |
+| 4 | Push Compat | arsync | rsync | ⏳ **PENDING** | Needs rsync wire protocol compatibility |
 
 ---
 
@@ -40,57 +40,42 @@
 
 ---
 
-## Test 2: arsync → arsync (Our Protocol) ⏳
+## Test 2: arsync → arsync (Our Protocol) ✅
 
-**Status**: SKIPPED - Needs `--pipe` mode implementation
+**Status**: PASSING - Full file transfer working!
 
-**What needs to be implemented**:
+**What was implemented**:
 
-### 1. Add `--pipe` CLI flag:
+### 1. Protocol Phases ✅
+- **Handshake**: Version exchange (31 ↔ 31)
+- **File List**: Count + metadata for each file
+- **File Transfer**: Length + content for each file
+
+### 2. Transport Layer ✅
+- Bidirectional Unix pipe pairs (not simple `|` pipe)
+- `PipeTransport` using blocking I/O
+- Proper flush() after all data sent
+
+### 3. Test Infrastructure ✅
 ```rust
-// src/cli.rs
-#[arg(long, hide = true)]
-pub pipe: bool,
+// Creates bidirectional pipes
+let (pipe1_read, pipe1_write) = create_pipe_pair();
+let (pipe2_read, pipe2_write) = create_pipe_pair();
 
-#[arg(long, requires = "pipe", value_enum)]
-pub pipe_role: Option<PipeRole>,
+// Sender: writes to pipe1, reads from pipe2
+// Receiver: reads from pipe1, writes to pipe2
 ```
 
-### 2. Implement PipeRole enum:
-```rust
-pub enum PipeRole {
-    Sender,
-    Receiver,
-}
-```
+### 4. Current Implementation
+- Sends whole files (no delta optimization yet)
+- Simple, correct, and validates protocol works
+- Foundation for future delta/checksum features
 
-### 3. Add pipe mode to main.rs:
-```rust
-if args.pipe {
-    let transport = PipeTransport::from_stdio()?;
-    match args.pipe_role {
-        Some(PipeRole::Sender) => {
-            protocol::rsync::send_via_transport(transport, &source, &args).await
-        }
-        Some(PipeRole::Receiver) => {
-            protocol::rsync::receive_via_transport(transport, &dest, &args).await
-        }
-        None => bail!("--pipe requires --pipe-role")
-    }
-} else if source.is_remote() ...
+**Test Output**:
 ```
-
-### 4. Test command:
-```bash
-# Once implemented:
-arsync --pipe --pipe-role=sender /source/ \
-    | arsync --pipe --pipe-role=receiver /dest/
+✓ Test 2/4: arsync → arsync via pipe PASSED
+  Our custom protocol implementation works!
 ```
-
-**Expected behavior**:
-- Both processes communicate via stdin/stdout
-- Same wire protocol as remote rsync
-- Files transferred successfully
 
 ---
 
@@ -227,10 +212,11 @@ cargo test --features remote-sync --test protocol_pipe_tests -- --nocapture --in
 All 4 tests must pass before declaring rsync wire protocol compatibility:
 
 - [x] Test 1: rsync baseline (passing)
-- [ ] Test 2: arsync ↔ arsync (our implementation works)
+- [x] Test 2: arsync ↔ arsync (our implementation works!) ✅
 - [ ] Test 3: rsync → arsync (pull compatibility)
 - [ ] Test 4: arsync → rsync (push compatibility)
 
+**Current Status**: 2/4 tests passing (50%)  
 **When all 4 pass**: arsync is fully compatible with rsync wire protocol! 🎉
 
 ---
