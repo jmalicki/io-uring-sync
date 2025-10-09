@@ -58,8 +58,8 @@ pub mod sync;
 #[cfg(test)]
 pub use cli::Args;
 
-// Export protocol module for integration tests
-#[cfg(all(test, feature = "remote-sync"))]
+// Export protocol module for integration tests and when feature is enabled
+#[cfg(feature = "remote-sync")]
 pub mod protocol;
 
 // Re-export commonly used types
