@@ -10,7 +10,7 @@ use crate::protocol::ssh::SshConnection;
 use crate::protocol::transport::{self, Transport};
 use crate::sync::SyncStats;
 use anyhow::Result;
-use compio::io::{AsyncWrite, AsyncWriteExt};
+use compio::io::AsyncWrite;
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};

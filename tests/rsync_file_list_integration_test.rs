@@ -52,7 +52,7 @@ async fn test_file_list_encoding_to_rsync() {
     if std::process::Command::new("which")
         .arg("rsync")
         .output()
-        .map_or(false, |o| !o.status.success())
+        .is_ok_and(|o| !o.status.success())
     {
         println!("⏭️  Skipping: rsync not found");
         return;

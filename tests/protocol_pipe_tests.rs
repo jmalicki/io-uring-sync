@@ -18,7 +18,6 @@ use std::os::unix::io::FromRawFd;
 use std::path::Path;
 use std::process::Stdio;
 use tempfile::TempDir;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
 mod utils;

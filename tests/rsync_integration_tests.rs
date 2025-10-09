@@ -403,7 +403,7 @@ fn test_rsync_protocol_version() {
             println!("✓ rsync sent protocol version: {}", version);
 
             // rsync protocol versions are typically 27-31
-            if version >= 27 && version <= 40 {
+            if (27..=40).contains(&version) {
                 println!("  → Version is in expected range (27-40)");
             } else {
                 println!("  ⚠️  Unusual version (expected 27-40)");
@@ -459,7 +459,7 @@ fn test_full_rsync_to_arsync_transfer() {
     );
 
     // Verify content
-    assert_eq!(fs::read(&dest.join("file1.txt")).unwrap(), b"Hello, World!");
+    assert_eq!(fs::read(dest.join("file1.txt")).unwrap(), b"Hello, World!");
 
     println!("✓ FULL TRANSFER SUCCESSFUL!");
 }

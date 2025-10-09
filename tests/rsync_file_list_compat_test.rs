@@ -99,7 +99,6 @@ fn test_file_list_structure() {
 #[tokio::test]
 async fn test_rsync_can_list_our_files() {
     use arsync::protocol::rsync::FileEntry;
-    use arsync::protocol::rsync_compat::{encode_file_list_rsync, MultiplexWriter};
 
     if !rsync_available() {
         println!("⚠️  rsync not available, skipping");
@@ -109,7 +108,7 @@ async fn test_rsync_can_list_our_files() {
     println!("Testing: Can rsync parse our file list format?");
 
     // Create test file list
-    let files = vec![FileEntry {
+    let files = [FileEntry {
         path: "test.txt".to_string(),
         size: 12,
         mtime: 1696800000,

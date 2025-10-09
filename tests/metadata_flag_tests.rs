@@ -14,36 +14,12 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
+mod common;
+use common::test_helpers::create_test_args;
+
 /// Create Args with NO metadata preservation (default rsync behavior)
 fn create_args_no_metadata() -> Args {
-    Args {
-        source: PathBuf::from("/test/source"),
-        destination: PathBuf::from("/test/dest"),
-        queue_depth: 4096,
-        max_files_in_flight: 1024,
-        cpu_count: 1,
-        buffer_size_kb: 64,
-        copy_method: CopyMethod::Auto,
-        archive: false, // No archive mode
-        recursive: false,
-        links: false,
-        perms: false, // No permission preservation
-        times: false, // No timestamp preservation
-        group: false, // No group preservation
-        owner: false, // No owner preservation
-        devices: false,
-        xattrs: false, // No xattr preservation
-        acls: false,
-        hard_links: false,
-        atimes: false,
-        crtimes: false,
-        preserve_xattr: false,
-        preserve_acl: false,
-        dry_run: false,
-        progress: false,
-        verbose: 0,
-        quiet: false,
-    }
+    create_test_args(PathBuf::from("/test/source"), PathBuf::from("/test/dest"))
 }
 
 /// Create Args with only permissions preservation enabled

@@ -25,7 +25,7 @@ fn encode_single_file(file: &FileEntry) -> Vec<u8> {
 
 // Helper: Build checksum message
 fn build_checksum_message(data: &[u8], block_size: usize, seed: u32) -> Vec<u8> {
-    let block_count = (data.len() + block_size - 1) / block_size;
+    let block_count = data.len().div_ceil(block_size);
     let remainder = data.len() % block_size;
 
     let mut msg = Vec::new();
@@ -225,7 +225,7 @@ async fn test_full_protocol_flow() {
         write_mplex_message(&mut transport, MessageTag::Data, &checksum_msg).await?;
         println!(
             "Receiver: Sent {} checksums",
-            (original_content.len() + block_size - 1) / block_size
+            original_content.len().div_ceil(block_size)
         );
 
         // 4. Receive delta

@@ -5,7 +5,6 @@
 use arsync::protocol::checksum::{rolling_checksum_with_seed, strong_checksum};
 use arsync::protocol::rsync_compat::{
     receive_block_checksums_rsync, send_block_checksums_rsync, MultiplexReader, MultiplexWriter,
-    RsyncBlockChecksum,
 };
 use futures::join;
 
@@ -63,7 +62,7 @@ async fn test_checksum_roundtrip() {
     assert_eq!(recv_block_size, block_size);
 
     // Verify checksum count
-    let expected_count = (test_data.len() + block_size - 1) / block_size;
+    let expected_count = test_data.len().div_ceil(block_size);
     assert_eq!(checksums.len(), expected_count);
 
     println!("  Block size: {} ✅", recv_block_size);
@@ -216,7 +215,7 @@ async fn test_large_file_checksums() {
     let block_size = 4096; // 4KB blocks
     let seed = 0xCAFEBABE;
 
-    let expected_blocks = (test_data.len() + block_size - 1) / block_size;
+    let expected_blocks = test_data.len().div_ceil(block_size);
     println!("  Data size: {} bytes", test_data.len());
     println!("  Block size: {} bytes", block_size);
     println!("  Expected blocks: {}", expected_blocks);

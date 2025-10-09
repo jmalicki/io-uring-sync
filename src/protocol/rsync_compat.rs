@@ -326,7 +326,6 @@ impl<T: Transport> MultiplexWriter<T> {
 
     /// Flush underlying transport
     pub async fn flush(&mut self) -> Result<()> {
-        use compio::io::AsyncWriteExt;
         self.transport.flush().await.map_err(Into::into)
     }
 }
@@ -569,7 +568,7 @@ pub async fn send_block_checksums_rsync<T: Transport>(
         return Ok(());
     }
 
-    let block_count = (data.len() + block_size - 1) / block_size;
+    let block_count = data.len().div_ceil(block_size);
     let remainder = data.len() % block_size;
     let checksum2_length = 16u32; // MD5 = 16 bytes
 
@@ -897,7 +896,7 @@ pub async fn rsync_receive_via_pipe(
 pub async fn rsync_send_via_pipe(
     args: &Args,
     source_path: &Path,
-    mut transport: PipeTransport,
+    transport: PipeTransport,
 ) -> Result<SyncStats> {
     let start = Instant::now();
     info!("rsync-compat sender: Starting (file list only)");
@@ -1186,7 +1185,7 @@ mod tests {
         // Decode
         let decoded = decode_file_entry(&entry).expect("Should decode");
 
-        assert_eq!(decoded.is_symlink, true);
+        assert!(decoded.is_symlink);
         assert_eq!(decoded.symlink_target.as_ref().unwrap(), "target/path");
     }
 }
