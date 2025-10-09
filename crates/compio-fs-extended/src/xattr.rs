@@ -185,26 +185,36 @@ pub async fn get_xattr_impl(file: &File, name: &str) -> Result<Vec<u8>> {
 
     let fd = file.as_raw_fd();
 
-    // Following compio's pattern: pre-allocate buffer and make one call
-    // Most xattrs (ACLs, SELinux contexts) are < 64KB
-    const MAX_XATTR_SIZE: usize = 64 * 1024; // 64KB max for single call
+    // io_uring FGETXATTR requires two calls: first to get size, then to get value
+    // (unlike read_at which accepts a large buffer - xattr opcode behaves differently)
 
-    let op = GetXattrOp::new(fd, name_cstr, MAX_XATTR_SIZE);
-    let result = submit(op).await;
+    // First call: Get the size with empty buffer (size=0)
+    let size_op = GetXattrOp::new(fd, name_cstr.clone(), 0);
+    let size_result = submit(size_op).await;
 
-    match result.0 {
-        Ok(actual_size) => {
-            // Extract and truncate buffer to actual size (following read_at pattern)
-            let mut buffer = result.1.buffer;
-            buffer.truncate(actual_size);
-            Ok(buffer)
-        }
+    let size = match size_result.0 {
+        Ok(s) => s as usize,
         Err(e) => {
             // ENODATA means attribute doesn't exist
-            // ERANGE means buffer too small (rare, but possible)
-            // ENOTSUP means xattrs not supported on filesystem
-            Err(xattr_error(&format!("fgetxattr failed: {}", e)))
+            return Err(xattr_error(&format!("fgetxattr size query failed: {}", e)));
         }
+    };
+
+    if size == 0 {
+        return Ok(Vec::new());
+    }
+
+    // Second call: Get the value with correctly sized buffer
+    let value_op = GetXattrOp::new(fd, name_cstr, size);
+    let value_result = submit(value_op).await;
+
+    match value_result.0 {
+        Ok(actual_size) => {
+            let mut buffer = value_result.1.buffer;
+            buffer.truncate(actual_size as usize);
+            Ok(buffer)
+        }
+        Err(e) => Err(xattr_error(&format!("fgetxattr failed: {}", e))),
     }
 }
 
@@ -242,15 +252,24 @@ pub async fn set_xattr_impl(file: &File, name: &str, value: &[u8]) -> Result<()>
 ///
 /// This function will return an error if the xattr operation fails
 pub async fn list_xattr_impl(file: &File) -> Result<Vec<String>> {
-    use std::os::fd::AsRawFd;
+    use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd};
+    use xattr::FileExt; // Extension trait for FD-based xattr operations
 
     let fd = file.as_raw_fd();
 
-    // Using spawn + xattr crate (safe wrapper) since kernel lacks IORING_OP_FLISTXATTR
+    // Using spawn + xattr crate's FileExt trait since kernel lacks IORING_OP_FLISTXATTR
     compio::runtime::spawn(async move {
-        // Use the safe xattr crate to list attributes
-        let attrs = xattr::list(format!("/proc/self/fd/{}", fd))
+        // Create a temporary std::fs::File to use FileExt trait
+        // SAFETY: fd is valid for the duration of this call
+        let temp_file = unsafe { std::fs::File::from_raw_fd(fd) };
+
+        // Use the xattr crate's safe FileExt::list_xattr method
+        let attrs = temp_file
+            .list_xattr()
             .map_err(|e| xattr_error(&format!("flistxattr failed: {}", e)))?;
+
+        // Prevent temp_file from closing the fd
+        let _ = temp_file.into_raw_fd();
 
         let names: Vec<String> = attrs
             .filter_map(|os_str| os_str.to_str().map(|s| s.to_string()))
