@@ -335,12 +335,12 @@ All expected and will be fixed in Phases 2.3-2.5.
 
 ### Update `src/protocol/ssh.rs`
 
-- [ ] Replace: `use tokio::process::*;` with `use compio::process::*;`
-- [ ] Update SshConnection struct for compio types
-- [ ] Update connect() to use compio::process::Command
-- [ ] Implement compio::io::AsyncRead
-- [ ] Implement compio::io::AsyncWrite
-- [ ] Implement Transport trait
+- [x] Replace: `use tokio::process::*;` with `use compio::process::*;`
+- [x] Update SshConnection struct for compio types
+- [x] Update connect() to use compio::process::Command
+- [x] Implement compio::io::AsyncRead
+- [x] Implement compio::io::AsyncWrite
+- [x] Implement Transport trait
 - [ ] Test with real SSH to localhost
 
 ### Acceptance Criteria
