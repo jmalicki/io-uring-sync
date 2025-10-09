@@ -403,6 +403,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_ok());
@@ -438,6 +439,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_ok());
@@ -472,6 +474,7 @@ mod tests {
             progress: false,
             verbose: 0,
             quiet: false,
+            no_adaptive_concurrency: false,
         };
 
         assert!(args.validate().is_err());
