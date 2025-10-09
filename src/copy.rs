@@ -543,8 +543,10 @@ mod tests {
     /// Create a default Args struct for testing with archive mode enabled
     fn create_test_args_with_archive() -> Args {
         Args {
-            source: PathBuf::from("/test/source"),
-            destination: PathBuf::from("/test/dest"),
+            source_positional: None,
+            dest_positional: None,
+            source: Some(PathBuf::from("/test/source")),
+            destination: Some(PathBuf::from("/test/dest")),
             queue_depth: 4096,
             max_files_in_flight: 1024,
             cpu_count: 1,
@@ -570,6 +572,12 @@ mod tests {
             verbose: 0,
             quiet: false,
             no_adaptive_concurrency: false,
+            server: false,
+            remote_shell: "ssh".to_string(),
+            daemon: false,
+            pipe: false,
+            pipe_role: None,
+            rsync_compat: false,
         }
     }
 

@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use tracing::{info, Level};
+use tracing::{info, warn, Level};
 
 mod adaptive_concurrency;
 mod cli;
@@ -16,19 +16,25 @@ mod io_uring;
 mod progress;
 mod sync;
 
-use cli::Args;
+// Remote sync protocol (feature-gated for now)
+#[cfg(feature = "remote-sync")]
+mod protocol;
 
-#[compio::main]
+use cli::{Args, Location};
+
+#[compio::main(unwind_safe)]
 async fn main() -> Result<()> {
     // Parse command line arguments
     let args = Args::parse();
 
     // Initialize logging based on verbosity and quiet mode
-    if args.quiet {
-        // In quiet mode, only log errors
+    // Note: In pipe mode, logs go to stderr (FD 2) so they don't interfere with protocol (FD 0/1)
+    if args.pipe || args.quiet {
+        // In quiet or pipe mode, only log errors (to stderr)
         let subscriber = tracing_subscriber::fmt()
             .with_max_level(Level::ERROR)
             .with_target(false)
+            .with_writer(std::io::stderr) // Explicit stderr
             .finish();
         tracing::subscriber::set_global_default(subscriber)?;
     } else {
@@ -46,11 +52,56 @@ async fn main() -> Result<()> {
         tracing::subscriber::set_global_default(subscriber)?;
     }
 
+    // Get source and destination
+    let source = args.get_source().context("Failed to parse source")?;
+    let destination = args
+        .get_destination()
+        .context("Failed to parse destination")?;
+
     // Log startup information (unless in quiet mode)
     if !args.quiet {
         info!("Starting arsync v{}", env!("CARGO_PKG_VERSION"));
-        info!("Source: {}", args.source.display());
-        info!("Destination: {}", args.destination.display());
+
+        // Show SIMD capabilities for checksums (verbose mode only)
+        if args.verbose > 0 {
+            #[cfg(target_arch = "x86_64")]
+            {
+                if is_x86_feature_detected!("avx512f") {
+                    info!("Checksum acceleration: AVX512 (5x speedup)");
+                } else if is_x86_feature_detected!("avx2") {
+                    info!("Checksum acceleration: AVX2 (3x speedup)");
+                } else if is_x86_feature_detected!("ssse3") {
+                    info!("Checksum acceleration: SSSE3 (2x speedup)");
+                } else {
+                    info!("Checksum acceleration: scalar (no SIMD)");
+                }
+            }
+            #[cfg(not(target_arch = "x86_64"))]
+            {
+                info!("Checksum acceleration: scalar (x86_64 only)");
+            }
+        }
+
+        match &source {
+            Location::Local(path) => info!("Source: {} (local)", path.display()),
+            Location::Remote { user, host, path } => {
+                if let Some(u) = user {
+                    info!("Source: {}@{}:{} (remote)", u, host, path.display());
+                } else {
+                    info!("Source: {}:{} (remote)", host, path.display());
+                }
+            }
+        }
+        match &destination {
+            Location::Local(path) => info!("Destination: {} (local)", path.display()),
+            Location::Remote { user, host, path } => {
+                if let Some(u) = user {
+                    info!("Destination: {}@{}:{} (remote)", u, host, path.display());
+                } else {
+                    info!("Destination: {}:{} (remote)", host, path.display());
+                }
+            }
+        }
         info!("Copy method: {:?}", args.copy_method);
         info!("Queue depth: {}", args.queue_depth);
         info!("CPU count: {}", args.effective_cpu_count());
@@ -61,8 +112,53 @@ async fn main() -> Result<()> {
     // Validate arguments
     args.validate().context("Invalid arguments")?;
 
-    // Perform the sync operation
-    let result = sync::sync_files(&args).await;
+    // Route to appropriate mode
+    let result = if args.pipe {
+        // ============================================================
+        // PIPE MODE (TESTING ONLY)
+        // ============================================================
+        // Uses rsync wire protocol over stdin/stdout
+        // FOR PROTOCOL TESTING, NOT PRODUCTION USE
+        // Local copies should use io_uring direct operations!
+        // ============================================================
+        #[cfg(feature = "remote-sync")]
+        {
+            match args.pipe_role {
+                Some(cli::PipeRole::Sender) => {
+                    info!("Pipe mode: sender");
+                    protocol::pipe_sender(&args, &source).await
+                }
+                Some(cli::PipeRole::Receiver) => {
+                    info!("Pipe mode: receiver");
+                    protocol::pipe_receiver(&args, &destination).await
+                }
+                None => {
+                    anyhow::bail!("--pipe requires --pipe-role (sender or receiver)")
+                }
+            }
+        }
+        #[cfg(not(feature = "remote-sync"))]
+        {
+            anyhow::bail!(
+                "--pipe requires remote-sync feature (compile with --features remote-sync)"
+            )
+        }
+    } else if source.is_remote() || destination.is_remote() {
+        // Remote sync mode
+        #[cfg(feature = "remote-sync")]
+        {
+            protocol::remote_sync(&args, &source, &destination).await
+        }
+        #[cfg(not(feature = "remote-sync"))]
+        {
+            warn!("Remote sync support not compiled in");
+            warn!("To enable remote sync, compile with: cargo build --features remote-sync");
+            Err(anyhow::anyhow!("Remote sync not supported in this build"))
+        }
+    } else {
+        // Local sync mode
+        sync::sync_files(&args).await.map_err(Into::into)
+    };
 
     match result {
         Ok(stats) => {

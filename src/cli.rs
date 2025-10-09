@@ -5,17 +5,41 @@ use clap::Parser;
 use std::path::PathBuf;
 
 /// High-performance bulk file copying utility using `io_uring`
+///
+/// Optimizations:
+/// - `io_uring` for zero-copy async I/O
+/// - SIMD-accelerated checksums (AVX512/AVX2/SSSE3)
+/// - Parallel file processing across CPU cores
+/// - Adaptive concurrency control
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Args {
-    /// Source directory or file
-    #[arg(short, long)]
-    pub source: PathBuf,
+    /// Source directory or file (positional or --source)
+    ///
+    /// Supports rsync-style syntax:
+    ///   - Local path: `/path/to/source`
+    ///   - Remote path: `user@host:/path/to/source`
+    ///   - Remote path: `host:/path/to/source`
+    #[arg(value_name = "SOURCE")]
+    pub source_positional: Option<String>,
 
-    /// Destination directory or file
-    #[arg(short, long)]
-    pub destination: PathBuf,
+    /// Destination directory or file (positional or --destination)
+    ///
+    /// Supports rsync-style syntax:
+    ///   - Local path: `/path/to/dest`
+    ///   - Remote path: `user@host:/path/to/dest`
+    ///   - Remote path: `host:/path/to/dest`
+    #[arg(value_name = "DEST")]
+    pub dest_positional: Option<String>,
+
+    /// Source directory or file (alternative to positional arg)
+    #[arg(short, long, conflicts_with = "source_positional")]
+    pub source: Option<PathBuf>,
+
+    /// Destination directory or file (alternative to positional arg)
+    #[arg(short, long, conflicts_with = "dest_positional")]
+    pub destination: Option<PathBuf>,
 
     /// Queue depth for `io_uring` operations
     #[arg(long, default_value = "4096")]
@@ -135,6 +159,122 @@ pub struct Args {
     /// where you want to catch configuration issues early.
     #[arg(long)]
     pub no_adaptive_concurrency: bool,
+
+    // ========== Remote sync options ==========
+    /// Run in server mode (for remote sync)
+    #[arg(long, hide = true)]
+    pub server: bool,
+
+    /// Remote shell to use (default: ssh)
+    #[arg(short = 'e', long = "rsh", default_value = "ssh")]
+    pub remote_shell: String,
+
+    /// Daemon mode (rsyncd compatibility)
+    #[arg(long, hide = true)]
+    pub daemon: bool,
+
+    // ========== Pipe mode (testing only) ==========
+    /// Pipe mode: communicate via stdin/stdout (for protocol testing)
+    ///
+    /// This mode is for testing the rsync wire protocol without SSH.
+    /// NOT for normal use - local copies use `io_uring` direct operations!
+    #[arg(long, hide = true)]
+    pub pipe: bool,
+
+    /// Pipe role: sender or receiver
+    #[arg(long, requires = "pipe", value_enum)]
+    pub pipe_role: Option<PipeRole>,
+
+    /// Use rsync wire protocol format (for testing compatibility with rsync)
+    ///
+    /// When set, uses rsync's multiplexed I/O, varint encoding, and message tags.
+    /// Without this flag, uses arsync's simpler native protocol.
+    #[arg(long, requires = "pipe")]
+    pub rsync_compat: bool,
+}
+
+/// Role in pipe mode
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum PipeRole {
+    /// Sender: read files and send via protocol
+    Sender,
+    /// Receiver: receive via protocol and write files
+    Receiver,
+}
+
+/// Parsed location (local or remote)
+#[derive(Debug, Clone)]
+pub enum Location {
+    Local(PathBuf),
+    Remote {
+        user: Option<String>,
+        host: String,
+        path: PathBuf,
+    },
+}
+
+impl Location {
+    /// Parse rsync-style path: `[user@]host:path` or `/local/path`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path string is invalid (reserved for future validation)
+    #[allow(clippy::unnecessary_wraps)] // May add validation in future
+    pub fn parse(s: &str) -> Result<Self> {
+        // Check for remote syntax: [user@]host:path
+        if let Some(colon_pos) = s.find(':') {
+            // Could be remote or Windows path (C:\...)
+            // Windows paths have letter:\ pattern
+            if colon_pos == 1 && s.chars().nth(0).is_some_and(|c| c.is_ascii_alphabetic()) {
+                // Likely Windows path
+                return Ok(Self::Local(PathBuf::from(s)));
+            }
+
+            let host_part = &s[..colon_pos];
+            let path_part = &s[colon_pos + 1..];
+
+            // Parse user@host or just host
+            let (user, host) = host_part.find('@').map_or_else(
+                || (None, host_part.to_string()),
+                |at_pos| {
+                    (
+                        Some(host_part[..at_pos].to_string()),
+                        host_part[at_pos + 1..].to_string(),
+                    )
+                },
+            );
+
+            Ok(Self::Remote {
+                user,
+                host,
+                path: PathBuf::from(path_part),
+            })
+        } else {
+            // Local path
+            Ok(Self::Local(PathBuf::from(s)))
+        }
+    }
+
+    /// Get the path component
+    #[must_use]
+    pub const fn path(&self) -> &PathBuf {
+        match self {
+            Self::Local(path) | Self::Remote { path, .. } => path,
+        }
+    }
+
+    /// Check if this is a remote location
+    #[must_use]
+    pub const fn is_remote(&self) -> bool {
+        matches!(self, Self::Remote { .. })
+    }
+
+    /// Check if this is a local location
+    #[must_use]
+    #[allow(dead_code)] // Will be used by protocol module
+    pub const fn is_local(&self) -> bool {
+        matches!(self, Self::Local(_))
+    }
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -150,32 +290,90 @@ pub enum CopyMethod {
 }
 
 impl Args {
+    /// Get the source location (from positional or flag)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if source is not specified or fails to parse
+    pub fn get_source(&self) -> Result<Location> {
+        if let Some(ref src) = self.source_positional {
+            Location::parse(src)
+        } else if let Some(ref src) = self.source {
+            Ok(Location::Local(src.clone()))
+        } else {
+            anyhow::bail!("Source must be specified (positional or --source)")
+        }
+    }
+
+    /// Get the destination location (from positional or flag)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if destination is not specified or fails to parse
+    pub fn get_destination(&self) -> Result<Location> {
+        if let Some(ref dest) = self.dest_positional {
+            Location::parse(dest)
+        } else if let Some(ref dest) = self.destination {
+            Ok(Location::Local(dest.clone()))
+        } else {
+            anyhow::bail!("Destination must be specified (positional or --destination)")
+        }
+    }
+
     /// Validate command-line arguments
     ///
     /// # Errors
     ///
     /// This function will return an error if:
-    /// - Source path does not exist
-    /// - Source path is not a file or directory
+    /// - Source/destination not specified
+    /// - Source path does not exist (for local paths)
+    /// - Source path is not a file or directory (for local paths)
     /// - Queue depth is outside valid bounds (1024-65536)
     /// - Max files in flight is outside valid bounds (1-10000)
     /// - Buffer size is too large (>1GB)
     /// - No CPU cores are available
     /// - Both --quiet and --verbose options are used
     pub fn validate(&self) -> Result<()> {
-        // Check if source exists
-        if !self.source.exists() {
-            anyhow::bail!("Source path does not exist: {}", self.source.display());
+        // Pipe mode: skip path validation (paths from stdin/stdout)
+        if self.pipe {
+            if self.pipe_role.is_none() {
+                anyhow::bail!("--pipe requires --pipe-role (sender or receiver)");
+            }
+            return self.validate_common();
+        }
+
+        // Get source and destination
+        let source = self.get_source()?;
+        let destination = self.get_destination()?;
+
+        // Validate remote sync options
+        if source.is_remote() || destination.is_remote() {
+            // Remote sync mode
+            if source.is_remote() && destination.is_remote() {
+                anyhow::bail!("Cannot sync from remote to remote (yet)");
+            }
+            // Remote sync validation passes - will be validated when connecting
+            return self.validate_common();
+        }
+
+        // Local sync mode - validate source exists
+        let source_path = source.path();
+        if !source_path.exists() {
+            anyhow::bail!("Source path does not exist: {}", source_path.display());
         }
 
         // Check if source is readable
-        if !self.source.is_dir() && !self.source.is_file() {
+        if !source_path.is_dir() && !source_path.is_file() {
             anyhow::bail!(
                 "Source path must be a file or directory: {}",
-                self.source.display()
+                source_path.display()
             );
         }
 
+        self.validate_common()
+    }
+
+    fn validate_common(&self) -> Result<()> {
         // Check queue depth bounds
         if self.queue_depth < 1024 || self.queue_depth > 65_536 {
             anyhow::bail!(
@@ -236,16 +434,24 @@ impl Args {
         }
     }
 
-    /// Check if the source is a directory
+    /// Check if the source is a directory (for local sources)
     #[must_use]
+    #[allow(dead_code)] // Will be used by tests
     pub fn is_directory_copy(&self) -> bool {
-        self.source.is_dir()
+        if let Ok(Location::Local(path)) = self.get_source() {
+            return path.is_dir();
+        }
+        false
     }
 
-    /// Check if the source is a single file
+    /// Check if the source is a single file (for local sources)
     #[must_use]
+    #[allow(dead_code)] // Will be used by tests
     pub fn is_file_copy(&self) -> bool {
-        self.source.is_file()
+        if let Ok(Location::Local(path)) = self.get_source() {
+            return path.is_file();
+        }
+        false
     }
 
     /// Get buffer size in bytes
@@ -344,6 +550,50 @@ impl Args {
     }
 }
 
+impl Args {
+    /// Create a test Args instance with default values (for testing)
+    #[cfg(test)]
+    pub fn test_default(source: PathBuf, destination: PathBuf) -> Self {
+        Self {
+            source_positional: None,
+            dest_positional: None,
+            source: Some(source),
+            destination: Some(destination),
+            queue_depth: 4096,
+            max_files_in_flight: 1024,
+            cpu_count: 1,
+            buffer_size_kb: 64,
+            copy_method: CopyMethod::Auto,
+            archive: false,
+            recursive: false,
+            links: false,
+            perms: false,
+            times: false,
+            group: false,
+            owner: false,
+            devices: false,
+            xattrs: false,
+            acls: false,
+            hard_links: false,
+            atimes: false,
+            crtimes: false,
+            preserve_xattr: false,
+            preserve_acl: false,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+            no_adaptive_concurrency: false,
+            server: false,
+            remote_shell: "ssh".to_string(),
+            daemon: false,
+            pipe: false,
+            pipe_role: None,
+            rsync_compat: false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
@@ -376,9 +626,12 @@ mod tests {
     #[compio::test]
     async fn test_validate_with_existing_file() {
         let (temp_dir, file_path) = create_temp_file().await.unwrap();
-        let args = Args {
-            source: file_path,
-            destination: temp_dir.path().join("dest"),
+        let mut args = Args::test_default(file_path.clone(), temp_dir.path().join("dest"));
+        args = Args {
+            source_positional: None,
+            dest_positional: None,
+            source: Some(file_path),
+            destination: Some(temp_dir.path().join("dest")),
             copy_method: CopyMethod::Auto,
             queue_depth: 4096,
             cpu_count: 2,
@@ -404,6 +657,12 @@ mod tests {
             verbose: 0,
             quiet: false,
             no_adaptive_concurrency: false,
+            server: false,
+            remote_shell: "ssh".to_string(),
+            daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
         };
 
         assert!(args.validate().is_ok());
@@ -412,9 +671,12 @@ mod tests {
     #[compio::test]
     async fn test_validate_with_existing_directory() {
         let (temp_dir, dir_path) = create_temp_dir().await.unwrap();
-        let args = Args {
-            source: dir_path,
-            destination: temp_dir.path().join("dest"),
+        let mut args = Args::test_default(dir_path.clone(), temp_dir.path().join("dest"));
+        args = Args {
+            source_positional: None,
+            dest_positional: None,
+            source: Some(dir_path),
+            destination: Some(temp_dir.path().join("dest")),
             copy_method: CopyMethod::Auto,
             queue_depth: 4096,
             cpu_count: 2,
@@ -440,6 +702,12 @@ mod tests {
             verbose: 0,
             quiet: false,
             no_adaptive_concurrency: false,
+            server: false,
+            remote_shell: "ssh".to_string(),
+            daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
         };
 
         assert!(args.validate().is_ok());
@@ -447,9 +715,12 @@ mod tests {
 
     #[test]
     fn test_validate_with_nonexistent_source() {
-        let args = Args {
-            source: PathBuf::from("/nonexistent/path"),
-            destination: PathBuf::from("/tmp/dest"),
+        let mut args = Args::test_default(PathBuf::from("/nonexistent"), PathBuf::from("/dest"));
+        args = Args {
+            source_positional: None,
+            dest_positional: None,
+            source: Some(PathBuf::from("/nonexistent/path")),
+            destination: Some(PathBuf::from("/tmp/dest")),
             copy_method: CopyMethod::Auto,
             queue_depth: 4096,
             cpu_count: 2,
@@ -475,8 +746,97 @@ mod tests {
             verbose: 0,
             quiet: false,
             no_adaptive_concurrency: false,
+            server: false,
+            remote_shell: "ssh".to_string(),
+            daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
         };
 
         assert!(args.validate().is_err());
+    }
+
+    #[test]
+    fn test_parse_local_path() {
+        let loc = Location::parse("/home/user/file.txt").unwrap();
+        assert!(loc.is_local());
+        assert_eq!(loc.path(), &PathBuf::from("/home/user/file.txt"));
+    }
+
+    #[test]
+    fn test_parse_remote_path_with_user() {
+        let loc = Location::parse("user@host:/path/to/file").unwrap();
+        assert!(loc.is_remote());
+        if let Location::Remote { user, host, path } = loc {
+            assert_eq!(user, Some("user".to_string()));
+            assert_eq!(host, "host");
+            assert_eq!(path, PathBuf::from("/path/to/file"));
+        } else {
+            panic!("Expected Remote location");
+        }
+    }
+
+    #[test]
+    fn test_parse_remote_path_without_user() {
+        let loc = Location::parse("host:/path/to/file").unwrap();
+        assert!(loc.is_remote());
+        if let Location::Remote { user, host, path } = loc {
+            assert_eq!(user, None);
+            assert_eq!(host, "host");
+            assert_eq!(path, PathBuf::from("/path/to/file"));
+        } else {
+            panic!("Expected Remote location");
+        }
+    }
+
+    #[test]
+    fn test_positional_args() {
+        let mut args = Args::test_default(PathBuf::from("/dev/null"), PathBuf::from("/dev/null"));
+        args = Args {
+            source_positional: Some("/src".to_string()),
+            dest_positional: Some("/dest".to_string()),
+            source: None,
+            destination: None,
+            copy_method: CopyMethod::Auto,
+            queue_depth: 4096,
+            cpu_count: 2,
+            buffer_size_kb: 1024,
+            max_files_in_flight: 100,
+            archive: false,
+            recursive: false,
+            links: false,
+            perms: false,
+            times: false,
+            group: false,
+            owner: false,
+            devices: false,
+            xattrs: false,
+            acls: false,
+            hard_links: false,
+            atimes: false,
+            crtimes: false,
+            preserve_xattr: false,
+            preserve_acl: false,
+            dry_run: false,
+            progress: false,
+            verbose: 0,
+            quiet: false,
+            no_adaptive_concurrency: false,
+            server: false,
+            remote_shell: "ssh".to_string(),
+            daemon: false,
+            pipe: false,
+            pipe_role: None,
+            ..args
+        };
+
+        let source = args.get_source().unwrap();
+        let dest = args.get_destination().unwrap();
+
+        assert!(source.is_local());
+        assert!(dest.is_local());
+        assert_eq!(source.path(), &PathBuf::from("/src"));
+        assert_eq!(dest.path(), &PathBuf::from("/dest"));
     }
 }

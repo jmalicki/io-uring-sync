@@ -197,10 +197,27 @@ pub struct SyncStats {
 pub async fn sync_files(args: &Args) -> Result<SyncStats> {
     let start_time = Instant::now();
 
+    // Get source and destination (local paths only for this function)
+    let source = args
+        .get_source()
+        .map_err(|e| crate::error::SyncError::InvalidConfig(e.to_string()))?;
+    let destination = args
+        .get_destination()
+        .map_err(|e| crate::error::SyncError::InvalidConfig(e.to_string()))?;
+
+    let (crate::cli::Location::Local(source_path), crate::cli::Location::Local(dest_path)) =
+        (&source, &destination)
+    else {
+        return Err(crate::error::SyncError::InvalidConfig(
+            "sync_files only supports local paths. Use remote_sync for remote operations."
+                .to_string(),
+        ));
+    };
+
     info!(
         "Starting synchronization from {} to {}",
-        args.source.display(),
-        args.destination.display()
+        source_path.display(),
+        dest_path.display()
     );
 
     let mut stats = SyncStats {
@@ -214,11 +231,11 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
     let mut file_ops = FileOperations::new(args.queue_depth, args.buffer_size_bytes())?;
 
     // Handle single file copy
-    if args.is_file_copy() {
-        info!("Copying single file: {}", args.source.display());
+    if source_path.is_file() {
+        info!("Copying single file: {}", source_path.display());
 
         // Ensure destination directory exists
-        if let Some(parent) = args.destination.parent() {
+        if let Some(parent) = dest_path.parent() {
             file_ops.create_dir(parent).await?;
         }
 
@@ -226,7 +243,7 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
 
         // Copy the file with metadata preservation
         match file_ops
-            .copy_file_with_metadata(&args.source, &args.destination)
+            .copy_file_with_metadata(source_path, dest_path)
             .await
         {
             Ok(bytes_copied) => {
@@ -238,22 +255,22 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
                 );
             }
             Err(e) => {
-                error!("Failed to copy file {}: {}", args.source.display(), e);
+                error!("Failed to copy file {}: {}", source_path.display(), e);
                 return Err(e);
             }
         }
     }
     // Handle directory copy
-    else if args.is_directory_copy() {
-        info!("Copying directory: {}", args.source.display());
+    else if source_path.is_dir() {
+        info!("Copying directory: {}", source_path.display());
 
         // Ensure destination directory exists
-        file_ops.create_dir(&args.destination).await?;
+        file_ops.create_dir(dest_path).await?;
 
         // Copy directory recursively
         let dir_stats = copy_directory(
-            &args.source,
-            &args.destination,
+            source_path,
+            dest_path,
             &file_ops,
             args.copy_method.clone(),
             args,
@@ -274,7 +291,7 @@ pub async fn sync_files(args: &Args) -> Result<SyncStats> {
     } else {
         error!(
             "Source path is neither a file nor a directory: {}",
-            args.source.display()
+            source_path.display()
         );
         return Err(crate::error::SyncError::InvalidConfig(
             "Source must be a file or directory".to_string(),
