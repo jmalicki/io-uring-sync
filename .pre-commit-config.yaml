@@ -30,8 +30,8 @@ repos:
     rev: v0.1.67
     hooks:
       - id: clippy
-        args: [--workspace, --all-targets, --all-features, --, -D, warnings, -D, clippy::missing_docs_in_crate_items, -D, clippy::missing_errors_doc, -D, clippy::missing_panics_doc, -D, clippy::must_use_candidate]
-        # Run on all Rust files in workspace including tests
+        args: [--workspace, --all-targets, --all-features, --no-deps, --, -D, warnings, -D, clippy::missing_docs_in_crate_items, -D, clippy::missing_errors_doc, -D, clippy::missing_panics_doc, -D, clippy::must_use_candidate]
+        # Run on all Rust files in workspace including tests (--no-deps for speed)
         files: ^(src/|crates/.*/src/|tests/).*\.rs$
 
   # Comprehensive Rust quality checks for workspace

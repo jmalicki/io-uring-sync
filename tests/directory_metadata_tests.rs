@@ -40,6 +40,7 @@ fn create_test_args_with_archive() -> Args {
         progress: false,
         verbose: 0,
         quiet: false,
+        no_adaptive_concurrency: false,
     }
 }
 
