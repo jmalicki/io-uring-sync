@@ -10,6 +10,8 @@ set -euo pipefail
 SOURCE_DIR="${1:-/mnt/source-nvme/benchmark-data}"
 DEST_DIR="${2:-/mnt/dest-nvme/benchmark-output}"
 RESULTS_DIR="${3:-./benchmark-results-$(date +%Y%m%d_%H%M%S)}"
+# Convert to absolute path to avoid issues when changing directories
+RESULTS_DIR="$(readlink -f "$RESULTS_DIR" 2>/dev/null || (mkdir -p "$RESULTS_DIR" && cd "$RESULTS_DIR" && pwd))"
 NUM_RUNS=5  # Run each test 5 times, discard first (warm-up)
 CPUS=$(nproc)
 ENABLE_POWER_MONITORING="${ENABLE_POWER_MONITORING:-no}"  # Set to "yes" to enable power monitoring

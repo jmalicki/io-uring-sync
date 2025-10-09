@@ -8,6 +8,8 @@ set -euo pipefail
 SOURCE_DIR="${1:-/mnt/source-nvme/benchmark-data-quick}"
 DEST_DIR="${2:-/mnt/dest-nvme/benchmark-output-quick}"
 RESULTS_DIR="${3:-./benchmark-results-quick-$(date +%Y%m%d_%H%M%S)}"
+# Convert to absolute path to avoid issues when changing directories
+RESULTS_DIR="$(readlink -f "$RESULTS_DIR" 2>/dev/null || (mkdir -p "$RESULTS_DIR" && cd "$RESULTS_DIR" && pwd))"
 NUM_RUNS=3  # Quick benchmark: only 3 runs instead of 5
 CPUS=$(nproc)
 ENABLE_POWER_MONITORING="${ENABLE_POWER_MONITORING:-yes}"  # ENABLED BY DEFAULT for quick test!
@@ -230,15 +232,15 @@ echo "This will run 6 key scenarios with 3 runs each"
 echo "Focus: Get preliminary numbers quickly"
 echo ""
 
-# Test 1: Large single file (10GB)
-echo "=== TEST 1: Large File (10GB) ==="
-run_test_suite "01_rsync_10gb" \
-    "$SOURCE_DIR/large-file/10GB.dat" \
-    "$RSYNC_BIN -a '$SOURCE_DIR/large-file/10GB.dat' '$DEST_DIR/'"
+# Test 1: Multiple large files (5× 5GB = 25GB total)
+echo "=== TEST 1: Large Files (5× 5GB = 25GB) ==="
+run_test_suite "01_rsync_large_files" \
+    "$SOURCE_DIR/large-files/" \
+    "$RSYNC_BIN -a '$SOURCE_DIR/large-files/' '$DEST_DIR/'"
 
-run_test_suite "02_arsync_10gb" \
-    "$SOURCE_DIR/large-file/10GB.dat" \
-    "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-file/10GB.dat' --destination '$DEST_DIR/'"
+run_test_suite "02_arsync_large_files" \
+    "$SOURCE_DIR/large-files/" \
+    "$ARSYNC_BIN -a --source '$SOURCE_DIR/large-files/' --destination '$DEST_DIR/'"
 
 # Test 2: Many small files (1000 × 10KB)
 echo ""
