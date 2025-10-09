@@ -6,7 +6,7 @@
 //! 1. With flag enabled: metadata IS preserved
 //! 2. With flag disabled: metadata IS NOT preserved (uses default/umask)
 
-use arsync::cli::{Args, CopyMethod};
+use arsync::cli::Args;
 use arsync::copy::copy_file;
 use arsync::directory::{preserve_directory_metadata, ExtendedMetadata};
 use std::fs;

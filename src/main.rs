@@ -5,7 +5,9 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use tracing::{info, warn, Level};
+#[allow(unused_imports)]
+use tracing::warn;
+use tracing::{info, Level};
 
 mod adaptive_concurrency;
 mod cli;
