@@ -57,17 +57,23 @@ async fn main() -> Result<()> {
     if !args.quiet {
         info!(
             "{}: arsync v{}",
-            TranslationKey::InfoStartingCopy.get(),
+            TranslationKey::InfoStartingCopy
+                .get()
+                .unwrap_or_else(|_| "Starting copy".to_string()),
             env!("CARGO_PKG_VERSION")
         );
         info!(
             "{}: {}",
-            TranslationKey::HelpSource.get(),
+            TranslationKey::HelpSource
+                .get()
+                .unwrap_or_else(|_| "Source".to_string()),
             args.source.display()
         );
         info!(
             "{}: {}",
-            TranslationKey::HelpDestination.get(),
+            TranslationKey::HelpDestination
+                .get()
+                .unwrap_or_else(|_| "Destination".to_string()),
             args.destination.display()
         );
         info!("Copy method: {:?}", args.copy_method);
@@ -85,24 +91,42 @@ async fn main() -> Result<()> {
 
     match result {
         Ok(stats) => {
-            info!("{}", TranslationKey::StatusComplete.get());
+            info!(
+                "{}",
+                TranslationKey::StatusComplete
+                    .get()
+                    .unwrap_or_else(|_| "Complete".to_string())
+            );
             info!(
                 "{} {}: {}",
-                TranslationKey::ProgressFiles.get(),
-                TranslationKey::ProgressCompleted.get(),
+                TranslationKey::ProgressFiles
+                    .get()
+                    .unwrap_or_else(|_| "Files".to_string()),
+                TranslationKey::ProgressCompleted
+                    .get()
+                    .unwrap_or_else(|_| "Completed".to_string()),
                 stats.files_copied
             );
             info!(
                 "{} {}: {}",
-                TranslationKey::ProgressBytes.get(),
-                TranslationKey::ProgressCompleted.get(),
+                TranslationKey::ProgressBytes
+                    .get()
+                    .unwrap_or_else(|_| "Bytes".to_string()),
+                TranslationKey::ProgressCompleted
+                    .get()
+                    .unwrap_or_else(|_| "Completed".to_string()),
                 stats.bytes_copied
             );
             info!("Duration: {:?}", stats.duration);
             Ok(())
         }
         Err(e) => {
-            eprintln!("{}: {e}", TranslationKey::StatusFailed.get());
+            eprintln!(
+                "{}: {e}",
+                TranslationKey::StatusFailed
+                    .get()
+                    .unwrap_or_else(|_| "Failed".to_string())
+            );
             std::process::exit(1);
         }
     }

@@ -13,6 +13,27 @@ use fluent::{FluentBundle, FluentResource};
 use std::sync::{LazyLock, RwLock};
 use unic_langid::LanguageIdentifier;
 
+/// Errors that can occur during internationalization operations
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum I18nError {
+    /// The locale lock is poisoned (another thread panicked while holding the lock)
+    LockPoisoned,
+    /// Failed to acquire the locale lock
+    #[allow(dead_code)] // Reserved for future use with try_lock operations
+    LockUnavailable,
+}
+
+impl std::fmt::Display for I18nError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LockPoisoned => write!(f, "locale lock is poisoned"),
+            Self::LockUnavailable => write!(f, "failed to acquire locale lock"),
+        }
+    }
+}
+
+impl std::error::Error for I18nError {}
+
 /// Supported language identifiers
 const EN_US: &str = "en-US";
 
@@ -84,19 +105,17 @@ pub fn set_language(lang: Language) {
 }
 
 /// Get the current language
+///
+/// # Errors
+/// Returns `I18nError::LockPoisoned` if the locale lock is poisoned
 #[allow(dead_code)] // Will be used for runtime language queries
-#[allow(clippy::unwrap_used)] // RwLock poisoning is unrecoverable, default to English
-pub fn get_language() -> Language {
-    CURRENT_LOCALE
-        .read()
-        .map(|locale| {
-            if locale.as_str() == EN_X_PIRATE {
-                Language::Pirate
-            } else {
-                Language::English
-            }
-        })
-        .unwrap_or(Language::English)
+pub fn get_language() -> Result<Language, I18nError> {
+    let locale = CURRENT_LOCALE.read().map_err(|_| I18nError::LockPoisoned)?;
+    Ok(if locale.as_str() == EN_X_PIRATE {
+        Language::Pirate
+    } else {
+        Language::English
+    })
 }
 
 /// Translation key enum - maps to Fluent message IDs
@@ -265,12 +284,11 @@ impl TranslationKey {
 
     /// Get the translated string for this key in the current language
     ///
-    /// # Panics
-    /// Panics if the global locale lock is poisoned (should never happen in normal operation)
-    #[allow(clippy::unwrap_used)] // RwLock poisoning is unrecoverable, panic is appropriate
-    pub fn get(self) -> String {
-        let locale = CURRENT_LOCALE.read().unwrap();
-        self.translate(locale.as_str())
+    /// # Errors
+    /// Returns `I18nError::LockPoisoned` if the locale lock is poisoned
+    pub fn get(self) -> Result<String, I18nError> {
+        let locale = CURRENT_LOCALE.read().map_err(|_| I18nError::LockPoisoned)?;
+        Ok(self.translate(locale.as_str()))
     }
 
     /// Get the translated string for this key in a specific language
@@ -295,6 +313,8 @@ impl TranslationKey {
 }
 
 /// Convenience macro for translating messages
+///
+/// Returns `Result<String, I18nError>` - use with `?` operator or `unwrap_or` for default
 #[macro_export]
 macro_rules! t {
     ($key:expr) => {
@@ -310,7 +330,7 @@ mod tests {
     fn test_default_language_is_english() {
         // Test: Default language should be English (en-US)
         // This is linked to the requirement: Default user interface should be in English
-        assert_eq!(get_language(), Language::English);
+        assert_eq!(get_language().unwrap(), Language::English);
     }
 
     #[test]
@@ -318,7 +338,7 @@ mod tests {
         // Test: Should be able to switch to pirate language (x-pirate)
         // This is linked to the requirement: --pirate flag should switch language
         set_language(Language::Pirate);
-        assert_eq!(get_language(), Language::Pirate);
+        assert_eq!(get_language().unwrap(), Language::Pirate);
 
         // Reset to English for other tests
         set_language(Language::English);
@@ -357,11 +377,14 @@ mod tests {
         // Test: Translation macro should work correctly
         // This is linked to the requirement: Easy translation access in code
         set_language(Language::English);
-        assert_eq!(t!(TranslationKey::ProgressDiscovered), "Discovered");
+        assert_eq!(
+            t!(TranslationKey::ProgressDiscovered).unwrap(),
+            "Discovered"
+        );
 
         set_language(Language::Pirate);
         assert_eq!(
-            t!(TranslationKey::ProgressDiscovered),
+            t!(TranslationKey::ProgressDiscovered).unwrap(),
             "Treasure sighted on the horizon, ahoy"
         );
 

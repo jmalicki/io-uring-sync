@@ -275,8 +275,10 @@ impl ProgressTracker {
     /// - Completion message is displayed once
     /// - Statistics remain available after completion
     pub fn finish(&self) {
-        self.progress_bar
-            .finish_with_message(TranslationKey::ProgressComplete.get());
+        let message = TranslationKey::ProgressComplete
+            .get()
+            .unwrap_or_else(|_| "Complete".to_string());
+        self.progress_bar.finish_with_message(message);
     }
 
     /// Track progress for a specific copy operation
