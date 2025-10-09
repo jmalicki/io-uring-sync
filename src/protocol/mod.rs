@@ -10,6 +10,7 @@ pub mod rsync;
 pub mod rsync_compat;
 pub mod ssh;
 pub mod transport;
+pub mod varint;
 
 #[cfg(feature = "quic")]
 pub mod quic;
