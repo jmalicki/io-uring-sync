@@ -1191,8 +1191,7 @@ arsync -a --source /data --destination /backup</code></pre><p><strong>Requiremen
 <li>arsync: ~850 MB/s (2x faster - saturating NVMe queue depth)</li></p><p><strong>References:</strong>
 <li><a href="https://kernel.dk/io_uring.pdf" target="_blank">io_uring design documentation</a> - Jens Axboe (io_uring creator)</li>
 <li><a href="https://man7.org/linux/man-pages/man7/io_uring.7.html" target="_blank">Linux io_uring man page</a> - Official Linux documentation</li>
-<li><a href="https://kernel.dk/io_uring-whatsnew.pdf" target="_blank">Efficient IO with io_uring</a> - Performance characteristics and design goals</li></ul>
-</p>
+<li><a href="https://kernel.dk/io_uring-whatsnew.pdf" target="_blank">Efficient IO with io_uring</a> - Performance characteristics and design goals</li></ul><p>---</p>
     </div>
     <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
                 color: #888; font-size: 0.9em; font-style: italic;">
@@ -2265,7 +2264,6 @@ arsync -a --source /data --destination /backup</code></pre><p><strong>Requiremen
 <li><a href="https://cwe.mitre.org/data/definitions/367.html" target="_blank">MITRE CWE-367</a> - Time-of-Check Time-of-Use (TOCTOU) Race Condition</li>
 <li><a href="https://man7.org/linux/man-pages/man2/fchmod.2.html" target="_blank">fchmod(2) man page</a> - "avoids race conditions"</li>
 <li><a href="https://man7.org/linux/man-pages/man2/fchown.2.html" target="_blank">fchown(2) man page</a> - "avoids race conditions"</li></ul>
-</p>
     </div>
     <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
                 color: #888; font-size: 0.9em; font-style: italic;">
@@ -4101,7 +4099,6 @@ Zero-cost abstractions with compile-time guarantees.
 <li>Immediate progress feedback</li>
 <li>~8 MB memory (10x less)</li>
 <li><strong>15x faster time-to-first-copy</strong></li></ul>
-</p>
     </div>
     <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
                 color: #888; font-size: 0.9em; font-style: italic;">
@@ -4654,7 +4651,6 @@ Zero-cost abstractions with compile-time guarantees.
 <li><a href="https://man7.org/linux/man-pages/man2/statx.2.html" target="_blank">statx(2) man page</a> - Modern stat with nanosecond timestamps</li>
 <li><a href="https://lwn.net/Articles/685791/" target="_blank">LWN: The statx() system call</a> - Design rationale and advantages</li>
 <li><a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a528d35e8bfcc521d7cb70aaf03e1bd296c8493f" target="_blank">Linux kernel commit</a> - statx implementation (kernel 4.11, 2017)</li></ul>
-</p>
     </div>
     <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
                 color: #888; font-size: 0.9em; font-style: italic;">
@@ -6903,8 +6899,7 @@ git clone https://github.com/jmalicki/arsync.git
 cd arsync
 cargo build --release</p><h1>Basic usage</h1>
 arsync -a --source /data --destination /backup</p><h1>With progress</h1>
-arsync -a --source /data --destination /backup --progress</code></pre>
-</p>
+arsync -a --source /data --destination /backup --progress</code></pre><p><strong>Requirements</strong>: Linux kernel 5.6+, Rust 1.70+</p>
     </div>
     <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
                 color: #888; font-size: 0.9em; font-style: italic;">
