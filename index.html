@@ -281,11 +281,11 @@
                 <div class="stat-label">Images Generated</div>
             </div>
             <div class="stat">
-                <div class="stat-number">6</div>
+                <div class="stat-number">5</div>
                 <div class="stat-label">Sections</div>
             </div>
             <div class="stat">
-                <div class="stat-number">294</div>
+                <div class="stat-number">25</div>
                 <div class="stat-label">Unique Prompts</div>
             </div>
         </div>
@@ -293,15 +293,948 @@
     
     <div class="nav">
         <a href="#top">⬆️ Top</a>
-        <a href="#io-uring">📍 io_uring</a>
-        <a href="#security">📍 Security</a>
-        <a href="#i-o-optimization">📍 I/O Optimization</a>
-        <a href="#rust-testing">📍 Rust/Testing</a>
-        <a href="#introduction">📍 Introduction</a>
-        <a href="#modern-metadata">📍 Modern Metadata</a>
+        <a href="#quick-start">📍 Quick Start</a>
+        <a href="#introduction-modern-linux-development-30-years-of-lessons-">📍 Introduction - Modern Linux Development (30 Years of Lessons)</a>
+        <a href="#the-six-key-innovations">📍 The Six Key Innovations</a>
+        <a href="#io-uring-designed-for-modern-nvme-storage">📍 io_uring - Designed for Modern NVMe Storage</a>
+        <a href="#security-toctou-free-metadata-operations">📍 Security - TOCTOU-Free Metadata Operations</a>
     </div>
     
     <div class="content">
+
+        <div class="section" id="quick-start">
+            <div class="section-header">
+                <div class="section-info">
+                    <div class="section-title">Quick Start</div>
+                    <div class="section-count">25 images from 5 prompts</div>
+                </div>
+                <a href="https://github.com/jmalicki/arsync/discussions/50" target="_blank" class="vote-button">🗳️ Vote in Discussion</a>
+            </div>
+            
+            <div class="image-grid">
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_01.png', 'Elder Teaching New Recruit', 'v6_01_quick_start_01_elder_teaching_01.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_01.png" alt="Elder Teaching New Recruit" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder Teaching New Recruit</div>
+                        <div class="image-filename">v6_01_quick_start_01_elder_teaching_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_02.png', 'Elder Teaching New Recruit', 'v6_01_quick_start_01_elder_teaching_02.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_02.png" alt="Elder Teaching New Recruit" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder Teaching New Recruit</div>
+                        <div class="image-filename">v6_01_quick_start_01_elder_teaching_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_03.png', 'Elder Teaching New Recruit', 'v6_01_quick_start_01_elder_teaching_03.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_03.png" alt="Elder Teaching New Recruit" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder Teaching New Recruit</div>
+                        <div class="image-filename">v6_01_quick_start_01_elder_teaching_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_04.png', 'Elder Teaching New Recruit', 'v6_01_quick_start_01_elder_teaching_04.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_04.png" alt="Elder Teaching New Recruit" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder Teaching New Recruit</div>
+                        <div class="image-filename">v6_01_quick_start_01_elder_teaching_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_05.png', 'Elder Teaching New Recruit', 'v6_01_quick_start_01_elder_teaching_05.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_01_elder_teaching_05.png" alt="Elder Teaching New Recruit" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder Teaching New Recruit</div>
+                        <div class="image-filename">v6_01_quick_start_01_elder_teaching_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_02_first_success_01.png', 'First Successful Run - The Celebration', 'v6_01_quick_start_02_first_success_01.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_02_first_success_01.png" alt="First Successful Run - The Celebration" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">First Successful Run - The Celebration</div>
+                        <div class="image-filename">v6_01_quick_start_02_first_success_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_02_first_success_02.png', 'First Successful Run - The Celebration', 'v6_01_quick_start_02_first_success_02.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_02_first_success_02.png" alt="First Successful Run - The Celebration" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">First Successful Run - The Celebration</div>
+                        <div class="image-filename">v6_01_quick_start_02_first_success_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_02_first_success_03.png', 'First Successful Run - The Celebration', 'v6_01_quick_start_02_first_success_03.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_02_first_success_03.png" alt="First Successful Run - The Celebration" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">First Successful Run - The Celebration</div>
+                        <div class="image-filename">v6_01_quick_start_02_first_success_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_02_first_success_04.png', 'First Successful Run - The Celebration', 'v6_01_quick_start_02_first_success_04.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_02_first_success_04.png" alt="First Successful Run - The Celebration" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">First Successful Run - The Celebration</div>
+                        <div class="image-filename">v6_01_quick_start_02_first_success_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_02_first_success_05.png', 'First Successful Run - The Celebration', 'v6_01_quick_start_02_first_success_05.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_02_first_success_05.png" alt="First Successful Run - The Celebration" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">First Successful Run - The Celebration</div>
+                        <div class="image-filename">v6_01_quick_start_02_first_success_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_03_three_commands_01.png', 'The Three Simple Commands - Hands at Work', 'v6_01_quick_start_03_three_commands_01.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_03_three_commands_01.png" alt="The Three Simple Commands - Hands at Work" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Simple Commands - Hands at Work</div>
+                        <div class="image-filename">v6_01_quick_start_03_three_commands_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_03_three_commands_02.png', 'The Three Simple Commands - Hands at Work', 'v6_01_quick_start_03_three_commands_02.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_03_three_commands_02.png" alt="The Three Simple Commands - Hands at Work" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Simple Commands - Hands at Work</div>
+                        <div class="image-filename">v6_01_quick_start_03_three_commands_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_03_three_commands_03.png', 'The Three Simple Commands - Hands at Work', 'v6_01_quick_start_03_three_commands_03.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_03_three_commands_03.png" alt="The Three Simple Commands - Hands at Work" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Simple Commands - Hands at Work</div>
+                        <div class="image-filename">v6_01_quick_start_03_three_commands_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_03_three_commands_04.png', 'The Three Simple Commands - Hands at Work', 'v6_01_quick_start_03_three_commands_04.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_03_three_commands_04.png" alt="The Three Simple Commands - Hands at Work" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Simple Commands - Hands at Work</div>
+                        <div class="image-filename">v6_01_quick_start_03_three_commands_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_03_three_commands_05.png', 'The Three Simple Commands - Hands at Work', 'v6_01_quick_start_03_three_commands_05.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_03_three_commands_05.png" alt="The Three Simple Commands - Hands at Work" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Simple Commands - Hands at Work</div>
+                        <div class="image-filename">v6_01_quick_start_03_three_commands_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_01.png', 'Captain\'s Quick Orders at the Helm', 'v6_01_quick_start_04_captain_orders_01.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_01.png" alt="Captain's Quick Orders at the Helm" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Captain's Quick Orders at the Helm</div>
+                        <div class="image-filename">v6_01_quick_start_04_captain_orders_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_02.png', 'Captain\'s Quick Orders at the Helm', 'v6_01_quick_start_04_captain_orders_02.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_02.png" alt="Captain's Quick Orders at the Helm" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Captain's Quick Orders at the Helm</div>
+                        <div class="image-filename">v6_01_quick_start_04_captain_orders_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_03.png', 'Captain\'s Quick Orders at the Helm', 'v6_01_quick_start_04_captain_orders_03.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_03.png" alt="Captain's Quick Orders at the Helm" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Captain's Quick Orders at the Helm</div>
+                        <div class="image-filename">v6_01_quick_start_04_captain_orders_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_04.png', 'Captain\'s Quick Orders at the Helm', 'v6_01_quick_start_04_captain_orders_04.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_04.png" alt="Captain's Quick Orders at the Helm" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Captain's Quick Orders at the Helm</div>
+                        <div class="image-filename">v6_01_quick_start_04_captain_orders_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_05.png', 'Captain\'s Quick Orders at the Helm', 'v6_01_quick_start_04_captain_orders_05.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_04_captain_orders_05.png" alt="Captain's Quick Orders at the Helm" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Captain's Quick Orders at the Helm</div>
+                        <div class="image-filename">v6_01_quick_start_04_captain_orders_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_05_success_glow_01.png', 'Installation Success - The First Time User\'s Relief', 'v6_01_quick_start_05_success_glow_01.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_05_success_glow_01.png" alt="Installation Success - The First Time User's Relief" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Installation Success - The First Time User's Relief</div>
+                        <div class="image-filename">v6_01_quick_start_05_success_glow_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_05_success_glow_02.png', 'Installation Success - The First Time User\'s Relief', 'v6_01_quick_start_05_success_glow_02.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_05_success_glow_02.png" alt="Installation Success - The First Time User's Relief" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Installation Success - The First Time User's Relief</div>
+                        <div class="image-filename">v6_01_quick_start_05_success_glow_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_05_success_glow_03.png', 'Installation Success - The First Time User\'s Relief', 'v6_01_quick_start_05_success_glow_03.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_05_success_glow_03.png" alt="Installation Success - The First Time User's Relief" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Installation Success - The First Time User's Relief</div>
+                        <div class="image-filename">v6_01_quick_start_05_success_glow_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_05_success_glow_04.png', 'Installation Success - The First Time User\'s Relief', 'v6_01_quick_start_05_success_glow_04.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_05_success_glow_04.png" alt="Installation Success - The First Time User's Relief" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Installation Success - The First Time User's Relief</div>
+                        <div class="image-filename">v6_01_quick_start_05_success_glow_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_01_quick_start_05_success_glow_05.png', 'Installation Success - The First Time User\'s Relief', 'v6_01_quick_start_05_success_glow_05.png')">
+                    <img src="docs/images/pirates_v6/v6_01_quick_start_05_success_glow_05.png" alt="Installation Success - The First Time User's Relief" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Installation Success - The First Time User's Relief</div>
+                        <div class="image-filename">v6_01_quick_start_05_success_glow_05.png</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="section" id="introduction-modern-linux-development-30-years-of-lessons-">
+            <div class="section-header">
+                <div class="section-info">
+                    <div class="section-title">Introduction - Modern Linux Development (30 Years of Lessons)</div>
+                    <div class="section-count">23 images from 5 prompts</div>
+                </div>
+                <a href="#" target="_blank" class="vote-button">🗳️ Vote in Discussion</a>
+            </div>
+            
+            <div class="image-grid">
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_01.png', 'The Archive - Honoring rsync\'s Legacy', 'v6_02_introduction_01_archive_legacy_01.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_01.png" alt="The Archive - Honoring rsync's Legacy" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Archive - Honoring rsync's Legacy</div>
+                        <div class="image-filename">v6_02_introduction_01_archive_legacy_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_02.png', 'The Archive - Honoring rsync\'s Legacy', 'v6_02_introduction_01_archive_legacy_02.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_02.png" alt="The Archive - Honoring rsync's Legacy" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Archive - Honoring rsync's Legacy</div>
+                        <div class="image-filename">v6_02_introduction_01_archive_legacy_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_03.png', 'The Archive - Honoring rsync\'s Legacy', 'v6_02_introduction_01_archive_legacy_03.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_03.png" alt="The Archive - Honoring rsync's Legacy" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Archive - Honoring rsync's Legacy</div>
+                        <div class="image-filename">v6_02_introduction_01_archive_legacy_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_04.png', 'The Archive - Honoring rsync\'s Legacy', 'v6_02_introduction_01_archive_legacy_04.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_04.png" alt="The Archive - Honoring rsync's Legacy" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Archive - Honoring rsync's Legacy</div>
+                        <div class="image-filename">v6_02_introduction_01_archive_legacy_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_05.png', 'The Archive - Honoring rsync\'s Legacy', 'v6_02_introduction_01_archive_legacy_05.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_01_archive_legacy_05.png" alt="The Archive - Honoring rsync's Legacy" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Archive - Honoring rsync's Legacy</div>
+                        <div class="image-filename">v6_02_introduction_01_archive_legacy_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_01.png', 'Evolution - 1996 to 2024', 'v6_02_introduction_02_evolution_thirty_years_01.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_01.png" alt="Evolution - 1996 to 2024" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Evolution - 1996 to 2024</div>
+                        <div class="image-filename">v6_02_introduction_02_evolution_thirty_years_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_02.png', 'Evolution - 1996 to 2024', 'v6_02_introduction_02_evolution_thirty_years_02.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_02.png" alt="Evolution - 1996 to 2024" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Evolution - 1996 to 2024</div>
+                        <div class="image-filename">v6_02_introduction_02_evolution_thirty_years_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_03.png', 'Evolution - 1996 to 2024', 'v6_02_introduction_02_evolution_thirty_years_03.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_03.png" alt="Evolution - 1996 to 2024" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Evolution - 1996 to 2024</div>
+                        <div class="image-filename">v6_02_introduction_02_evolution_thirty_years_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_04.png', 'Evolution - 1996 to 2024', 'v6_02_introduction_02_evolution_thirty_years_04.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_04.png" alt="Evolution - 1996 to 2024" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Evolution - 1996 to 2024</div>
+                        <div class="image-filename">v6_02_introduction_02_evolution_thirty_years_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_05.png', 'Evolution - 1996 to 2024', 'v6_02_introduction_02_evolution_thirty_years_05.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_02_evolution_thirty_years_05.png" alt="Evolution - 1996 to 2024" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Evolution - 1996 to 2024</div>
+                        <div class="image-filename">v6_02_introduction_02_evolution_thirty_years_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_01.png', 'Council of Elders - Thirty Years of Wisdom', 'v6_02_introduction_03_council_wisdom_01.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_01.png" alt="Council of Elders - Thirty Years of Wisdom" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Council of Elders - Thirty Years of Wisdom</div>
+                        <div class="image-filename">v6_02_introduction_03_council_wisdom_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_02.png', 'Council of Elders - Thirty Years of Wisdom', 'v6_02_introduction_03_council_wisdom_02.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_02.png" alt="Council of Elders - Thirty Years of Wisdom" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Council of Elders - Thirty Years of Wisdom</div>
+                        <div class="image-filename">v6_02_introduction_03_council_wisdom_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_03.png', 'Council of Elders - Thirty Years of Wisdom', 'v6_02_introduction_03_council_wisdom_03.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_03.png" alt="Council of Elders - Thirty Years of Wisdom" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Council of Elders - Thirty Years of Wisdom</div>
+                        <div class="image-filename">v6_02_introduction_03_council_wisdom_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_04.png', 'Council of Elders - Thirty Years of Wisdom', 'v6_02_introduction_03_council_wisdom_04.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_04.png" alt="Council of Elders - Thirty Years of Wisdom" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Council of Elders - Thirty Years of Wisdom</div>
+                        <div class="image-filename">v6_02_introduction_03_council_wisdom_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_05.png', 'Council of Elders - Thirty Years of Wisdom', 'v6_02_introduction_03_council_wisdom_05.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_03_council_wisdom_05.png" alt="Council of Elders - Thirty Years of Wisdom" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Council of Elders - Thirty Years of Wisdom</div>
+                        <div class="image-filename">v6_02_introduction_03_council_wisdom_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_01.png', 'The Navigator\'s Tools - Old and New', 'v6_02_introduction_04_navigator_tools_01.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_01.png" alt="The Navigator's Tools - Old and New" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Navigator's Tools - Old and New</div>
+                        <div class="image-filename">v6_02_introduction_04_navigator_tools_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_02.png', 'The Navigator\'s Tools - Old and New', 'v6_02_introduction_04_navigator_tools_02.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_02.png" alt="The Navigator's Tools - Old and New" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Navigator's Tools - Old and New</div>
+                        <div class="image-filename">v6_02_introduction_04_navigator_tools_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_03.png', 'The Navigator\'s Tools - Old and New', 'v6_02_introduction_04_navigator_tools_03.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_03.png" alt="The Navigator's Tools - Old and New" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Navigator's Tools - Old and New</div>
+                        <div class="image-filename">v6_02_introduction_04_navigator_tools_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_04.png', 'The Navigator\'s Tools - Old and New', 'v6_02_introduction_04_navigator_tools_04.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_04.png" alt="The Navigator's Tools - Old and New" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Navigator's Tools - Old and New</div>
+                        <div class="image-filename">v6_02_introduction_04_navigator_tools_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_05.png', 'The Navigator\'s Tools - Old and New', 'v6_02_introduction_04_navigator_tools_05.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_04_navigator_tools_05.png" alt="The Navigator's Tools - Old and New" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Navigator's Tools - Old and New</div>
+                        <div class="image-filename">v6_02_introduction_04_navigator_tools_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_05_teaching_crew_01.png', 'Teaching the Young Crew', 'v6_02_introduction_05_teaching_crew_01.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_05_teaching_crew_01.png" alt="Teaching the Young Crew" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Teaching the Young Crew</div>
+                        <div class="image-filename">v6_02_introduction_05_teaching_crew_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_05_teaching_crew_02.png', 'Teaching the Young Crew', 'v6_02_introduction_05_teaching_crew_02.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_05_teaching_crew_02.png" alt="Teaching the Young Crew" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Teaching the Young Crew</div>
+                        <div class="image-filename">v6_02_introduction_05_teaching_crew_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_02_introduction_05_teaching_crew_03.png', 'Teaching the Young Crew', 'v6_02_introduction_05_teaching_crew_03.png')">
+                    <img src="docs/images/pirates_v6/v6_02_introduction_05_teaching_crew_03.png" alt="Teaching the Young Crew" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Teaching the Young Crew</div>
+                        <div class="image-filename">v6_02_introduction_05_teaching_crew_03.png</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="section" id="the-six-key-innovations">
+            <div class="section-header">
+                <div class="section-info">
+                    <div class="section-title">The Six Key Innovations</div>
+                    <div class="section-count">20 images from 5 prompts</div>
+                </div>
+                <a href="#" target="_blank" class="vote-button">🗳️ Vote in Discussion</a>
+            </div>
+            
+            <div class="image-grid">
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_01.png', 'The Six Weapons on Deck', 'v6_03_six_innovations_02_six_weapons_01.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_01.png" alt="The Six Weapons on Deck" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Six Weapons on Deck</div>
+                        <div class="image-filename">v6_03_six_innovations_02_six_weapons_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_02.png', 'The Six Weapons on Deck', 'v6_03_six_innovations_02_six_weapons_02.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_02.png" alt="The Six Weapons on Deck" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Six Weapons on Deck</div>
+                        <div class="image-filename">v6_03_six_innovations_02_six_weapons_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_03.png', 'The Six Weapons on Deck', 'v6_03_six_innovations_02_six_weapons_03.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_03.png" alt="The Six Weapons on Deck" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Six Weapons on Deck</div>
+                        <div class="image-filename">v6_03_six_innovations_02_six_weapons_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_04.png', 'The Six Weapons on Deck', 'v6_03_six_innovations_02_six_weapons_04.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_04.png" alt="The Six Weapons on Deck" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Six Weapons on Deck</div>
+                        <div class="image-filename">v6_03_six_innovations_02_six_weapons_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_05.png', 'The Six Weapons on Deck', 'v6_03_six_innovations_02_six_weapons_05.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_02_six_weapons_05.png" alt="The Six Weapons on Deck" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Six Weapons on Deck</div>
+                        <div class="image-filename">v6_03_six_innovations_02_six_weapons_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_01.png', 'Race Day - Ship Prepared with Six Advantages', 'v6_03_six_innovations_03_race_prep_01.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_01.png" alt="Race Day - Ship Prepared with Six Advantages" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Race Day - Ship Prepared with Six Advantages</div>
+                        <div class="image-filename">v6_03_six_innovations_03_race_prep_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_02.png', 'Race Day - Ship Prepared with Six Advantages', 'v6_03_six_innovations_03_race_prep_02.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_02.png" alt="Race Day - Ship Prepared with Six Advantages" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Race Day - Ship Prepared with Six Advantages</div>
+                        <div class="image-filename">v6_03_six_innovations_03_race_prep_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_03.png', 'Race Day - Ship Prepared with Six Advantages', 'v6_03_six_innovations_03_race_prep_03.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_03.png" alt="Race Day - Ship Prepared with Six Advantages" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Race Day - Ship Prepared with Six Advantages</div>
+                        <div class="image-filename">v6_03_six_innovations_03_race_prep_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_04.png', 'Race Day - Ship Prepared with Six Advantages', 'v6_03_six_innovations_03_race_prep_04.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_04.png" alt="Race Day - Ship Prepared with Six Advantages" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Race Day - Ship Prepared with Six Advantages</div>
+                        <div class="image-filename">v6_03_six_innovations_03_race_prep_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_05.png', 'Race Day - Ship Prepared with Six Advantages', 'v6_03_six_innovations_03_race_prep_05.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_03_race_prep_05.png" alt="Race Day - Ship Prepared with Six Advantages" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Race Day - Ship Prepared with Six Advantages</div>
+                        <div class="image-filename">v6_03_six_innovations_03_race_prep_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_01.png', 'Elder\'s Six Scrolls', 'v6_03_six_innovations_04_elder_scrolls_01.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_01.png" alt="Elder's Six Scrolls" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder's Six Scrolls</div>
+                        <div class="image-filename">v6_03_six_innovations_04_elder_scrolls_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_02.png', 'Elder\'s Six Scrolls', 'v6_03_six_innovations_04_elder_scrolls_02.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_02.png" alt="Elder's Six Scrolls" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder's Six Scrolls</div>
+                        <div class="image-filename">v6_03_six_innovations_04_elder_scrolls_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_03.png', 'Elder\'s Six Scrolls', 'v6_03_six_innovations_04_elder_scrolls_03.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_03.png" alt="Elder's Six Scrolls" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder's Six Scrolls</div>
+                        <div class="image-filename">v6_03_six_innovations_04_elder_scrolls_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_04.png', 'Elder\'s Six Scrolls', 'v6_03_six_innovations_04_elder_scrolls_04.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_04.png" alt="Elder's Six Scrolls" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder's Six Scrolls</div>
+                        <div class="image-filename">v6_03_six_innovations_04_elder_scrolls_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_05.png', 'Elder\'s Six Scrolls', 'v6_03_six_innovations_04_elder_scrolls_05.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_04_elder_scrolls_05.png" alt="Elder's Six Scrolls" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Elder's Six Scrolls</div>
+                        <div class="image-filename">v6_03_six_innovations_04_elder_scrolls_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_01.png', 'War Room Strategy - Six Attack Vectors', 'v6_03_six_innovations_05_strategy_room_01.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_01.png" alt="War Room Strategy - Six Attack Vectors" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">War Room Strategy - Six Attack Vectors</div>
+                        <div class="image-filename">v6_03_six_innovations_05_strategy_room_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_02.png', 'War Room Strategy - Six Attack Vectors', 'v6_03_six_innovations_05_strategy_room_02.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_02.png" alt="War Room Strategy - Six Attack Vectors" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">War Room Strategy - Six Attack Vectors</div>
+                        <div class="image-filename">v6_03_six_innovations_05_strategy_room_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_03.png', 'War Room Strategy - Six Attack Vectors', 'v6_03_six_innovations_05_strategy_room_03.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_03.png" alt="War Room Strategy - Six Attack Vectors" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">War Room Strategy - Six Attack Vectors</div>
+                        <div class="image-filename">v6_03_six_innovations_05_strategy_room_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_04.png', 'War Room Strategy - Six Attack Vectors', 'v6_03_six_innovations_05_strategy_room_04.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_04.png" alt="War Room Strategy - Six Attack Vectors" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">War Room Strategy - Six Attack Vectors</div>
+                        <div class="image-filename">v6_03_six_innovations_05_strategy_room_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_05.png', 'War Room Strategy - Six Attack Vectors', 'v6_03_six_innovations_05_strategy_room_05.png')">
+                    <img src="docs/images/pirates_v6/v6_03_six_innovations_05_strategy_room_05.png" alt="War Room Strategy - Six Attack Vectors" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">War Room Strategy - Six Attack Vectors</div>
+                        <div class="image-filename">v6_03_six_innovations_05_strategy_room_05.png</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="section" id="io-uring-designed-for-modern-nvme-storage">
+            <div class="section-header">
+                <div class="section-info">
+                    <div class="section-title">io_uring - Designed for Modern NVMe Storage</div>
+                    <div class="section-count">20 images from 5 prompts</div>
+                </div>
+                <a href="#" target="_blank" class="vote-button">🗳️ Vote in Discussion</a>
+            </div>
+            
+            <div class="image-grid">
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_01.png', 'Single Ship vs The Armada', 'v6_04_iouring_01_single_vs_armada_01.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_01.png" alt="Single Ship vs The Armada" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Single Ship vs The Armada</div>
+                        <div class="image-filename">v6_04_iouring_01_single_vs_armada_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_02.png', 'Single Ship vs The Armada', 'v6_04_iouring_01_single_vs_armada_02.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_02.png" alt="Single Ship vs The Armada" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Single Ship vs The Armada</div>
+                        <div class="image-filename">v6_04_iouring_01_single_vs_armada_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_03.png', 'Single Ship vs The Armada', 'v6_04_iouring_01_single_vs_armada_03.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_03.png" alt="Single Ship vs The Armada" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Single Ship vs The Armada</div>
+                        <div class="image-filename">v6_04_iouring_01_single_vs_armada_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_04.png', 'Single Ship vs The Armada', 'v6_04_iouring_01_single_vs_armada_04.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_04.png" alt="Single Ship vs The Armada" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Single Ship vs The Armada</div>
+                        <div class="image-filename">v6_04_iouring_01_single_vs_armada_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_05.png', 'Single Ship vs The Armada', 'v6_04_iouring_01_single_vs_armada_05.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_01_single_vs_armada_05.png" alt="Single Ship vs The Armada" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Single Ship vs The Armada</div>
+                        <div class="image-filename">v6_04_iouring_01_single_vs_armada_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_01.png', 'The Wasted Mega-Port', 'v6_04_iouring_02_wasted_megaport_01.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_01.png" alt="The Wasted Mega-Port" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Wasted Mega-Port</div>
+                        <div class="image-filename">v6_04_iouring_02_wasted_megaport_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_02.png', 'The Wasted Mega-Port', 'v6_04_iouring_02_wasted_megaport_02.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_02.png" alt="The Wasted Mega-Port" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Wasted Mega-Port</div>
+                        <div class="image-filename">v6_04_iouring_02_wasted_megaport_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_03.png', 'The Wasted Mega-Port', 'v6_04_iouring_02_wasted_megaport_03.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_03.png" alt="The Wasted Mega-Port" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Wasted Mega-Port</div>
+                        <div class="image-filename">v6_04_iouring_02_wasted_megaport_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_04.png', 'The Wasted Mega-Port', 'v6_04_iouring_02_wasted_megaport_04.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_04.png" alt="The Wasted Mega-Port" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Wasted Mega-Port</div>
+                        <div class="image-filename">v6_04_iouring_02_wasted_megaport_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_05.png', 'The Wasted Mega-Port', 'v6_04_iouring_02_wasted_megaport_05.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_02_wasted_megaport_05.png" alt="The Wasted Mega-Port" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Wasted Mega-Port</div>
+                        <div class="image-filename">v6_04_iouring_02_wasted_megaport_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_01.png', 'Fleet Admiral Coordinating Thousands', 'v6_04_iouring_03_admiral_coordination_01.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_01.png" alt="Fleet Admiral Coordinating Thousands" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Fleet Admiral Coordinating Thousands</div>
+                        <div class="image-filename">v6_04_iouring_03_admiral_coordination_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_02.png', 'Fleet Admiral Coordinating Thousands', 'v6_04_iouring_03_admiral_coordination_02.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_02.png" alt="Fleet Admiral Coordinating Thousands" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Fleet Admiral Coordinating Thousands</div>
+                        <div class="image-filename">v6_04_iouring_03_admiral_coordination_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_03.png', 'Fleet Admiral Coordinating Thousands', 'v6_04_iouring_03_admiral_coordination_03.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_03.png" alt="Fleet Admiral Coordinating Thousands" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Fleet Admiral Coordinating Thousands</div>
+                        <div class="image-filename">v6_04_iouring_03_admiral_coordination_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_04.png', 'Fleet Admiral Coordinating Thousands', 'v6_04_iouring_03_admiral_coordination_04.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_04.png" alt="Fleet Admiral Coordinating Thousands" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Fleet Admiral Coordinating Thousands</div>
+                        <div class="image-filename">v6_04_iouring_03_admiral_coordination_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_05.png', 'Fleet Admiral Coordinating Thousands', 'v6_04_iouring_03_admiral_coordination_05.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_03_admiral_coordination_05.png" alt="Fleet Admiral Coordinating Thousands" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Fleet Admiral Coordinating Thousands</div>
+                        <div class="image-filename">v6_04_iouring_03_admiral_coordination_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_01.png', 'NVMe Hardware - The Parallel Shipyard', 'v6_04_iouring_04_parallel_shipyard_01.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_01.png" alt="NVMe Hardware - The Parallel Shipyard" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">NVMe Hardware - The Parallel Shipyard</div>
+                        <div class="image-filename">v6_04_iouring_04_parallel_shipyard_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_02.png', 'NVMe Hardware - The Parallel Shipyard', 'v6_04_iouring_04_parallel_shipyard_02.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_02.png" alt="NVMe Hardware - The Parallel Shipyard" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">NVMe Hardware - The Parallel Shipyard</div>
+                        <div class="image-filename">v6_04_iouring_04_parallel_shipyard_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_03.png', 'NVMe Hardware - The Parallel Shipyard', 'v6_04_iouring_04_parallel_shipyard_03.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_03.png" alt="NVMe Hardware - The Parallel Shipyard" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">NVMe Hardware - The Parallel Shipyard</div>
+                        <div class="image-filename">v6_04_iouring_04_parallel_shipyard_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_05.png', 'NVMe Hardware - The Parallel Shipyard', 'v6_04_iouring_04_parallel_shipyard_05.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_04_parallel_shipyard_05.png" alt="NVMe Hardware - The Parallel Shipyard" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">NVMe Hardware - The Parallel Shipyard</div>
+                        <div class="image-filename">v6_04_iouring_04_parallel_shipyard_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_04_iouring_05_performance_celebration_01.png', 'Performance Numbers - The Celebration', 'v6_04_iouring_05_performance_celebration_01.png')">
+                    <img src="docs/images/pirates_v6/v6_04_iouring_05_performance_celebration_01.png" alt="Performance Numbers - The Celebration" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Performance Numbers - The Celebration</div>
+                        <div class="image-filename">v6_04_iouring_05_performance_celebration_01.png</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="section" id="security-toctou-free-metadata-operations">
+            <div class="section-header">
+                <div class="section-info">
+                    <div class="section-title">Security - TOCTOU-Free Metadata Operations</div>
+                    <div class="section-count">20 images from 5 prompts</div>
+                </div>
+                <a href="#" target="_blank" class="vote-button">🗳️ Vote in Discussion</a>
+            </div>
+            
+            <div class="image-grid">
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_01_wax_seals_01.png', 'The Wax Seals That Cannot Be Forged', 'v6_05_security_01_wax_seals_01.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_01_wax_seals_01.png" alt="The Wax Seals That Cannot Be Forged" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Wax Seals That Cannot Be Forged</div>
+                        <div class="image-filename">v6_05_security_01_wax_seals_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_02_swap_attack_01.png', 'Raiders Attempting the Swap - Repelled', 'v6_05_security_02_swap_attack_01.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_02_swap_attack_01.png" alt="Raiders Attempting the Swap - Repelled" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Raiders Attempting the Swap - Repelled</div>
+                        <div class="image-filename">v6_05_security_02_swap_attack_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_02_swap_attack_02.png', 'Raiders Attempting the Swap - Repelled', 'v6_05_security_02_swap_attack_02.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_02_swap_attack_02.png" alt="Raiders Attempting the Swap - Repelled" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Raiders Attempting the Swap - Repelled</div>
+                        <div class="image-filename">v6_05_security_02_swap_attack_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_02_swap_attack_03.png', 'Raiders Attempting the Swap - Repelled', 'v6_05_security_02_swap_attack_03.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_02_swap_attack_03.png" alt="Raiders Attempting the Swap - Repelled" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Raiders Attempting the Swap - Repelled</div>
+                        <div class="image-filename">v6_05_security_02_swap_attack_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_02_swap_attack_05.png', 'Raiders Attempting the Swap - Repelled', 'v6_05_security_02_swap_attack_05.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_02_swap_attack_05.png" alt="Raiders Attempting the Swap - Repelled" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Raiders Attempting the Swap - Repelled</div>
+                        <div class="image-filename">v6_05_security_02_swap_attack_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_03_three_cves_01.png', 'The Three Defeated Threats', 'v6_05_security_03_three_cves_01.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_03_three_cves_01.png" alt="The Three Defeated Threats" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Defeated Threats</div>
+                        <div class="image-filename">v6_05_security_03_three_cves_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_03_three_cves_02.png', 'The Three Defeated Threats', 'v6_05_security_03_three_cves_02.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_03_three_cves_02.png" alt="The Three Defeated Threats" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Defeated Threats</div>
+                        <div class="image-filename">v6_05_security_03_three_cves_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_03_three_cves_03.png', 'The Three Defeated Threats', 'v6_05_security_03_three_cves_03.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_03_three_cves_03.png" alt="The Three Defeated Threats" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Defeated Threats</div>
+                        <div class="image-filename">v6_05_security_03_three_cves_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_03_three_cves_04.png', 'The Three Defeated Threats', 'v6_05_security_03_three_cves_04.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_03_three_cves_04.png" alt="The Three Defeated Threats" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Defeated Threats</div>
+                        <div class="image-filename">v6_05_security_03_three_cves_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_03_three_cves_05.png', 'The Three Defeated Threats', 'v6_05_security_03_three_cves_05.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_03_three_cves_05.png" alt="The Three Defeated Threats" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">The Three Defeated Threats</div>
+                        <div class="image-filename">v6_05_security_03_three_cves_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_04_physical_keys_01.png', 'Physical Keys vs Changeable Labels', 'v6_05_security_04_physical_keys_01.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_04_physical_keys_01.png" alt="Physical Keys vs Changeable Labels" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Physical Keys vs Changeable Labels</div>
+                        <div class="image-filename">v6_05_security_04_physical_keys_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_04_physical_keys_02.png', 'Physical Keys vs Changeable Labels', 'v6_05_security_04_physical_keys_02.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_04_physical_keys_02.png" alt="Physical Keys vs Changeable Labels" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Physical Keys vs Changeable Labels</div>
+                        <div class="image-filename">v6_05_security_04_physical_keys_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_04_physical_keys_03.png', 'Physical Keys vs Changeable Labels', 'v6_05_security_04_physical_keys_03.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_04_physical_keys_03.png" alt="Physical Keys vs Changeable Labels" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Physical Keys vs Changeable Labels</div>
+                        <div class="image-filename">v6_05_security_04_physical_keys_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_04_physical_keys_04.png', 'Physical Keys vs Changeable Labels', 'v6_05_security_04_physical_keys_04.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_04_physical_keys_04.png" alt="Physical Keys vs Changeable Labels" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Physical Keys vs Changeable Labels</div>
+                        <div class="image-filename">v6_05_security_04_physical_keys_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_04_physical_keys_05.png', 'Physical Keys vs Changeable Labels', 'v6_05_security_04_physical_keys_05.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_04_physical_keys_05.png" alt="Physical Keys vs Changeable Labels" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Physical Keys vs Changeable Labels</div>
+                        <div class="image-filename">v6_05_security_04_physical_keys_05.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_05_root_safe_01.png', 'Running as Root - Safe Operation', 'v6_05_security_05_root_safe_01.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_05_root_safe_01.png" alt="Running as Root - Safe Operation" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Running as Root - Safe Operation</div>
+                        <div class="image-filename">v6_05_security_05_root_safe_01.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_05_root_safe_02.png', 'Running as Root - Safe Operation', 'v6_05_security_05_root_safe_02.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_05_root_safe_02.png" alt="Running as Root - Safe Operation" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Running as Root - Safe Operation</div>
+                        <div class="image-filename">v6_05_security_05_root_safe_02.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_05_root_safe_03.png', 'Running as Root - Safe Operation', 'v6_05_security_05_root_safe_03.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_05_root_safe_03.png" alt="Running as Root - Safe Operation" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Running as Root - Safe Operation</div>
+                        <div class="image-filename">v6_05_security_05_root_safe_03.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_05_root_safe_04.png', 'Running as Root - Safe Operation', 'v6_05_security_05_root_safe_04.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_05_root_safe_04.png" alt="Running as Root - Safe Operation" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Running as Root - Safe Operation</div>
+                        <div class="image-filename">v6_05_security_05_root_safe_04.png</div>
+                    </div>
+                </div>
+
+                <div class="image-card" onclick="openLightbox('docs/images/pirates_v6/v6_05_security_05_root_safe_05.png', 'Running as Root - Safe Operation', 'v6_05_security_05_root_safe_05.png')">
+                    <img src="docs/images/pirates_v6/v6_05_security_05_root_safe_05.png" alt="Running as Root - Safe Operation" loading="lazy">
+                    <div class="image-info">
+                        <div class="image-title">Running as Root - Safe Operation</div>
+                        <div class="image-filename">v6_05_security_05_root_safe_05.png</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
 
     </div>
     
