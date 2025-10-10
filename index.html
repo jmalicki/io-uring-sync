@@ -7,66 +7,11 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
             background: #0a0e27;
             color: #e0e0e0;
-            display: flex;
-        }
-        
-        /* Sticky sidebar navigation */
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 280px;
-            height: 100vh;
-            background: linear-gradient(180deg, #1a1f3a 0%, #0f1428 100%);
-            border-right: 3px solid #4a9eff;
-            overflow-y: auto;
-            padding: 20px;
-            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-        }
-        
-        .sidebar h3 {
-            color: #ffa64d;
-            margin-top: 0;
-            font-size: 1.2em;
-            border-bottom: 2px solid #4a9eff;
-            padding-bottom: 10px;
-        }
-        
-        .sidebar nav a {
-            display: block;
-            padding: 12px 15px;
-            margin: 8px 0;
-            color: #b0b0b0;
-            text-decoration: none;
-            border-radius: 6px;
-            transition: all 0.3s;
-            border-left: 3px solid transparent;
-        }
-        
-        .sidebar nav a:hover {
-            background: #2a3f5a;
-            color: #4a9eff;
-            border-left-color: #4a9eff;
-            transform: translateX(5px);
-        }
-        
-        .sidebar nav a.active {
-            background: #2a3f5a;
-            color: #ffa64d;
-            border-left-color: #ffa64d;
-        }
-        
-        /* Main content area */
-        .content {
-            margin-left: 300px;
-            padding: 20px;
-            max-width: 1400px;
-            flex: 1;
         }
         h1 {
             text-align: center;
@@ -202,28 +147,18 @@
 
 <h2>🏴‍☠️ Hero / Introduction</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h1>arsync</h1><p><strong>arsync</strong> = <strong>a</strong>synchronous <strong>rsync</strong> (the "a" stands for asynchronous, i.e., io_uring)</p><p>High-performance async file copying for Linux - a modern rsync alternative built on io_uring</p><h2>Quick Start</h2><p><pre style="background: #0f1428; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>git clone https://github.com/jmalicki/arsync.git
 cd arsync
 cargo build --release
 arsync -a --source /data --destination /backup</code></pre><p><strong>Requirements</strong>: Linux kernel 5.6+, Rust 1.70+
 </p>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 42</strong><br>
@@ -1224,17 +1159,11 @@ arsync -a --source /data --destination /backup</code></pre><p><strong>Requiremen
 
 <h2>⚡ 1. io_uring: Designed for Modern NVMe Storage</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h3>1. io_uring: Designed for Modern NVMe Storage</h3><p><strong>What is io_uring?</strong> <a href="https://kernel.dk/io_uring.pdf" target="_blank">io_uring</a> is a modern Linux kernel interface (introduced in kernel 5.1, 2019) that provides <strong>asynchronous I/O</strong> through shared ring buffers between userspace and the kernel. Unlike traditional blocking syscalls that require one system call per operation, io_uring lets you submit <strong>batches of I/O operations</strong> without blocking, and the kernel notifies you when they complete. Think of it as a high-speed conveyor belt for I/O requests.</p><p><strong>The Problem:</strong> Modern <a href="https://nvmexpress.org/" target="_blank">NVMe</a> SSDs were designed with <strong>massively parallel command queues</strong> (up to 64K commands per queue, 64K queues) to saturate PCIe bandwidth and exploit the inherent parallelism of flash memory. Traditional blocking syscalls (one thread = one I/O at a time) create a <strong>bottleneck</strong> that wastes this hardware capability *(<a href="docs/NVME_ARCHITECTURE.md" target="_blank">see NVMe architecture deep-dive →</a>)*:
 <ul><li>Each <code style="background: #0f1428; padding: 2px 6px; border-radius: 3px;">read()</code> or <code style="background: #0f1428; padding: 2px 6px; border-radius: 3px;">write()</code> call blocks the thread</li>
 <li>Single-threaded rsync can only issue ~10,000 operations/second</li>
@@ -1248,11 +1177,7 @@ arsync -a --source /data --destination /backup</code></pre><p><strong>Requiremen
 <li><a href="https://man7.org/linux/man-pages/man7/io_uring.7.html" target="_blank">Linux io_uring man page</a> - Official Linux documentation</li>
 <li><a href="https://kernel.dk/io_uring-whatsnew.pdf" target="_blank">Efficient IO with io_uring</a> - Performance characteristics and design goals</li></ul><p>---</p>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 44</strong><br>
@@ -2295,17 +2220,11 @@ arsync -a --source /data --destination /backup</code></pre><p><strong>Requiremen
 
 <h2>⚔️ 2. Security: TOCTOU-Free Metadata Operations</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h3>2. Security: TOCTOU-Free Metadata Operations</h3><p><strong>The Problem:</strong> rsync uses 1980s path-based syscalls (<code style="background: #0f1428; padding: 2px 6px; border-radius: 3px;">chmod</code>, <code style="background: #0f1428; padding: 2px 6px; border-radius: 3px;">lchown</code>) that are <strong>vulnerable to race conditions</strong>:
 <ul><li><strong>CVE-2024-12747</strong>: Symlink race condition allowing privilege escalation (Dec 2024, actively exploited)</li>
 <li><strong>CVE-2007-4476</strong>: Local privilege escalation via symlink attacks</li>
@@ -2320,11 +2239,7 @@ arsync -a --source /data --destination /backup</code></pre><p><strong>Requiremen
 <li><a href="https://man7.org/linux/man-pages/man2/fchmod.2.html" target="_blank">fchmod(2) man page</a> - "avoids race conditions"</li>
 <li><a href="https://man7.org/linux/man-pages/man2/fchown.2.html" target="_blank">fchown(2) man page</a> - "avoids race conditions"</li></ul>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 42</strong><br>
@@ -3325,26 +3240,16 @@ arsync -a --source /data --destination /backup</code></pre><p><strong>Requiremen
 
 <h2>📜 Rust & Memory Safety</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h2>Built with Rust</h2><p>Memory safety without garbage collection - preventing corruption bugs at compile time.
 Zero-cost abstractions with compile-time guarantees.
 </p>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 36</strong><br>
@@ -4135,17 +4040,11 @@ Zero-cost abstractions with compile-time guarantees.
 
 <h2>🔗 5. Hardlinks: Single-Pass Detection</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h3>5. Single-Pass Hardlink Detection</h3><p><strong>The Problem:</strong> rsync's two-pass approach:
 <ul><li>Pre-scan entire tree (15+ seconds for large trees, no progress shown)</li>
 <li>~80 MB memory for inode map</li>
@@ -4155,11 +4054,7 @@ Zero-cost abstractions with compile-time guarantees.
 <li>~8 MB memory (10x less)</li>
 <li><strong>15x faster time-to-first-copy</strong></li></ul>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 20</strong><br>
@@ -4684,17 +4579,11 @@ Zero-cost abstractions with compile-time guarantees.
 
 <h2>🧭 4. Modern Metadata: statx vs stat</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h3>4. Modern Metadata: statx vs stat</h3><p><strong>The Problem:</strong> rsync uses <code style="background: #0f1428; padding: 2px 6px; border-radius: 3px;">stat</code>/<code style="background: #0f1428; padding: 2px 6px; border-radius: 3px;">lstat</code> from the 1970s:
 <ul><li>Microsecond timestamp precision (loses data)</li>
 <li>Blocking syscalls (slows traversal)</li>
@@ -4707,11 +4596,7 @@ Zero-cost abstractions with compile-time guarantees.
 <li><a href="https://lwn.net/Articles/685791/" target="_blank">LWN: The statx() system call</a> - Design rationale and advantages</li>
 <li><a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a528d35e8bfcc521d7cb70aaf03e1bd296c8493f" target="_blank">Linux kernel commit</a> - statx implementation (kernel 4.11, 2017)</li></ul>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 34</strong><br>
@@ -5530,24 +5415,14 @@ Zero-cost abstractions with compile-time guarantees.
 
 <h2>🏁 Benchmarks</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <p>README section not available</p>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 22</strong><br>
@@ -6114,26 +5989,16 @@ Zero-cost abstractions with compile-time guarantees.
 
 <h2>🎯 Progress Reporting</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h2>Progress Reporting</h2><p>Live progress reporting during operations showing files copied, speed, ETA.
 Real-time updates help track large operations.
 </p>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 36</strong><br>
@@ -6938,17 +6803,11 @@ Real-time updates help track large operations.
 
 <h2>📚 Quick Start / Getting Started</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h2>Quick Start</h2><p><pre style="background: #0f1428; padding: 15px; border-radius: 4px; overflow-x: auto;"><code><h1>Install from source</h1>
 git clone https://github.com/jmalicki/arsync.git
 cd arsync
@@ -6956,11 +6815,7 @@ cargo build --release</p><h1>Basic usage</h1>
 arsync -a --source /data --destination /backup</p><h1>With progress</h1>
 arsync -a --source /data --destination /backup --progress</code></pre><p><strong>Requirements</strong>: Linux kernel 5.6+, Rust 1.70+</p>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 29</strong><br>
@@ -7625,27 +7480,17 @@ arsync -a --source /data --destination /backup --progress</code></pre><p><strong
 
 <h2>🙏 Acknowledgments</h2>
 
-<div style="background: linear-gradient(135deg, #1a2540 0%, #0f1933 100%); 
-            border: 3px solid #4a9eff; 
-            border-radius: 12px; 
-            padding: 30px; 
-            margin: 30px 0; 
-            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);">
-    <div style="font-size: 1.3em; font-weight: bold; color: #ffa64d; margin-bottom: 20px; 
-                border-bottom: 2px solid #4a9eff; padding-bottom: 10px;">
-        📖 README Documentation Section
-    </div>
-    <div style="color: #e0e0e0; line-height: 1.9; font-size: 1.05em;">
+<details open style="background: #1a2540; border-left: 5px solid #4a9eff; padding: 20px; margin: 20px 0; border-radius: 8px;">
+    <summary style="cursor: pointer; font-size: 1.1em; font-weight: bold; color: #ffa64d; margin-bottom: 15px;">
+        📖 Full README Section (click to collapse)
+    </summary>
+    <div style="color: #d0d0d0; line-height: 1.8;">
         <h2>Acknowledgments</h2><ul><li><a href="https://kernel.dk/io_uring.pdf" target="_blank">io_uring</a> - Linux kernel asynchronous I/O interface by Jens Axboe</li>
 <li><a href="https://github.com/compio-rs/compio" target="_blank">compio</a> - Completion-based async runtime for Rust</li>
 <li><a href="https://www.rust-lang.org/" target="_blank">Rust</a> - Memory-safe systems programming language</li>
 <li><a href="https://github.com/krbaker" target="_blank">krbaker</a> - Project icon</li></ul>
     </div>
-    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2a3f5a; 
-                color: #888; font-size: 0.9em; font-style: italic;">
-        💡 The artwork below illustrates concepts from this documentation section
-    </div>
-</div>
+</details>
 
 <div class='section-summary'>
     <strong>Total artwork options for this section: 23</strong><br>
